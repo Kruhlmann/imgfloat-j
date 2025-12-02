@@ -19,7 +19,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.security.oauth2.client.registration.twitch.client-id=test-client-id",
+        "spring.security.oauth2.client.registration.twitch.client-secret=test-client-secret"
+})
 @AutoConfigureMockMvc
 class ChannelApiIntegrationTest {
 

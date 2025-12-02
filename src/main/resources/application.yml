@@ -7,6 +7,8 @@ server:
     key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: imgfloat
   thymeleaf:
@@ -16,8 +18,8 @@ spring:
       client:
         registration:
           twitch:
-            client-id: ${TWITCH_CLIENT_ID:changeme}
-            client-secret: ${TWITCH_CLIENT_SECRET:changeme}
+            client-id: ${TWITCH_CLIENT_ID}
+            client-secret: ${TWITCH_CLIENT_SECRET}
             redirect-uri: "{baseUrl}/login/oauth2/code/twitch"
             authorization-grant-type: authorization_code
             scope: ["user:read:email"]
