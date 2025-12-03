@@ -2,11 +2,14 @@ package com.imgfloat.app.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.client.RestTemplate;
 
 @Configuration
 @EnableWebSecurity
@@ -21,9 +24,20 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(Customizer.withDefaults())
+                .oauth2Login(oauth -> oauth
+                        .tokenEndpoint(token -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
+                )
                 .logout(logout -> logout.logoutSuccessUrl("/").permitAll())
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
         return http.build();
+    }
+
+    @Bean
+    OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> twitchAccessTokenResponseClient() {
+        DefaultAuthorizationCodeTokenResponseClient delegate = new DefaultAuthorizationCodeTokenResponseClient();
+        RestTemplate restTemplate = OAuth2RestTemplateFactory.create();
+        restTemplate.setErrorHandler(new TwitchOAuth2ErrorResponseErrorHandler());
+        delegate.setRestOperations(restTemplate);
+        return delegate;
     }
 }
