@@ -3,6 +3,8 @@ package com.imgfloat.app.config;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler;
@@ -20,18 +22,25 @@ import org.springframework.util.StreamUtils;
  */
 class TwitchOAuth2ErrorResponseErrorHandler extends OAuth2ErrorResponseErrorHandler {
 
+    private static final Logger LOG = LoggerFactory.getLogger(TwitchOAuth2ErrorResponseErrorHandler.class);
+
     @Override
     public void handleError(ClientHttpResponse response) throws IOException {
         try {
             super.handleError(response);
         } catch (HttpMessageNotReadableException ex) {
-            throw asAuthorizationException(response, ex);
+            String body = StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8);
+            LOG.warn("Failed to parse Twitch OAuth error response (status: {}, headers: {}): {}",
+                    response.getStatusCode(),
+                    response.getHeaders(),
+                    body.isBlank() ? "<empty body>" : body,
+                    ex);
+            throw asAuthorizationException(body, ex);
         }
     }
 
-    private OAuth2AuthorizationException asAuthorizationException(ClientHttpResponse response,
-                                                                   HttpMessageNotReadableException ex) throws IOException {
-        String body = StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8);
+    private OAuth2AuthorizationException asAuthorizationException(String body,
+                                                                   HttpMessageNotReadableException ex) {
         String description = "Failed to parse Twitch OAuth error response" + (body.isBlank() ? "." : ": " + body);
         OAuth2Error oauth2Error = new OAuth2Error("invalid_token_response", description, null);
         return new OAuth2AuthorizationException(oauth2Error, ex);
