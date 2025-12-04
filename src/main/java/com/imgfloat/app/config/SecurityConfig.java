@@ -26,6 +26,7 @@ public class SecurityConfig {
                 )
                 .oauth2Login(oauth -> oauth
                         .tokenEndpoint(token -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
+                        .userInfoEndpoint(user -> user.userService(twitchOAuth2UserService()))
                 )
                 .logout(logout -> logout.logoutSuccessUrl("/").permitAll())
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
@@ -35,9 +36,15 @@ public class SecurityConfig {
     @Bean
     OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> twitchAccessTokenResponseClient() {
         DefaultAuthorizationCodeTokenResponseClient delegate = new DefaultAuthorizationCodeTokenResponseClient();
+        delegate.setRequestEntityConverter(new TwitchAuthorizationCodeGrantRequestEntityConverter());
         RestTemplate restTemplate = OAuth2RestTemplateFactory.create();
         restTemplate.setErrorHandler(new TwitchOAuth2ErrorResponseErrorHandler());
         delegate.setRestOperations(restTemplate);
         return delegate;
+    }
+
+    @Bean
+    TwitchOAuth2UserService twitchOAuth2UserService() {
+        return new TwitchOAuth2UserService();
     }
 }

@@ -37,4 +37,28 @@ class TwitchEnvironmentValidationTest {
             }
         }
     }
+
+    @Test
+    void stripsQuotesAndWhitespaceFromCredentials() {
+        ConfigurableApplicationContext context = null;
+        try {
+            context = new SpringApplicationBuilder(ImgfloatApplication.class)
+                    .properties(
+                            "server.port=0",
+                            "TWITCH_CLIENT_ID=\"  quoted-id  \"",
+                            "TWITCH_CLIENT_SECRET=' quoted-secret '"
+                    )
+                    .run();
+
+            var clientRegistrationRepository = context.getBean(org.springframework.security.oauth2.client.registration.ClientRegistrationRepository.class);
+            var twitch = clientRegistrationRepository.findByRegistrationId("twitch");
+
+            org.assertj.core.api.Assertions.assertThat(twitch.getClientId()).isEqualTo("quoted-id");
+            org.assertj.core.api.Assertions.assertThat(twitch.getClientSecret()).isEqualTo("quoted-secret");
+        } finally {
+            if (context != null) {
+                context.close();
+            }
+        }
+    }
 }
