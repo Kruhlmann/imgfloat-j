@@ -14,8 +14,10 @@ spring:
   thymeleaf:
     cache: false
   datasource:
-    url: jdbc:sqlite:imgfloat.db
+    url: jdbc:sqlite:imgfloat.db?busy_timeout=5000&journal_mode=WAL
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      connection-init-sql: "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
   jpa:
     hibernate:
       ddl-auto: update
