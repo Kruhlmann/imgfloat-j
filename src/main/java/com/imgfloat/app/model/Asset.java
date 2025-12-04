@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.PreUpdate;
 
 import java.time.Instant;
 import java.util.Locale;
@@ -19,6 +20,9 @@ public class Asset {
     @Column(nullable = false)
     private String broadcaster;
 
+    @Column(nullable = false)
+    private String name;
+
     @Column(columnDefinition = "TEXT")
     private String url;
     private double x;
@@ -32,9 +36,10 @@ public class Asset {
     public Asset() {
     }
 
-    public Asset(String broadcaster, String url, double width, double height) {
+    public Asset(String broadcaster, String name, String url, double width, double height) {
         this.id = UUID.randomUUID().toString();
         this.broadcaster = normalize(broadcaster);
+        this.name = name;
         this.url = url;
         this.width = width;
         this.height = height;
@@ -46,6 +51,7 @@ public class Asset {
     }
 
     @PrePersist
+    @PreUpdate
     public void prepare() {
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
@@ -54,6 +60,9 @@ public class Asset {
             this.createdAt = Instant.now();
         }
         this.broadcaster = normalize(broadcaster);
+        if (this.name == null || this.name.isBlank()) {
+            this.name = this.id;
+        }
     }
 
     public String getId() {
@@ -66,6 +75,14 @@ public class Asset {
 
     public void setBroadcaster(String broadcaster) {
         this.broadcaster = normalize(broadcaster);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getUrl() {

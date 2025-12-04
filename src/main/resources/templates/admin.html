@@ -25,6 +25,32 @@
             <input id="asset-file" type="file" accept="image/*" />
             <button onclick="uploadAsset()">Upload</button>
             <ul id="asset-list" class="asset-list"></ul>
+            <div id="asset-controls" class="panel hidden">
+                <div class="panel-header">
+                    <h4 id="selected-asset-name">Selected asset</h4>
+                    <small id="selected-asset-meta"></small>
+                </div>
+                <div class="control-grid">
+                    <label>
+                        Width
+                        <input id="asset-width" type="number" min="10" step="5" />
+                    </label>
+                    <label>
+                        Height
+                        <input id="asset-height" type="number" min="10" step="5" />
+                    </label>
+                    <label>
+                        Rotation
+                        <input id="asset-rotation" type="range" min="-180" max="180" step="1" />
+                        <div class="range-value" id="rotation-display">0°</div>
+                    </label>
+                </div>
+                <div class="control-actions">
+                    <button type="button" onclick="nudgeRotation(-5)" class="secondary">Rotate -5°</button>
+                    <button type="button" onclick="nudgeRotation(5)" class="secondary">Rotate +5°</button>
+                    <button type="button" onclick="applyTransformFromInputs()">Apply size & rotation</button>
+                </div>
+            </div>
         </div>
     </section>
     <section class="overlay">

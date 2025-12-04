@@ -75,9 +75,13 @@ public class ChannelDirectoryService {
         if (image == null) {
             return Optional.empty();
         }
+        String name = Optional.ofNullable(file.getOriginalFilename())
+                .map(filename -> filename.replaceAll("^.*[/\\\\]", ""))
+                .filter(s -> !s.isBlank())
+                .orElse("Asset " + System.currentTimeMillis());
         String contentType = Optional.ofNullable(file.getContentType()).orElse("application/octet-stream");
         String dataUrl = "data:" + contentType + ";base64," + Base64.getEncoder().encodeToString(bytes);
-        Asset asset = new Asset(channel.getBroadcaster(), dataUrl, image.getWidth(), image.getHeight());
+        Asset asset = new Asset(channel.getBroadcaster(), name, dataUrl, image.getWidth(), image.getHeight());
         assetRepository.save(asset);
         messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, asset));
         return Optional.of(asset);

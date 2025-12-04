@@ -102,6 +102,21 @@ body {
     border: 1px solid #1f2937;
 }
 
+.panel.hidden {
+    display: none;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.panel-header h4 {
+    margin: 0;
+}
+
 .panel ul {
     list-style: none;
     padding: 0;
@@ -128,6 +143,7 @@ body {
     background: #111827;
     border: 1px solid #1f2937;
     cursor: pointer;
+    gap: 12px;
 }
 
 .asset-item.selected {
@@ -152,4 +168,50 @@ body {
 
 .asset-item.hidden {
     opacity: 0.6;
+}
+
+.asset-preview {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.control-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.control-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #cbd5e1;
+}
+
+.control-grid input[type="number"],
+.control-grid input[type="range"] {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #1f2937;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.control-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.range-value {
+    color: #a5b4fc;
+    font-size: 12px;
+    margin-top: -4px;
 }
