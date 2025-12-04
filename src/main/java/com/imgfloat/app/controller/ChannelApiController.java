@@ -2,12 +2,12 @@ package com.imgfloat.app.controller;
 
 import com.imgfloat.app.model.AdminRequest;
 import com.imgfloat.app.model.Asset;
-import com.imgfloat.app.model.AssetRequest;
 import com.imgfloat.app.model.TransformRequest;
 import com.imgfloat.app.model.VisibilityRequest;
 import com.imgfloat.app.service.ChannelDirectoryService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,11 +18,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Collection;
+import java.io.IOException;
 
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @RestController
 @RequestMapping("/api/channels/{broadcaster}")
@@ -82,15 +85,22 @@ public class ChannelApiController {
         return channelDirectoryService.getVisibleAssets(broadcaster);
     }
 
-    @PostMapping("/assets")
+    @PostMapping(value = "/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Asset> createAsset(@PathVariable("broadcaster") String broadcaster,
-                                             @Valid @RequestBody AssetRequest request,
+                                             @org.springframework.web.bind.annotation.RequestPart("file") MultipartFile file,
                                              OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
         ensureAuthorized(broadcaster, login);
-        return channelDirectoryService.createAsset(broadcaster, request)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Channel not found"));
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Asset file is required");
+        }
+        try {
+            return channelDirectoryService.createAsset(broadcaster, file)
+                    .map(ResponseEntity::ok)
+                    .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unable to read image"));
+        } catch (IOException e) {
+            throw new ResponseStatusException(BAD_REQUEST, "Failed to process image", e);
+        }
     }
 
     @PutMapping("/assets/{assetId}/transform")

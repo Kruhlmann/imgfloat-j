@@ -62,13 +62,18 @@ function draw() {
 }
 
 function uploadAsset() {
-    const url = document.getElementById('asset-url').value;
-    const width = parseFloat(document.getElementById('asset-width').value);
-    const height = parseFloat(document.getElementById('asset-height').value);
+    const fileInput = document.getElementById('asset-file');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert('Please choose an image to upload.');
+        return;
+    }
+    const data = new FormData();
+    data.append('file', fileInput.files[0]);
     fetch(`/api/channels/${broadcaster}/assets`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({url, width, height})
+        body: data
+    }).then(() => {
+        fileInput.value = '';
     });
 }
 

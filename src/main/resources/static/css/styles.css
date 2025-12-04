@@ -82,3 +82,21 @@ body {
     overflow: hidden;
     background: transparent;
 }
+
+.panel {
+    margin-top: 24px;
+    padding: 16px;
+    background: #0b1220;
+    border-radius: 10px;
+    border: 1px solid #1f2937;
+}
+
+.panel ul {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0 0;
+}
+
+.panel li {
+    margin: 6px 0;
+}

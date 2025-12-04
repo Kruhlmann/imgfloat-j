@@ -1,7 +1,6 @@
 package com.imgfloat.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.imgfloat.app.model.AssetRequest;
 import com.imgfloat.app.model.VisibilityRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +8,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
+
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+
+import javax.imageio.ImageIO;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
@@ -16,6 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,15 +48,10 @@ class ChannelApiIntegrationTest {
                         .with(oauth2Login().attributes(attrs -> attrs.put("preferred_username", broadcaster))))
                 .andExpect(status().isOk());
 
-        AssetRequest request = new AssetRequest();
-        request.setUrl("https://example.com/image.png");
-        request.setWidth(300);
-        request.setHeight(200);
+        MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png", samplePng());
 
-        String body = objectMapper.writeValueAsString(request);
-        String assetId = objectMapper.readTree(mockMvc.perform(post("/api/channels/{broadcaster}/assets", broadcaster)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)
+        String assetId = objectMapper.readTree(mockMvc.perform(multipart("/api/channels/{broadcaster}/assets", broadcaster)
+                        .file(file)
                         .with(oauth2Login().attributes(attrs -> attrs.put("preferred_username", broadcaster))))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString()).get("id").asText();
@@ -85,5 +87,12 @@ class ChannelApiIntegrationTest {
                         .content("{\"username\":\"helper\"}")
                         .with(oauth2Login().attributes(attrs -> attrs.put("preferred_username", "intruder"))))
                 .andExpect(status().isForbidden());
+    }
+
+    private byte[] samplePng() throws IOException {
+        BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
     }
 }

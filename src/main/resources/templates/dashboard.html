@@ -16,6 +16,17 @@
             <button class="secondary" type="submit">Logout</button>
         </form>
     </div>
+    <div th:if="${adminChannels != null}"
+         class="panel">
+        <h3>Channels you administer</h3>
+        <p th:if="${#lists.isEmpty(adminChannels)}">No admin invitations yet.</p>
+        <ul th:if="${!#lists.isEmpty(adminChannels)}">
+            <li th:each="channelName : ${adminChannels}">
+                <a th:href="@{'/view/' + ${channelName} + '/admin'}"
+                   th:text="${channelName}">channel</a>
+            </li>
+        </ul>
+    </div>
 </div>
 </body>
 </html>

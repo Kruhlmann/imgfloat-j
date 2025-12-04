@@ -22,6 +22,7 @@ public class ViewController {
             String login = TwitchUser.from(authentication).login();
             model.addAttribute("username", login);
             model.addAttribute("channel", login);
+            model.addAttribute("adminChannels", channelDirectoryService.adminChannelsFor(login));
             return "dashboard";
         }
         return "index";
