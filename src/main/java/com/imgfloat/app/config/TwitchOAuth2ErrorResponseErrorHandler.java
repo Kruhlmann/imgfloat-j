@@ -1,6 +1,7 @@
 package com.imgfloat.app.config;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 import org.slf4j.Logger;
@@ -26,23 +27,72 @@ class TwitchOAuth2ErrorResponseErrorHandler extends OAuth2ErrorResponseErrorHand
 
     @Override
     public void handleError(ClientHttpResponse response) throws IOException {
+        byte[] bodyBytes = StreamUtils.copyToByteArray(response.getBody());
+        String body = new String(bodyBytes, StandardCharsets.UTF_8);
+
+        if (body.isBlank()) {
+            LOG.warn("Failed to parse Twitch OAuth error response (status: {}, headers: {}): <empty body>",
+                    response.getStatusCode(),
+                    response.getHeaders());
+            throw asAuthorizationException(body, null);
+        }
+
         try {
-            super.handleError(response);
-        } catch (HttpMessageNotReadableException ex) {
-            String body = StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8);
+            super.handleError(new CachedBodyClientHttpResponse(response, bodyBytes));
+        } catch (HttpMessageNotReadableException | IllegalArgumentException ex) {
             LOG.warn("Failed to parse Twitch OAuth error response (status: {}, headers: {}): {}",
                     response.getStatusCode(),
                     response.getHeaders(),
-                    body.isBlank() ? "<empty body>" : body,
+                    body,
                     ex);
             throw asAuthorizationException(body, ex);
         }
     }
 
-    private OAuth2AuthorizationException asAuthorizationException(String body,
-                                                                   HttpMessageNotReadableException ex) {
+    private OAuth2AuthorizationException asAuthorizationException(String body, Exception ex) {
         String description = "Failed to parse Twitch OAuth error response" + (body.isBlank() ? "." : ": " + body);
         OAuth2Error oauth2Error = new OAuth2Error("invalid_token_response", description, null);
         return new OAuth2AuthorizationException(oauth2Error, ex);
+    }
+
+    private static final class CachedBodyClientHttpResponse implements ClientHttpResponse {
+
+        private final ClientHttpResponse delegate;
+        private final byte[] body;
+
+        private CachedBodyClientHttpResponse(ClientHttpResponse delegate, byte[] body) {
+            this.delegate = delegate;
+            this.body = body;
+        }
+
+        @Override
+        public org.springframework.http.HttpStatusCode getStatusCode() throws IOException {
+            return delegate.getStatusCode();
+        }
+
+        @Override
+        public int getRawStatusCode() throws IOException {
+            return delegate.getRawStatusCode();
+        }
+
+        @Override
+        public String getStatusText() throws IOException {
+            return delegate.getStatusText();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public java.io.InputStream getBody() throws IOException {
+            return new ByteArrayInputStream(body);
+        }
+
+        @Override
+        public org.springframework.http.HttpHeaders getHeaders() {
+            return delegate.getHeaders();
+        }
     }
 }
