@@ -54,11 +54,26 @@
                         Muted (videos)
                     </label>
                 </div>
+                <div class="control-grid">
+                    <label>
+                        Layer (Z)
+                        <div class="badge-row">
+                            <span id="asset-z-level" class="badge">0</span>
+                            <span id="asset-type-label" class="badge subtle"></span>
+                        </div>
+                    </label>
+                </div>
                 <div class="control-actions">
                     <button type="button" onclick="nudgeRotation(-5)" class="secondary">Rotate left</button>
                     <button type="button" onclick="nudgeRotation(5)" class="secondary">Rotate right</button>
                     <button type="button" onclick="applyTransformFromInputs()">Apply size</button>
                     <button type="button" onclick="recenterSelectedAsset()" class="secondary">Re-center asset</button>
+                </div>
+                <div class="control-actions">
+                    <button type="button" onclick="sendToBack()" class="secondary">Send to back</button>
+                    <button type="button" onclick="bringBackward()" class="secondary">Bring backward</button>
+                    <button type="button" onclick="bringForward()" class="secondary">Bring forward</button>
+                    <button type="button" onclick="bringToFront()" class="secondary">Bring to front</button>
                 </div>
             </div>
         </div>

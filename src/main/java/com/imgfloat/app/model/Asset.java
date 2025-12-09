@@ -33,6 +33,8 @@ public class Asset {
     private Double speed;
     private Boolean muted;
     private String mediaType;
+    private String originalMediaType;
+    private Integer zIndex;
     private boolean hidden;
     private Instant createdAt;
 
@@ -51,6 +53,7 @@ public class Asset {
         this.rotation = 0;
         this.speed = 1.0;
         this.muted = false;
+        this.zIndex = 0;
         this.hidden = false;
         this.createdAt = Instant.now();
     }
@@ -73,6 +76,9 @@ public class Asset {
         }
         if (this.muted == null) {
             this.muted = Boolean.FALSE;
+        }
+        if (this.zIndex == null) {
+            this.zIndex = 0;
         }
     }
 
@@ -168,6 +174,14 @@ public class Asset {
         this.mediaType = mediaType;
     }
 
+    public String getOriginalMediaType() {
+        return originalMediaType;
+    }
+
+    public void setOriginalMediaType(String originalMediaType) {
+        this.originalMediaType = originalMediaType;
+    }
+
     public boolean isVideo() {
         return mediaType != null && mediaType.toLowerCase(Locale.ROOT).startsWith("video/");
     }
@@ -186,6 +200,14 @@ public class Asset {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getZIndex() {
+        return zIndex == null ? 0 : zIndex;
+    }
+
+    public void setZIndex(Integer zIndex) {
+        this.zIndex = zIndex;
     }
 
     private static String normalize(String value) {

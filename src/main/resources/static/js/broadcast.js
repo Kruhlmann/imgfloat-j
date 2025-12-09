@@ -6,6 +6,7 @@ canvas.height = canvasSettings.height;
 const assets = new Map();
 const mediaCache = new Map();
 const renderStates = new Map();
+const animatedCache = new Map();
 let animationFrameId = null;
 
 function connect() {
@@ -51,14 +52,14 @@ function resizeCanvas() {
 function handleEvent(event) {
     if (event.type === 'DELETED') {
         assets.delete(event.assetId);
-        mediaCache.delete(event.assetId);
+        clearMedia(event.assetId);
         renderStates.delete(event.assetId);
     } else if (event.payload && !event.payload.hidden) {
         assets.set(event.payload.id, event.payload);
         ensureMedia(event.payload);
     } else if (event.payload && event.payload.hidden) {
         assets.delete(event.payload.id);
-        mediaCache.delete(event.payload.id);
+        clearMedia(event.payload.id);
         renderStates.delete(event.payload.id);
     }
     draw();
@@ -66,7 +67,20 @@ function handleEvent(event) {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    assets.forEach(drawAsset);
+    getZOrderedAssets().forEach(drawAsset);
+}
+
+function getZOrderedAssets() {
+    return Array.from(assets.values()).sort(zComparator);
+}
+
+function zComparator(a, b) {
+    const aZ = a?.zIndex ?? 0;
+    const bZ = b?.zIndex ?? 0;
+    if (aZ !== bZ) {
+        return aZ - bZ;
+    }
+    return new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
 }
 
 function drawAsset(asset) {
@@ -78,9 +92,10 @@ function drawAsset(asset) {
     ctx.rotate(renderState.rotation * Math.PI / 180);
 
     const media = ensureMedia(asset);
-    const ready = media && (isVideoElement(media) ? media.readyState >= 2 : media.complete);
+    const drawSource = media?.isAnimated ? media.bitmap : media;
+    const ready = isDrawable(media);
     if (ready) {
-        ctx.drawImage(media, -halfWidth, -halfHeight, renderState.width, renderState.height);
+        ctx.drawImage(drawSource, -halfWidth, -halfHeight, renderState.width, renderState.height);
     }
 
     ctx.restore();
@@ -117,11 +132,51 @@ function isVideoElement(element) {
     return element && element.tagName === 'VIDEO';
 }
 
+function isGifAsset(asset) {
+    return (asset.mediaType && asset.mediaType.toLowerCase() === 'image/gif') || asset.url?.startsWith('data:image/gif');
+}
+
+function isDrawable(element) {
+    if (!element) {
+        return false;
+    }
+    if (element.isAnimated) {
+        return !!element.bitmap;
+    }
+    if (isVideoElement(element)) {
+        return element.readyState >= 2;
+    }
+    if (typeof ImageBitmap !== 'undefined' && element instanceof ImageBitmap) {
+        return true;
+    }
+    return !!element.complete;
+}
+
+function clearMedia(assetId) {
+    mediaCache.delete(assetId);
+    const animated = animatedCache.get(assetId);
+    if (animated) {
+        animated.cancelled = true;
+        clearTimeout(animated.timeout);
+        animated.bitmap?.close?.();
+        animated.decoder?.close?.();
+        animatedCache.delete(assetId);
+    }
+}
+
 function ensureMedia(asset) {
     const cached = mediaCache.get(asset.id);
     if (cached && cached.src === asset.url) {
         applyMediaSettings(cached, asset);
         return cached;
+    }
+
+    if (isGifAsset(asset) && 'ImageDecoder' in window) {
+        const animated = ensureAnimatedImage(asset);
+        if (animated) {
+            mediaCache.set(asset.id, animated);
+            return animated;
+        }
     }
 
     const element = isVideoAsset(asset) ? document.createElement('video') : new Image();
@@ -140,6 +195,84 @@ function ensureMedia(asset) {
     }
     mediaCache.set(asset.id, element);
     return element;
+}
+
+function ensureAnimatedImage(asset) {
+    const cached = animatedCache.get(asset.id);
+    if (cached && cached.url === asset.url) {
+        return cached;
+    }
+
+    if (cached) {
+        clearMedia(asset.id);
+    }
+
+    const controller = {
+        id: asset.id,
+        url: asset.url,
+        src: asset.url,
+        decoder: null,
+        bitmap: null,
+        timeout: null,
+        cancelled: false,
+        isAnimated: true
+    };
+
+    fetch(asset.url)
+        .then((r) => r.blob())
+        .then((blob) => new ImageDecoder({ data: blob, type: blob.type || 'image/gif' }))
+        .then((decoder) => {
+            if (controller.cancelled) {
+                decoder.close?.();
+                return null;
+            }
+            controller.decoder = decoder;
+            scheduleNextFrame(controller);
+            return controller;
+        })
+        .catch(() => {
+            animatedCache.delete(asset.id);
+        });
+
+    animatedCache.set(asset.id, controller);
+    return controller;
+}
+
+function scheduleNextFrame(controller) {
+    if (controller.cancelled || !controller.decoder) {
+        return;
+    }
+    controller.decoder.decode().then(({ image, complete }) => {
+        if (controller.cancelled) {
+            image.close?.();
+            return;
+        }
+        controller.bitmap?.close?.();
+        createImageBitmap(image)
+            .then((bitmap) => {
+                controller.bitmap = bitmap;
+                draw();
+            })
+            .finally(() => image.close?.());
+
+        const durationMicros = image.duration || 0;
+        const delay = durationMicros > 0 ? durationMicros / 1000 : 100;
+        const hasMore = !complete;
+        controller.timeout = setTimeout(() => {
+            if (controller.cancelled) {
+                return;
+            }
+            if (hasMore) {
+                scheduleNextFrame(controller);
+            } else {
+                controller.decoder.reset();
+                scheduleNextFrame(controller);
+            }
+        }, delay);
+    }).catch(() => {
+        // If decoding fails, clear animated cache so static fallback is used next render
+        animatedCache.delete(controller.id);
+    });
 }
 
 function applyMediaSettings(element, asset) {

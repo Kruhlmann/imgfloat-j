@@ -10,6 +10,7 @@ import com.imgfloat.app.repository.AssetRepository;
 import com.imgfloat.app.repository.ChannelRepository;
 import org.jcodec.api.FrameGrab;
 import org.jcodec.api.JCodecException;
+import org.jcodec.api.awt.AWTSequenceEncoder;
 import org.jcodec.common.io.ByteBufferSeekableByteChannel;
 import org.jcodec.common.model.Picture;
 import org.slf4j.Logger;
@@ -21,21 +22,30 @@ import org.springframework.web.multipart.MultipartFile;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.IIOImage;
+import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageOutputStream;
+import javax.imageio.stream.ImageInputStream;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 @Service
 public class ChannelDirectoryService {
+    private static final int MIN_GIF_DELAY_MS = 20;
     private static final Logger logger = LoggerFactory.getLogger(ChannelDirectoryService.class);
     private final ChannelRepository channelRepository;
     private final AssetRepository assetRepository;
@@ -76,11 +86,11 @@ public class ChannelDirectoryService {
     }
 
     public Collection<Asset> getAssetsForAdmin(String broadcaster) {
-        return assetRepository.findByBroadcaster(normalize(broadcaster));
+        return sortByZIndex(assetRepository.findByBroadcaster(normalize(broadcaster)));
     }
 
     public Collection<Asset> getVisibleAssets(String broadcaster) {
-        return assetRepository.findByBroadcasterAndHiddenFalse(normalize(broadcaster));
+        return sortByZIndex(assetRepository.findByBroadcasterAndHiddenFalse(normalize(broadcaster)));
     }
 
     public CanvasSettingsRequest getCanvasSettings(String broadcaster) {
@@ -115,9 +125,11 @@ public class ChannelDirectoryService {
         double width = optimized.width() > 0 ? optimized.width() : 640;
         double height = optimized.height() > 0 ? optimized.height() : 360;
         Asset asset = new Asset(channel.getBroadcaster(), name, dataUrl, width, height);
+        asset.setOriginalMediaType(mediaType);
         asset.setMediaType(optimized.mediaType());
         asset.setSpeed(1.0);
         asset.setMuted(optimized.mediaType().startsWith("video/"));
+        asset.setZIndex(nextZIndex(channel.getBroadcaster()));
 
         assetRepository.save(asset);
         messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, asset));
@@ -134,6 +146,9 @@ public class ChannelDirectoryService {
                     asset.setWidth(request.getWidth());
                     asset.setHeight(request.getHeight());
                     asset.setRotation(request.getRotation());
+                    if (request.getZIndex() != null) {
+                        asset.setZIndex(request.getZIndex());
+                    }
                     if (request.getSpeed() != null && request.getSpeed() > 0) {
                         asset.setSpeed(request.getSpeed());
                     }
@@ -200,6 +215,20 @@ public class ChannelDirectoryService {
         return value == null ? null : value.toLowerCase();
     }
 
+    private List<Asset> sortByZIndex(Collection<Asset> assets) {
+        return assets.stream()
+                .sorted(Comparator.comparingInt(Asset::getZIndex)
+                        .thenComparing(Asset::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private int nextZIndex(String broadcaster) {
+        return assetRepository.findByBroadcaster(normalize(broadcaster)).stream()
+                .mapToInt(Asset::getZIndex)
+                .max()
+                .orElse(0) + 1;
+    }
+
     private String detectMediaType(MultipartFile file, byte[] bytes) {
         String contentType = Optional.ofNullable(file.getContentType()).orElse("application/octet-stream");
         if (!"application/octet-stream".equals(contentType) && !contentType.isBlank()) {
@@ -230,6 +259,13 @@ public class ChannelDirectoryService {
     }
 
     private OptimizedAsset optimizeAsset(byte[] bytes, String mediaType) throws IOException {
+        if ("image/gif".equalsIgnoreCase(mediaType)) {
+            OptimizedAsset transcoded = transcodeGifToVideo(bytes);
+            if (transcoded != null) {
+                return transcoded;
+            }
+        }
+
         if (mediaType.startsWith("image/") && !"image/gif".equalsIgnoreCase(mediaType)) {
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
             if (image == null) {
@@ -257,6 +293,99 @@ public class ChannelDirectoryService {
             return new OptimizedAsset(bytes, mediaType, image.getWidth(), image.getHeight());
         }
         return null;
+    }
+
+    private OptimizedAsset transcodeGifToVideo(byte[] bytes) {
+        try {
+            List<GifFrame> frames = readGifFrames(bytes);
+            if (frames.isEmpty()) {
+                return null;
+            }
+            int baseDelay = frames.stream()
+                    .mapToInt(frame -> normalizeDelay(frame.delayMs()))
+                    .reduce(this::greatestCommonDivisor)
+                    .orElse(100);
+            int fps = Math.max(1, (int) Math.round(1000.0 / baseDelay));
+            File temp = File.createTempFile("gif-convert", ".mp4");
+            temp.deleteOnExit();
+            try {
+                AWTSequenceEncoder encoder = AWTSequenceEncoder.createSequenceEncoder(temp, fps);
+                for (GifFrame frame : frames) {
+                    int repeats = Math.max(1, normalizeDelay(frame.delayMs()) / baseDelay);
+                    for (int i = 0; i < repeats; i++) {
+                        encoder.encodeImage(frame.image());
+                    }
+                }
+                encoder.finish();
+                BufferedImage cover = frames.get(0).image();
+                byte[] video = Files.readAllBytes(temp.toPath());
+                return new OptimizedAsset(video, "video/mp4", cover.getWidth(), cover.getHeight());
+            } finally {
+                Files.deleteIfExists(temp.toPath());
+            }
+        } catch (IOException e) {
+            logger.warn("Unable to transcode GIF to video", e);
+            return null;
+        }
+    }
+
+    private List<GifFrame> readGifFrames(byte[] bytes) throws IOException {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            var readers = ImageIO.getImageReadersByFormatName("gif");
+            if (!readers.hasNext()) {
+                return List.of();
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(stream, false, false);
+                int count = reader.getNumImages(true);
+                var frames = new java.util.ArrayList<GifFrame>(count);
+                for (int i = 0; i < count; i++) {
+                    BufferedImage image = reader.read(i);
+                    IIOMetadata metadata = reader.getImageMetadata(i);
+                    int delay = extractDelayMs(metadata);
+                    frames.add(new GifFrame(image, delay));
+                }
+                return frames;
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private int extractDelayMs(IIOMetadata metadata) {
+        if (metadata == null) {
+            return 100;
+        }
+        try {
+            String format = metadata.getNativeMetadataFormatName();
+            Node root = metadata.getAsTree(format);
+            NodeList children = root.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                Node node = children.item(i);
+                if ("GraphicControlExtension".equals(node.getNodeName()) && node.getAttributes() != null) {
+                    Node delay = node.getAttributes().getNamedItem("delayTime");
+                    if (delay != null) {
+                        int hundredths = Integer.parseInt(delay.getNodeValue());
+                        return Math.max(hundredths * 10, MIN_GIF_DELAY_MS);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Unable to parse GIF delay", e);
+        }
+        return 100;
+    }
+
+    private int normalizeDelay(int delayMs) {
+        return Math.max(delayMs, MIN_GIF_DELAY_MS);
+    }
+
+    private int greatestCommonDivisor(int a, int b) {
+        if (b == 0) {
+            return Math.max(a, 1);
+        }
+        return greatestCommonDivisor(b, a % b);
     }
 
     private byte[] compressPng(BufferedImage image) throws IOException {
@@ -298,6 +427,8 @@ public class ChannelDirectoryService {
     }
 
     private record OptimizedAsset(byte[] bytes, String mediaType, int width, int height) { }
+
+    private record GifFrame(BufferedImage image, int delayMs) { }
 
     private record Dimension(int width, int height) { }
 }

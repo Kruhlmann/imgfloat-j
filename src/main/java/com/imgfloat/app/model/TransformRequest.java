@@ -8,6 +8,7 @@ public class TransformRequest {
     private double rotation;
     private Double speed;
     private Boolean muted;
+    private Integer zIndex;
 
     public double getX() {
         return x;
@@ -63,5 +64,13 @@ public class TransformRequest {
 
     public void setMuted(Boolean muted) {
         this.muted = muted;
+    }
+
+    public Integer getZIndex() {
+        return zIndex;
+    }
+
+    public void setZIndex(Integer zIndex) {
+        this.zIndex = zIndex;
     }
 }

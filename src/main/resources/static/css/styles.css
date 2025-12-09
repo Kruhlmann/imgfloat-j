@@ -172,6 +172,14 @@ body {
     border-color: rgba(148, 163, 184, 0.2);
 }
 
+.badge-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 6px;
+}
+
 .feature-list {
     list-style: none;
     padding: 0;

@@ -9,6 +9,7 @@ canvas.height = canvasSettings.height;
 const assets = new Map();
 const mediaCache = new Map();
 const renderStates = new Map();
+const animatedCache = new Map();
 let selectedAssetId = null;
 let interactionState = null;
 let animationFrameId = null;
@@ -24,6 +25,8 @@ const speedInput = document.getElementById('asset-speed');
 const muteInput = document.getElementById('asset-muted');
 const selectedAssetName = document.getElementById('selected-asset-name');
 const selectedAssetMeta = document.getElementById('selected-asset-meta');
+const selectedZLabel = document.getElementById('asset-z-level');
+const selectedTypeLabel = document.getElementById('asset-type-label');
 const aspectLockState = new Map();
 
 if (widthInput) widthInput.addEventListener('input', () => handleSizeInputChange('width'));
@@ -88,7 +91,7 @@ function renderAssets(list) {
 function handleEvent(event) {
     if (event.type === 'DELETED') {
         assets.delete(event.assetId);
-        mediaCache.delete(event.assetId);
+        clearMedia(event.assetId);
         renderStates.delete(event.assetId);
         if (selectedAssetId === event.assetId) {
             selectedAssetId = null;
@@ -107,7 +110,20 @@ function drawAndList() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    assets.forEach((asset) => drawAsset(asset));
+    getZOrderedAssets().forEach((asset) => drawAsset(asset));
+}
+
+function getZOrderedAssets() {
+    return Array.from(assets.values()).sort(zComparator);
+}
+
+function zComparator(a, b) {
+    const aZ = a?.zIndex ?? 0;
+    const bZ = b?.zIndex ?? 0;
+    if (aZ !== bZ) {
+        return aZ - bZ;
+    }
+    return new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
 }
 
 function drawAsset(asset) {
@@ -119,10 +135,11 @@ function drawAsset(asset) {
     ctx.rotate(renderState.rotation * Math.PI / 180);
 
     const media = ensureMedia(asset);
-    const ready = media && (isVideoElement(media) ? media.readyState >= 2 : media.complete);
+    const drawSource = media?.isAnimated ? media.bitmap : media;
+    const ready = isDrawable(media);
     if (ready) {
         ctx.globalAlpha = asset.hidden ? 0.35 : 0.9;
-        ctx.drawImage(media, -halfWidth, -halfHeight, renderState.width, renderState.height);
+        ctx.drawImage(drawSource, -halfWidth, -halfHeight, renderState.width, renderState.height);
     } else {
         ctx.globalAlpha = asset.hidden ? 0.2 : 0.4;
         ctx.fillStyle = 'rgba(124, 58, 237, 0.35)';
@@ -375,11 +392,60 @@ function isVideoElement(element) {
     return element && element.tagName === 'VIDEO';
 }
 
+function getDisplayMediaType(asset) {
+    const raw = asset.originalMediaType || asset.mediaType || '';
+    if (!raw) {
+        return 'Unknown';
+    }
+    const parts = raw.split('/');
+    return parts.length > 1 ? parts[1].toUpperCase() : raw.toUpperCase();
+}
+
+function isGifAsset(asset) {
+    return (asset.mediaType && asset.mediaType.toLowerCase() === 'image/gif') || asset.url?.startsWith('data:image/gif');
+}
+
+function isDrawable(element) {
+    if (!element) {
+        return false;
+    }
+    if (element.isAnimated) {
+        return !!element.bitmap;
+    }
+    if (isVideoElement(element)) {
+        return element.readyState >= 2;
+    }
+    if (typeof ImageBitmap !== 'undefined' && element instanceof ImageBitmap) {
+        return true;
+    }
+    return !!element.complete;
+}
+
+function clearMedia(assetId) {
+    mediaCache.delete(assetId);
+    const animated = animatedCache.get(assetId);
+    if (animated) {
+        animated.cancelled = true;
+        clearTimeout(animated.timeout);
+        animated.bitmap?.close?.();
+        animated.decoder?.close?.();
+        animatedCache.delete(assetId);
+    }
+}
+
 function ensureMedia(asset) {
     const cached = mediaCache.get(asset.id);
     if (cached && cached.src === asset.url) {
         applyMediaSettings(cached, asset);
         return cached;
+    }
+
+    if (isGifAsset(asset) && 'ImageDecoder' in window) {
+        const animated = ensureAnimatedImage(asset);
+        if (animated) {
+            mediaCache.set(asset.id, animated);
+            return animated;
+        }
     }
 
     const element = isVideoAsset(asset) ? document.createElement('video') : new Image();
@@ -398,6 +464,83 @@ function ensureMedia(asset) {
     }
     mediaCache.set(asset.id, element);
     return element;
+}
+
+function ensureAnimatedImage(asset) {
+    const cached = animatedCache.get(asset.id);
+    if (cached && cached.url === asset.url) {
+        return cached;
+    }
+
+    if (cached) {
+        clearMedia(asset.id);
+    }
+
+    const controller = {
+        id: asset.id,
+        url: asset.url,
+        src: asset.url,
+        decoder: null,
+        bitmap: null,
+        timeout: null,
+        cancelled: false,
+        isAnimated: true
+    };
+
+    fetch(asset.url)
+        .then((r) => r.blob())
+        .then((blob) => new ImageDecoder({ data: blob, type: blob.type || 'image/gif' }))
+        .then((decoder) => {
+            if (controller.cancelled) {
+                decoder.close?.();
+                return null;
+            }
+            controller.decoder = decoder;
+            scheduleNextFrame(controller);
+            return controller;
+        })
+        .catch(() => {
+            animatedCache.delete(asset.id);
+        });
+
+    animatedCache.set(asset.id, controller);
+    return controller;
+}
+
+function scheduleNextFrame(controller) {
+    if (controller.cancelled || !controller.decoder) {
+        return;
+    }
+    controller.decoder.decode().then(({ image, complete }) => {
+        if (controller.cancelled) {
+            image.close?.();
+            return;
+        }
+        controller.bitmap?.close?.();
+        createImageBitmap(image)
+            .then((bitmap) => {
+                controller.bitmap = bitmap;
+                draw();
+            })
+            .finally(() => image.close?.());
+
+        const durationMicros = image.duration || 0;
+        const delay = durationMicros > 0 ? durationMicros / 1000 : 100;
+        const hasMore = !complete;
+        controller.timeout = setTimeout(() => {
+            if (controller.cancelled) {
+                return;
+            }
+            if (hasMore) {
+                scheduleNextFrame(controller);
+            } else {
+                controller.decoder.reset();
+                scheduleNextFrame(controller);
+            }
+        }, delay);
+    }).catch(() => {
+        animatedCache.delete(controller.id);
+    });
 }
 
 function applyMediaSettings(element, asset) {
@@ -429,9 +572,7 @@ function renderAssetList() {
         return;
     }
 
-    const sortedAssets = Array.from(assets.values()).sort(
-        (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-    );
+    const sortedAssets = getZOrderedAssets().reverse();
     sortedAssets.forEach((asset) => {
         const li = document.createElement('li');
         li.className = 'asset-item';
@@ -449,7 +590,7 @@ function renderAssetList() {
         const name = document.createElement('strong');
         name.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
         const details = document.createElement('small');
-        details.textContent = `${Math.round(asset.width)}x${Math.round(asset.height)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
+        details.textContent = `Z ${asset.zIndex ?? 0} · ${Math.round(asset.width)}x${Math.round(asset.height)} · ${getDisplayMediaType(asset)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
         meta.appendChild(name);
         meta.appendChild(details);
 
@@ -530,7 +671,13 @@ function updateSelectedAssetControls() {
     controlsPanel.classList.remove('hidden');
     lastSizeInputChanged = null;
     selectedAssetName.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
-    selectedAssetMeta.textContent = `${Math.round(asset.width)}x${Math.round(asset.height)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
+    selectedAssetMeta.textContent = `Z ${asset.zIndex ?? 0} · ${Math.round(asset.width)}x${Math.round(asset.height)} · ${getDisplayMediaType(asset)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
+    if (selectedZLabel) {
+        selectedZLabel.textContent = asset.zIndex ?? 0;
+    }
+    if (selectedTypeLabel) {
+        selectedTypeLabel.textContent = getDisplayMediaType(asset);
+    }
 
     if (widthInput) widthInput.value = Math.round(asset.width);
     if (heightInput) heightInput.value = Math.round(asset.height);
@@ -615,6 +762,56 @@ function recenterSelectedAsset() {
     asset.y = centerY;
     renderStates.set(asset.id, { ...asset });
     persistTransform(asset);
+    drawAndList();
+}
+
+function bringForward() {
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getZOrderedAssets();
+    const index = ordered.findIndex((item) => item.id === asset.id);
+    if (index === -1 || index === ordered.length - 1) return;
+    [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]];
+    applyZOrder(ordered);
+}
+
+function bringBackward() {
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getZOrderedAssets();
+    const index = ordered.findIndex((item) => item.id === asset.id);
+    if (index <= 0) return;
+    [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]];
+    applyZOrder(ordered);
+}
+
+function bringToFront() {
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getZOrderedAssets().filter((item) => item.id !== asset.id);
+    ordered.push(asset);
+    applyZOrder(ordered);
+}
+
+function sendToBack() {
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getZOrderedAssets().filter((item) => item.id !== asset.id);
+    ordered.unshift(asset);
+    applyZOrder(ordered);
+}
+
+function applyZOrder(ordered) {
+    const changed = [];
+    ordered.forEach((item, index) => {
+        if ((item.zIndex ?? 0) !== index) {
+            item.zIndex = index;
+            changed.push(item);
+        }
+        assets.set(item.id, item);
+        renderStates.set(item.id, { ...item });
+    });
+    changed.forEach((item) => persistTransform(item, true));
     drawAndList();
 }
 
@@ -726,11 +923,11 @@ function isPointOnAsset(asset, x, y) {
 }
 
 function findAssetAtPoint(x, y) {
-    const ordered = Array.from(assets.values()).reverse();
+    const ordered = getZOrderedAssets().reverse();
     return ordered.find((asset) => isPointOnAsset(asset, x, y)) || null;
 }
 
-function persistTransform(asset) {
+function persistTransform(asset, silent = false) {
     fetch(`/api/channels/${broadcaster}/assets/${asset.id}/transform`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -741,11 +938,14 @@ function persistTransform(asset) {
             height: asset.height,
             rotation: asset.rotation,
             speed: asset.speed,
-            muted: asset.muted
+            muted: asset.muted,
+            zIndex: asset.zIndex
         })
     }).then((r) => r.json()).then((updated) => {
         assets.set(updated.id, updated);
-        drawAndList();
+        if (!silent) {
+            drawAndList();
+        }
     });
 }
 
