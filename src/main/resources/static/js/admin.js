@@ -28,6 +28,7 @@ const muteInput = document.getElementById('asset-muted');
 const selectedZLabel = document.getElementById('asset-z-level');
 const playbackSection = document.getElementById('playback-section');
 const controlsPlaceholder = document.getElementById('asset-controls-placeholder');
+const fileNameLabel = document.getElementById('asset-file-name');
 const aspectLockState = new Map();
 const commitSizeChange = debounce(() => applyTransformFromInputs(), 180);
 
@@ -102,8 +103,10 @@ function renderAssets(list) {
 function storeAsset(asset) {
     if (!asset) return;
     asset.zIndex = Math.max(1, asset.zIndex ?? 1);
-    if (asset.createdAt && typeof asset.createdAtMs === 'undefined') {
-        asset.createdAtMs = new Date(asset.createdAt).getTime();
+    const parsedCreatedAt = asset.createdAt ? new Date(asset.createdAt).getTime() : NaN;
+    const hasCreatedAtMs = typeof asset.createdAtMs === 'number' && Number.isFinite(asset.createdAtMs);
+    if (!hasCreatedAtMs) {
+        asset.createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
     }
     assets.set(asset.id, asset);
     zOrderDirty = true;
@@ -175,6 +178,10 @@ function zComparator(a, b) {
         return aZ - bZ;
     }
     return (a?.createdAtMs || 0) - (b?.createdAtMs || 0);
+}
+
+function getChronologicalAssets() {
+    return Array.from(assets.values()).sort((a, b) => (a?.createdAtMs || 0) - (b?.createdAtMs || 0));
 }
 
 function drawAsset(asset) {
@@ -626,7 +633,7 @@ function renderAssetList() {
         return;
     }
 
-    const sortedAssets = getZOrderedAssets().reverse();
+    const sortedAssets = getChronologicalAssets();
     sortedAssets.forEach((asset) => {
         const li = document.createElement('li');
         li.className = 'asset-item';
@@ -854,7 +861,7 @@ function recenterSelectedAsset() {
 function bringForward() {
     const asset = getSelectedAsset();
     if (!asset) return;
-    const ordered = getZOrderedAssets();
+    const ordered = [...getZOrderedAssets()];
     const index = ordered.findIndex((item) => item.id === asset.id);
     if (index === -1 || index === ordered.length - 1) return;
     [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]];
@@ -864,7 +871,7 @@ function bringForward() {
 function bringBackward() {
     const asset = getSelectedAsset();
     if (!asset) return;
-    const ordered = getZOrderedAssets();
+    const ordered = [...getZOrderedAssets()];
     const index = ordered.findIndex((item) => item.id === asset.id);
     if (index <= 0) return;
     [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]];
@@ -987,6 +994,14 @@ function deleteAsset(asset) {
     });
 }
 
+function handleFileSelection(input) {
+    if (!input) return;
+    const name = input.files && input.files.length ? input.files[0].name : '';
+    if (fileNameLabel) {
+        fileNameLabel.textContent = name || 'No file chosen';
+    }
+}
+
 function uploadAsset() {
     const fileInput = document.getElementById('asset-file');
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
@@ -1000,6 +1015,7 @@ function uploadAsset() {
         body: data
     }).then(() => {
         fileInput.value = '';
+        handleFileSelection(fileInput);
     });
 }
 
@@ -1027,7 +1043,7 @@ function isPointOnAsset(asset, x, y) {
 }
 
 function findAssetAtPoint(x, y) {
-    const ordered = getZOrderedAssets().reverse();
+    const ordered = [...getZOrderedAssets()].reverse();
     return ordered.find((asset) => isPointOnAsset(asset, x, y)) || null;
 }
 
