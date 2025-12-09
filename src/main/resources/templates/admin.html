@@ -25,51 +25,82 @@
             <input id="asset-file" type="file" accept="image/*,video/*" />
             <button onclick="uploadAsset()">Upload</button>
             <ul id="asset-list" class="asset-list"></ul>
-            <div id="asset-controls" class="panel hidden">
+            <div id="asset-controls" class="panel hidden asset-settings">
                 <div class="panel-header">
-                    <h4 id="selected-asset-name">Selected asset</h4>
-                    <small id="selected-asset-meta"></small>
-                </div>
-                <div class="control-grid">
-                    <label>
-                        Width
-                        <input id="asset-width" type="number" min="10" step="5" />
-                    </label>
-                    <label>
-                        Height
-                        <input id="asset-height" type="number" min="10" step="5" />
-                    </label>
-                    <label class="checkbox-inline">
-                        <input id="maintain-aspect" type="checkbox" checked />
-                        Maintain aspect ratio
-                    </label>
-                </div>
-                <div class="control-grid">
-                    <label>
-                        Animation speed
-                        <input id="asset-speed" type="number" min="0.1" step="0.1" value="1" />
-                    </label>
-                    <label class="checkbox-inline">
-                        <input id="asset-muted" type="checkbox" />
-                        Muted (videos)
-                    </label>
-                </div>
-                <div class="control-grid">
-                    <label>
-                        Layer (Z)
-                        <div class="badge-row">
-                            <span id="asset-z-level" class="badge">0</span>
-                            <span id="asset-type-label" class="badge subtle"></span>
+                    <div>
+                        <p class="eyebrow subtle">Asset settings</p>
+                        <div class="title-row">
+                            <h4 id="selected-asset-name">Selected asset</h4>
                         </div>
-                    </label>
+                        <p class="muted meta-text" id="selected-asset-meta"></p>
+                    </div>
+                    <div class="panel-summary">
+                        <p class="muted">Fine-tune the selected overlay item with sizing, playback, and layering controls.</p>
+                    </div>
                 </div>
-                <div class="control-actions">
+
+                <div class="panel-section">
+                    <div class="section-header">
+                        <h5>Size & placement</h5>
+                        <p class="muted">Keep your overlay crisp by locking aspect ratio while resizing.</p>
+                    </div>
+                    <div class="control-grid condensed">
+                        <label>
+                            Width
+                            <input id="asset-width" type="number" min="10" step="5" />
+                        </label>
+                        <label>
+                            Height
+                            <input id="asset-height" type="number" min="10" step="5" />
+                        </label>
+                        <label class="checkbox-inline">
+                            <input id="maintain-aspect" type="checkbox" checked />
+                            Maintain aspect ratio
+                        </label>
+                    </div>
+                </div>
+
+                <div class="panel-section two-col">
+                    <div>
+                        <div class="section-header">
+                            <h5>Playback</h5>
+                            <p class="muted">Tweak animation speed or mute video assets.</p>
+                        </div>
+                        <div class="control-grid condensed">
+                            <label>
+                                Animation speed
+                                <input id="asset-speed" type="number" min="0.1" step="0.1" value="1" />
+                            </label>
+                            <label class="checkbox-inline">
+                                <input id="asset-muted" type="checkbox" />
+                                Mute
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="section-header">
+                            <h5>Layering</h5>
+                            <p class="muted">Reorder assets to fit your scene.</p>
+                        </div>
+                        <div class="control-grid condensed">
+                            <label>
+                                Layer (Z)
+                                <div class="badge-row stacked">
+                                    <span class="badge">Layer <strong id="asset-z-level">0</strong></span>
+                                    <span class="badge subtle" id="asset-type-label"></span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-actions filled">
                     <button type="button" onclick="nudgeRotation(-5)" class="secondary">Rotate left</button>
                     <button type="button" onclick="nudgeRotation(5)" class="secondary">Rotate right</button>
                     <button type="button" onclick="applyTransformFromInputs()">Apply size</button>
                     <button type="button" onclick="recenterSelectedAsset()" class="secondary">Re-center asset</button>
                 </div>
-                <div class="control-actions">
+                <div class="control-actions filled">
                     <button type="button" onclick="sendToBack()" class="secondary">Send to back</button>
                     <button type="button" onclick="bringBackward()" class="secondary">Bring backward</button>
                     <button type="button" onclick="bringForward()" class="secondary">Bring forward</button>
