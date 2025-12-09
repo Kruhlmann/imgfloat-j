@@ -39,6 +39,18 @@ function renderAdmins(list) {
         identity.appendChild(avatar);
         identity.appendChild(details);
         li.appendChild(identity);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'secondary';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => removeAdmin(admin.login));
+
+        actions.appendChild(removeBtn);
+        li.appendChild(actions);
         adminList.appendChild(li);
     });
 }
@@ -48,6 +60,13 @@ function fetchAdmins() {
         .then((r) => r.json())
         .then(renderAdmins)
         .catch(() => renderAdmins([]));
+}
+
+function removeAdmin(username) {
+    if (!username) return;
+    fetch(`/api/channels/${broadcaster}/admins/${encodeURIComponent(username)}`, {
+        method: 'DELETE'
+    }).then(fetchAdmins);
 }
 
 function addAdmin() {

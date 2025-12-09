@@ -10,9 +10,11 @@ const assets = new Map();
 const imageCache = new Map();
 const renderStates = new Map();
 let selectedAssetId = null;
-let dragState = null;
+let interactionState = null;
 let animationFrameId = null;
 let lastSizeInputChanged = null;
+const HANDLE_SIZE = 10;
+const ROTATE_HANDLE_OFFSET = 32;
 
 const controlsPanel = document.getElementById('asset-controls');
 const widthInput = document.getElementById('asset-width');
@@ -132,12 +134,15 @@ function drawAsset(asset) {
     ctx.lineWidth = asset.id === selectedAssetId ? 2 : 1;
     ctx.setLineDash(asset.id === selectedAssetId ? [6, 4] : []);
     ctx.strokeRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
+    if (asset.id === selectedAssetId) {
+        drawSelectionOverlay(renderState);
+    }
     ctx.restore();
 }
 
 function smoothState(asset) {
     const previous = renderStates.get(asset.id) || { ...asset };
-    const factor = dragState && dragState.assetId === asset.id ? 0.5 : 0.18;
+    const factor = interactionState && interactionState.assetId === asset.id ? 0.5 : 0.18;
     const next = {
         x: lerp(previous.x, asset.x, factor),
         y: lerp(previous.y, asset.y, factor),
@@ -156,6 +161,194 @@ function smoothAngle(current, target, factor) {
 
 function lerp(a, b, t) {
     return a + (b - a) * t;
+}
+
+function drawSelectionOverlay(asset) {
+    const halfWidth = asset.width / 2;
+    const halfHeight = asset.height / 2;
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = 'rgba(124, 58, 237, 0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-halfWidth, -halfHeight, asset.width, asset.height);
+
+    const handles = getHandlePositions(asset);
+    handles.forEach((handle) => {
+        drawHandle(handle.x - halfWidth, handle.y - halfHeight, false);
+    });
+
+    drawHandle(0, -halfHeight - ROTATE_HANDLE_OFFSET, true);
+    ctx.restore();
+}
+
+function drawHandle(x, y, isRotation) {
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.fillStyle = isRotation ? 'rgba(96, 165, 250, 0.9)' : 'rgba(124, 58, 237, 0.9)';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1;
+    if (isRotation) {
+        ctx.beginPath();
+        ctx.arc(x, y, HANDLE_SIZE * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    } else {
+        ctx.fillRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    }
+    ctx.restore();
+}
+
+function getHandlePositions(asset) {
+    return [
+        { x: 0, y: 0, type: 'nw' },
+        { x: asset.width / 2, y: 0, type: 'n' },
+        { x: asset.width, y: 0, type: 'ne' },
+        { x: asset.width, y: asset.height / 2, type: 'e' },
+        { x: asset.width, y: asset.height, type: 'se' },
+        { x: asset.width / 2, y: asset.height, type: 's' },
+        { x: 0, y: asset.height, type: 'sw' },
+        { x: 0, y: asset.height / 2, type: 'w' }
+    ];
+}
+
+function rotatePoint(x, y, degrees) {
+    const radians = degrees * Math.PI / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    return {
+        x: x * cos - y * sin,
+        y: x * sin + y * cos
+    };
+}
+
+function pointerToLocal(asset, point) {
+    const centerX = asset.x + asset.width / 2;
+    const centerY = asset.y + asset.height / 2;
+    const dx = point.x - centerX;
+    const dy = point.y - centerY;
+    const rotated = rotatePoint(dx, dy, -asset.rotation);
+    return {
+        x: rotated.x + asset.width / 2,
+        y: rotated.y + asset.height / 2
+    };
+}
+
+function angleFromCenter(asset, point) {
+    const centerX = asset.x + asset.width / 2;
+    const centerY = asset.y + asset.height / 2;
+    return Math.atan2(point.y - centerY, point.x - centerX) * 180 / Math.PI;
+}
+
+function hitHandle(asset, point) {
+    const local = pointerToLocal(asset, point);
+    const tolerance = HANDLE_SIZE * 1.2;
+    const rotationDistance = Math.hypot(local.x - asset.width / 2, local.y + ROTATE_HANDLE_OFFSET);
+    if (Math.abs(local.y + ROTATE_HANDLE_OFFSET) <= tolerance && rotationDistance <= tolerance * 1.5) {
+        return 'rotate';
+    }
+    for (const handle of getHandlePositions(asset)) {
+        if (Math.abs(local.x - handle.x) <= tolerance && Math.abs(local.y - handle.y) <= tolerance) {
+            return handle.type;
+        }
+    }
+    return null;
+}
+
+function cursorForHandle(handle) {
+    switch (handle) {
+        case 'nw':
+        case 'se':
+            return 'nwse-resize';
+        case 'ne':
+        case 'sw':
+            return 'nesw-resize';
+        case 'n':
+        case 's':
+            return 'ns-resize';
+        case 'e':
+        case 'w':
+            return 'ew-resize';
+        case 'rotate':
+            return 'grab';
+        default:
+            return 'default';
+    }
+}
+
+function resizeFromHandle(state, point) {
+    const asset = assets.get(state.assetId);
+    if (!asset) return;
+    const basis = state.original;
+    const local = pointerToLocal(basis, point);
+    const handle = state.handle;
+    const minSize = 10;
+
+    let nextWidth = basis.width;
+    let nextHeight = basis.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (handle.includes('e')) {
+        nextWidth = basis.width + (local.x - state.startLocal.x);
+    }
+    if (handle.includes('s')) {
+        nextHeight = basis.height + (local.y - state.startLocal.y);
+    }
+    if (handle.includes('w')) {
+        nextWidth = basis.width - (local.x - state.startLocal.x);
+    }
+    if (handle.includes('n')) {
+        nextHeight = basis.height - (local.y - state.startLocal.y);
+    }
+
+    const ratio = isAspectLocked(asset.id) ? (getAssetAspectRatio(asset) || basis.width / Math.max(basis.height, 1)) : null;
+    if (ratio) {
+        const widthChanged = handle.includes('e') || handle.includes('w');
+        const heightChanged = handle.includes('n') || handle.includes('s');
+        if (widthChanged && !heightChanged) {
+            nextHeight = nextWidth / ratio;
+        } else if (!widthChanged && heightChanged) {
+            nextWidth = nextHeight * ratio;
+        } else {
+            if (Math.abs(nextWidth - basis.width) > Math.abs(nextHeight - basis.height)) {
+                nextHeight = nextWidth / ratio;
+            } else {
+                nextWidth = nextHeight * ratio;
+            }
+        }
+    }
+
+    nextWidth = Math.max(minSize, nextWidth);
+    nextHeight = Math.max(minSize, nextHeight);
+
+    if (handle.includes('w')) {
+        offsetX = basis.width - nextWidth;
+    }
+    if (handle.includes('n')) {
+        offsetY = basis.height - nextHeight;
+    }
+
+    const shift = rotatePoint(offsetX, offsetY, basis.rotation);
+    asset.x = basis.x + shift.x;
+    asset.y = basis.y + shift.y;
+    asset.width = nextWidth;
+    asset.height = nextHeight;
+    renderStates.set(asset.id, { ...asset });
+    draw();
+}
+
+function updateHoverCursor(point) {
+    const asset = getSelectedAsset();
+    if (asset) {
+        const handle = hitHandle(asset, point);
+        if (handle) {
+            canvas.style.cursor = cursorForHandle(handle);
+            return;
+        }
+    }
+    const hit = findAssetAtPoint(point.x, point.y);
+    canvas.style.cursor = hit ? 'move' : 'default';
 }
 
 function startRenderLoop() {
@@ -463,49 +656,93 @@ function persistTransform(asset) {
 
 canvas.addEventListener('mousedown', (event) => {
     const point = getCanvasPoint(event);
+    const current = getSelectedAsset();
+    const handle = current ? hitHandle(current, point) : null;
+    if (current && handle) {
+        interactionState = handle === 'rotate'
+            ? {
+                mode: 'rotate',
+                assetId: current.id,
+                startAngle: angleFromCenter(current, point),
+                startRotation: current.rotation || 0
+            }
+            : {
+                mode: 'resize',
+                assetId: current.id,
+                handle,
+                startLocal: pointerToLocal(current, point),
+                original: { ...current }
+            };
+        canvas.style.cursor = cursorForHandle(handle);
+        drawAndList();
+        return;
+    }
+
     const hit = findAssetAtPoint(point.x, point.y);
     if (hit) {
         selectedAssetId = hit.id;
-        dragState = {
+        renderStates.set(hit.id, { ...hit });
+        interactionState = {
+            mode: 'move',
             assetId: hit.id,
             offsetX: point.x - hit.x,
             offsetY: point.y - hit.y
         };
+        canvas.style.cursor = 'grabbing';
     } else {
         selectedAssetId = null;
+        interactionState = null;
+        canvas.style.cursor = 'default';
     }
     drawAndList();
 });
 
 canvas.addEventListener('mousemove', (event) => {
-    if (!dragState) {
-        return;
-    }
-    const asset = assets.get(dragState.assetId);
-    if (!asset) {
-        dragState = null;
-        return;
-    }
     const point = getCanvasPoint(event);
-    asset.x = point.x - dragState.offsetX;
-    asset.y = point.y - dragState.offsetY;
-    draw();
+    if (!interactionState) {
+        updateHoverCursor(point);
+        return;
+    }
+    const asset = assets.get(interactionState.assetId);
+    if (!asset) {
+        interactionState = null;
+        updateHoverCursor(point);
+        return;
+    }
+
+    if (interactionState.mode === 'move') {
+        asset.x = point.x - interactionState.offsetX;
+        asset.y = point.y - interactionState.offsetY;
+        renderStates.set(asset.id, { ...asset });
+        canvas.style.cursor = 'grabbing';
+        draw();
+    } else if (interactionState.mode === 'resize') {
+        resizeFromHandle(interactionState, point);
+        canvas.style.cursor = cursorForHandle(interactionState.handle);
+    } else if (interactionState.mode === 'rotate') {
+        const angle = angleFromCenter(asset, point);
+        asset.rotation = (interactionState.startRotation || 0) + (angle - interactionState.startAngle);
+        renderStates.set(asset.id, { ...asset });
+        canvas.style.cursor = 'grabbing';
+        draw();
+    }
 });
 
-function endDrag() {
-    if (!dragState) {
+function endInteraction() {
+    if (!interactionState) {
         return;
     }
-    const asset = assets.get(dragState.assetId);
-    dragState = null;
+    const asset = assets.get(interactionState.assetId);
+    interactionState = null;
+    canvas.style.cursor = 'default';
     drawAndList();
     if (asset) {
         persistTransform(asset);
     }
 }
 
-canvas.addEventListener('mouseup', endDrag);
-canvas.addEventListener('mouseleave', endDrag);
+canvas.addEventListener('mouseup', endInteraction);
+canvas.addEventListener('mouseleave', endInteraction);
 
 window.addEventListener('resize', () => {
     resizeCanvas();
