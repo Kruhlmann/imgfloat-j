@@ -3,6 +3,7 @@ package com.imgfloat.app.service;
 import com.imgfloat.app.model.Asset;
 import com.imgfloat.app.model.AssetEvent;
 import com.imgfloat.app.model.Channel;
+import com.imgfloat.app.model.AssetView;
 import com.imgfloat.app.model.CanvasSettingsRequest;
 import com.imgfloat.app.model.TransformRequest;
 import com.imgfloat.app.model.VisibilityRequest;
@@ -85,12 +86,14 @@ public class ChannelDirectoryService {
         return removed;
     }
 
-    public Collection<Asset> getAssetsForAdmin(String broadcaster) {
-        return sortByZIndex(assetRepository.findByBroadcaster(normalize(broadcaster)));
+    public Collection<AssetView> getAssetsForAdmin(String broadcaster) {
+        String normalized = normalize(broadcaster);
+        return sortAndMapAssets(normalized, assetRepository.findByBroadcaster(normalized));
     }
 
-    public Collection<Asset> getVisibleAssets(String broadcaster) {
-        return sortByZIndex(assetRepository.findByBroadcasterAndHiddenFalse(normalize(broadcaster)));
+    public Collection<AssetView> getVisibleAssets(String broadcaster) {
+        String normalized = normalize(broadcaster);
+        return sortAndMapAssets(normalized, assetRepository.findByBroadcasterAndHiddenFalse(normalize(broadcaster)));
     }
 
     public CanvasSettingsRequest getCanvasSettings(String broadcaster) {
@@ -106,7 +109,7 @@ public class ChannelDirectoryService {
         return new CanvasSettingsRequest(channel.getCanvasWidth(), channel.getCanvasHeight());
     }
 
-    public Optional<Asset> createAsset(String broadcaster, MultipartFile file) throws IOException {
+    public Optional<AssetView> createAsset(String broadcaster, MultipartFile file) throws IOException {
         Channel channel = getOrCreateChannel(broadcaster);
         byte[] bytes = file.getBytes();
         String mediaType = detectMediaType(file, bytes);
@@ -132,11 +135,12 @@ public class ChannelDirectoryService {
         asset.setZIndex(nextZIndex(channel.getBroadcaster()));
 
         assetRepository.save(asset);
-        messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, asset));
-        return Optional.of(asset);
+        AssetView view = AssetView.from(channel.getBroadcaster(), asset);
+        messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, view));
+        return Optional.of(view);
     }
 
-    public Optional<Asset> updateTransform(String broadcaster, String assetId, TransformRequest request) {
+    public Optional<AssetView> updateTransform(String broadcaster, String assetId, TransformRequest request) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
                 .filter(asset -> normalized.equals(asset.getBroadcaster()))
@@ -149,27 +153,29 @@ public class ChannelDirectoryService {
                     if (request.getZIndex() != null) {
                         asset.setZIndex(request.getZIndex());
                     }
-                    if (request.getSpeed() != null && request.getSpeed() > 0) {
+                    if (request.getSpeed() != null && request.getSpeed() >= 0) {
                         asset.setSpeed(request.getSpeed());
                     }
                     if (request.getMuted() != null && asset.isVideo()) {
                         asset.setMuted(request.getMuted());
                     }
                     assetRepository.save(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, asset));
-                    return asset;
+                    AssetView view = AssetView.from(normalized, asset);
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, view));
+                    return view;
                 });
     }
 
-    public Optional<Asset> updateVisibility(String broadcaster, String assetId, VisibilityRequest request) {
+    public Optional<AssetView> updateVisibility(String broadcaster, String assetId, VisibilityRequest request) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
                 .filter(asset -> normalized.equals(asset.getBroadcaster()))
                 .map(asset -> {
                     asset.setHidden(request.isHidden());
                     assetRepository.save(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, asset));
-                    return asset;
+                    AssetView view = AssetView.from(normalized, asset);
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, view));
+                    return view;
                 });
     }
 
@@ -183,6 +189,13 @@ public class ChannelDirectoryService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    public Optional<AssetContent> getAssetContent(String broadcaster, String assetId) {
+        String normalized = normalize(broadcaster);
+        return assetRepository.findById(assetId)
+                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .flatMap(this::decodeAssetData);
     }
 
     public boolean isBroadcaster(String broadcaster, String username) {
@@ -215,11 +228,34 @@ public class ChannelDirectoryService {
         return value == null ? null : value.toLowerCase();
     }
 
-    private List<Asset> sortByZIndex(Collection<Asset> assets) {
+    private List<AssetView> sortAndMapAssets(String broadcaster, Collection<Asset> assets) {
         return assets.stream()
                 .sorted(Comparator.comparingInt(Asset::getZIndex)
                         .thenComparing(Asset::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(asset -> AssetView.from(broadcaster, asset))
                 .toList();
+    }
+
+    private Optional<AssetContent> decodeAssetData(Asset asset) {
+        String url = asset.getUrl();
+        if (url == null || !url.startsWith("data:")) {
+            return Optional.empty();
+        }
+        int commaIndex = url.indexOf(',');
+        if (commaIndex < 0) {
+            return Optional.empty();
+        }
+        String metadata = url.substring(5, commaIndex);
+        String[] parts = metadata.split(";", 2);
+        String mediaType = parts.length > 0 && !parts[0].isBlank() ? parts[0] : "application/octet-stream";
+        String encoded = url.substring(commaIndex + 1);
+        try {
+            byte[] bytes = Base64.getDecoder().decode(encoded);
+            return Optional.of(new AssetContent(bytes, mediaType));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Unable to decode asset data for {}", asset.getId(), e);
+            return Optional.empty();
+        }
     }
 
     private int nextZIndex(String broadcaster) {
@@ -425,6 +461,8 @@ public class ChannelDirectoryService {
         }
         return new Dimension(640, 360);
     }
+
+    public record AssetContent(byte[] bytes, String mediaType) { }
 
     private record OptimizedAsset(byte[] bytes, String mediaType, int width, int height) { }
 

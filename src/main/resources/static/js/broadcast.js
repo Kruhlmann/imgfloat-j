@@ -22,7 +22,10 @@ function connect() {
 }
 
 function renderAssets(list) {
-    list.forEach(asset => assets.set(asset.id, asset));
+    list.forEach(asset => {
+        asset.zIndex = Math.max(1, asset.zIndex ?? 1);
+        assets.set(asset.id, asset);
+    });
     draw();
 }
 
@@ -55,8 +58,9 @@ function handleEvent(event) {
         clearMedia(event.assetId);
         renderStates.delete(event.assetId);
     } else if (event.payload && !event.payload.hidden) {
-        assets.set(event.payload.id, event.payload);
-        ensureMedia(event.payload);
+        const payload = { ...event.payload, zIndex: Math.max(1, event.payload.zIndex ?? 1) };
+        assets.set(payload.id, payload);
+        ensureMedia(payload);
     } else if (event.payload && event.payload.hidden) {
         assets.delete(event.payload.id);
         clearMedia(event.payload.id);
@@ -75,8 +79,8 @@ function getZOrderedAssets() {
 }
 
 function zComparator(a, b) {
-    const aZ = a?.zIndex ?? 0;
-    const bZ = b?.zIndex ?? 0;
+    const aZ = a?.zIndex ?? 1;
+    const bZ = b?.zIndex ?? 1;
     if (aZ !== bZ) {
         return aZ - bZ;
     }
@@ -125,7 +129,7 @@ function lerp(a, b, t) {
 }
 
 function isVideoAsset(asset) {
-    return (asset.mediaType && asset.mediaType.startsWith('video/')) || asset.url?.startsWith('data:video/');
+    return asset?.mediaType?.startsWith('video/');
 }
 
 function isVideoElement(element) {
@@ -133,7 +137,7 @@ function isVideoElement(element) {
 }
 
 function isGifAsset(asset) {
-    return (asset.mediaType && asset.mediaType.toLowerCase() === 'image/gif') || asset.url?.startsWith('data:image/gif');
+    return asset?.mediaType?.toLowerCase() === 'image/gif';
 }
 
 function isDrawable(element) {
@@ -187,8 +191,13 @@ function ensureMedia(asset) {
         element.autoplay = true;
         element.onloadeddata = draw;
         element.src = asset.url;
-        element.playbackRate = asset.speed && asset.speed > 0 ? asset.speed : 1;
-        element.play().catch(() => {});
+        const playback = asset.speed ?? 1;
+        element.playbackRate = Math.max(playback, 0.01);
+        if (playback === 0) {
+            element.pause();
+        } else {
+            element.play().catch(() => {});
+        }
     } else {
         element.onload = draw;
         element.src = asset.url;
@@ -279,15 +288,18 @@ function applyMediaSettings(element, asset) {
     if (!isVideoElement(element)) {
         return;
     }
-    const nextSpeed = asset.speed && asset.speed > 0 ? asset.speed : 1;
-    if (element.playbackRate !== nextSpeed) {
-        element.playbackRate = nextSpeed;
+    const nextSpeed = asset.speed ?? 1;
+    const effectiveSpeed = Math.max(nextSpeed, 0.01);
+    if (element.playbackRate !== effectiveSpeed) {
+        element.playbackRate = effectiveSpeed;
     }
     const shouldMute = asset.muted ?? true;
     if (element.muted !== shouldMute) {
         element.muted = shouldMute;
     }
-    if (element.paused) {
+    if (nextSpeed === 0) {
+        element.pause();
+    } else if (element.paused) {
         element.play().catch(() => {});
     }
 }

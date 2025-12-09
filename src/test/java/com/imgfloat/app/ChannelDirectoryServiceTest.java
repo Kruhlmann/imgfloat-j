@@ -3,6 +3,7 @@ package com.imgfloat.app;
 import com.imgfloat.app.model.TransformRequest;
 import com.imgfloat.app.model.VisibilityRequest;
 import com.imgfloat.app.model.Asset;
+import com.imgfloat.app.model.AssetView;
 import com.imgfloat.app.model.Channel;
 import com.imgfloat.app.repository.AssetRepository;
 import com.imgfloat.app.repository.ChannelRepository;
@@ -51,7 +52,7 @@ class ChannelDirectoryServiceTest {
     void createsAssetsAndBroadcastsEvents() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png", samplePng());
 
-        Optional<?> created = service.createAsset("caster", file);
+        Optional<AssetView> created = service.createAsset("caster", file);
         assertThat(created).isPresent();
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate).convertAndSend(org.mockito.ArgumentMatchers.contains("/topic/channel/caster"), captor.capture());
@@ -61,7 +62,7 @@ class ChannelDirectoryServiceTest {
     void updatesTransformAndVisibility() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png", samplePng());
         String channel = "caster";
-        String id = service.createAsset(channel, file).orElseThrow().getId();
+        String id = service.createAsset(channel, file).orElseThrow().id();
 
         TransformRequest transform = new TransformRequest();
         transform.setX(10);

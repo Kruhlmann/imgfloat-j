@@ -10,9 +10,11 @@ const assets = new Map();
 const mediaCache = new Map();
 const renderStates = new Map();
 const animatedCache = new Map();
+let drawPending = false;
+let zOrderDirty = true;
+let zOrderCache = [];
 let selectedAssetId = null;
 let interactionState = null;
-let animationFrameId = null;
 let lastSizeInputChanged = null;
 const HANDLE_SIZE = 10;
 const ROTATE_HANDLE_OFFSET = 32;
@@ -24,17 +26,18 @@ const aspectLockInput = document.getElementById('maintain-aspect');
 const speedInput = document.getElementById('asset-speed');
 const muteInput = document.getElementById('asset-muted');
 const selectedAssetName = document.getElementById('selected-asset-name');
-const selectedAssetMeta = document.getElementById('selected-asset-meta');
 const selectedZLabel = document.getElementById('asset-z-level');
 const selectedTypeLabel = document.getElementById('asset-type-label');
 const selectedVisibilityBadge = document.getElementById('selected-asset-visibility');
 const selectedToggleBtn = document.getElementById('selected-asset-toggle');
 const selectedDeleteBtn = document.getElementById('selected-asset-delete');
+const playbackSection = document.getElementById('playback-section');
+const controlsPlaceholder = document.getElementById('asset-controls-placeholder');
 const aspectLockState = new Map();
 
 if (widthInput) widthInput.addEventListener('input', () => handleSizeInputChange('width'));
 if (heightInput) heightInput.addEventListener('input', () => handleSizeInputChange('height'));
-if (speedInput) speedInput.addEventListener('change', updatePlaybackFromInputs);
+if (speedInput) speedInput.addEventListener('input', updatePlaybackFromInputs);
 if (muteInput) muteInput.addEventListener('change', updateMuteFromInput);
 if (selectedToggleBtn) selectedToggleBtn.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -97,32 +100,68 @@ function resizeCanvas() {
         overlayFrame.style.left = `${(bounds.width - displayWidth) / 2}px`;
         overlayFrame.style.top = `${(bounds.height - displayHeight) / 2}px`;
     }
-    draw();
+    requestDraw();
 }
 
 function renderAssets(list) {
-    list.forEach((asset) => assets.set(asset.id, asset));
+    list.forEach(storeAsset);
     drawAndList();
+}
+
+function storeAsset(asset) {
+    if (!asset) return;
+    asset.zIndex = Math.max(1, asset.zIndex ?? 1);
+    if (asset.createdAt && typeof asset.createdAtMs === 'undefined') {
+        asset.createdAtMs = new Date(asset.createdAt).getTime();
+    }
+    assets.set(asset.id, asset);
+    zOrderDirty = true;
+    if (!renderStates.has(asset.id)) {
+        renderStates.set(asset.id, { ...asset });
+    }
+}
+
+function updateRenderState(asset) {
+    if (!asset) return;
+    const state = renderStates.get(asset.id) || {};
+    state.x = asset.x;
+    state.y = asset.y;
+    state.width = asset.width;
+    state.height = asset.height;
+    state.rotation = asset.rotation;
+    renderStates.set(asset.id, state);
 }
 
 function handleEvent(event) {
     if (event.type === 'DELETED') {
         assets.delete(event.assetId);
+        zOrderDirty = true;
         clearMedia(event.assetId);
         renderStates.delete(event.assetId);
         if (selectedAssetId === event.assetId) {
             selectedAssetId = null;
         }
     } else if (event.payload) {
-        assets.set(event.payload.id, event.payload);
+        storeAsset(event.payload);
         ensureMedia(event.payload);
     }
     drawAndList();
 }
 
 function drawAndList() {
-    draw();
+    requestDraw();
     renderAssetList();
+}
+
+function requestDraw() {
+    if (drawPending) {
+        return;
+    }
+    drawPending = true;
+    requestAnimationFrame(() => {
+        drawPending = false;
+        draw();
+    });
 }
 
 function draw() {
@@ -131,16 +170,20 @@ function draw() {
 }
 
 function getZOrderedAssets() {
-    return Array.from(assets.values()).sort(zComparator);
+    if (zOrderDirty) {
+        zOrderCache = Array.from(assets.values()).sort(zComparator);
+        zOrderDirty = false;
+    }
+    return zOrderCache;
 }
 
 function zComparator(a, b) {
-    const aZ = a?.zIndex ?? 0;
-    const bZ = b?.zIndex ?? 0;
+    const aZ = a?.zIndex ?? 1;
+    const bZ = b?.zIndex ?? 1;
     if (aZ !== bZ) {
         return aZ - bZ;
     }
-    return new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
+    return (a?.createdAtMs || 0) - (b?.createdAtMs || 0);
 }
 
 function drawAsset(asset) {
@@ -181,16 +224,14 @@ function drawAsset(asset) {
 
 function smoothState(asset) {
     const previous = renderStates.get(asset.id) || { ...asset };
-    const factor = interactionState && interactionState.assetId === asset.id ? 0.5 : 0.18;
-    const next = {
-        x: lerp(previous.x, asset.x, factor),
-        y: lerp(previous.y, asset.y, factor),
-        width: lerp(previous.width, asset.width, factor),
-        height: lerp(previous.height, asset.height, factor),
-        rotation: smoothAngle(previous.rotation, asset.rotation, factor)
-    };
-    renderStates.set(asset.id, next);
-    return next;
+    const factor = interactionState && interactionState.assetId === asset.id ? 0.45 : 0.18;
+    previous.x = lerp(previous.x, asset.x, factor);
+    previous.y = lerp(previous.y, asset.y, factor);
+    previous.width = lerp(previous.width, asset.width, factor);
+    previous.height = lerp(previous.height, asset.height, factor);
+    previous.rotation = smoothAngle(previous.rotation, asset.rotation, factor);
+    renderStates.set(asset.id, previous);
+    return previous;
 }
 
 function smoothAngle(current, target, factor) {
@@ -373,8 +414,8 @@ function resizeFromHandle(state, point) {
     asset.y = basis.y + shift.y;
     asset.width = nextWidth;
     asset.height = nextHeight;
-    renderStates.set(asset.id, { ...asset });
-    draw();
+    updateRenderState(asset);
+    requestDraw();
 }
 
 function updateHoverCursor(point) {
@@ -390,19 +431,9 @@ function updateHoverCursor(point) {
     canvas.style.cursor = hit ? 'move' : 'default';
 }
 
-function startRenderLoop() {
-    if (animationFrameId) {
-        return;
-    }
-    const tick = () => {
-        draw();
-        animationFrameId = requestAnimationFrame(tick);
-    };
-    animationFrameId = requestAnimationFrame(tick);
-}
-
 function isVideoAsset(asset) {
-    return (asset.mediaType && asset.mediaType.startsWith('video/')) || asset.url?.startsWith('data:video/');
+    const type = asset?.mediaType || asset?.originalMediaType || '';
+    return type.startsWith('video/');
 }
 
 function isVideoElement(element) {
@@ -419,7 +450,7 @@ function getDisplayMediaType(asset) {
 }
 
 function isGifAsset(asset) {
-    return (asset.mediaType && asset.mediaType.toLowerCase() === 'image/gif') || asset.url?.startsWith('data:image/gif');
+    return asset?.mediaType?.toLowerCase() === 'image/gif';
 }
 
 function isDrawable(element) {
@@ -471,12 +502,17 @@ function ensureMedia(asset) {
         element.muted = asset.muted ?? true;
         element.playsInline = true;
         element.autoplay = true;
-        element.onloadeddata = draw;
+        element.onloadeddata = requestDraw;
         element.src = asset.url;
-        element.playbackRate = asset.speed && asset.speed > 0 ? asset.speed : 1;
-        element.play().catch(() => {});
+        const playback = asset.speed ?? 1;
+        element.playbackRate = Math.max(playback, 0.01);
+        if (playback === 0) {
+            element.pause();
+        } else {
+            element.play().catch(() => {});
+        }
     } else {
-        element.onload = draw;
+        element.onload = requestDraw;
         element.src = asset.url;
     }
     mediaCache.set(asset.id, element);
@@ -537,7 +573,7 @@ function scheduleNextFrame(controller) {
         createImageBitmap(image)
             .then((bitmap) => {
                 controller.bitmap = bitmap;
-                draw();
+                requestDraw();
             })
             .finally(() => image.close?.());
 
@@ -564,24 +600,34 @@ function applyMediaSettings(element, asset) {
     if (!isVideoElement(element)) {
         return;
     }
-    const nextSpeed = asset.speed && asset.speed > 0 ? asset.speed : 1;
-    if (element.playbackRate !== nextSpeed) {
-        element.playbackRate = nextSpeed;
+    const nextSpeed = asset.speed ?? 1;
+    const effectiveSpeed = Math.max(nextSpeed, 0.01);
+    if (element.playbackRate !== effectiveSpeed) {
+        element.playbackRate = effectiveSpeed;
     }
     const shouldMute = asset.muted ?? true;
     if (element.muted !== shouldMute) {
         element.muted = shouldMute;
     }
-    if (element.paused) {
+    if (nextSpeed === 0) {
+        element.pause();
+    } else if (element.paused) {
         element.play().catch(() => {});
     }
 }
 
 function renderAssetList() {
     const list = document.getElementById('asset-list');
+    if (controlsPlaceholder && controlsPanel && controlsPanel.parentElement !== controlsPlaceholder) {
+        controlsPlaceholder.appendChild(controlsPanel);
+    }
+    if (controlsPanel) {
+        controlsPanel.classList.add('hidden');
+    }
     list.innerHTML = '';
 
     if (!assets.size) {
+        selectedAssetId = null;
         const empty = document.createElement('li');
         empty.textContent = 'No assets yet. Upload to get started.';
         list.appendChild(empty);
@@ -600,6 +646,9 @@ function renderAssetList() {
             li.classList.add('hidden');
         }
 
+        const row = document.createElement('div');
+        row.className = 'asset-row';
+
         const preview = createPreviewElement(asset);
 
         const meta = document.createElement('div');
@@ -607,7 +656,7 @@ function renderAssetList() {
         const name = document.createElement('strong');
         name.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
         const details = document.createElement('small');
-        details.textContent = `Z ${asset.zIndex ?? 0} · ${Math.round(asset.width)}x${Math.round(asset.height)} · ${getDisplayMediaType(asset)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
+        details.textContent = `Z ${asset.zIndex ?? 1} · ${Math.round(asset.width)}x${Math.round(asset.height)} · ${getDisplayMediaType(asset)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
         meta.appendChild(name);
         meta.appendChild(details);
 
@@ -617,7 +666,8 @@ function renderAssetList() {
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
         toggleBtn.className = 'ghost icon-button';
-        toggleBtn.innerHTML = `<span class="icon" aria-hidden="true">${asset.hidden ? '👁️' : '🙈'}</span><span class="label">${asset.hidden ? 'Show' : 'Hide'}</span>`;
+        toggleBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+        toggleBtn.title = asset.hidden ? 'Show asset' : 'Hide asset';
         toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             selectedAssetId = asset.id;
@@ -627,7 +677,8 @@ function renderAssetList() {
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.className = 'ghost danger icon-button';
-        deleteBtn.innerHTML = '<span class="icon" aria-hidden="true">🗑️</span><span class="label">Delete</span>';
+        deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        deleteBtn.title = 'Delete asset';
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             deleteAsset(asset);
@@ -636,19 +687,29 @@ function renderAssetList() {
         actions.appendChild(toggleBtn);
         actions.appendChild(deleteBtn);
 
+        row.appendChild(preview);
+        row.appendChild(meta);
+        row.appendChild(actions);
+
         li.addEventListener('click', () => {
             selectedAssetId = asset.id;
-            renderStates.set(asset.id, { ...asset });
+            updateRenderState(asset);
             drawAndList();
         });
 
-        li.appendChild(preview);
-        li.appendChild(meta);
-        li.appendChild(actions);
+        li.appendChild(row);
+
+        if (asset.id === selectedAssetId && controlsPanel) {
+            controlsPanel.classList.remove('hidden');
+            const detail = document.createElement('div');
+            detail.className = 'asset-detail';
+            detail.appendChild(controlsPanel);
+            li.appendChild(detail);
+            updateSelectedAssetControls(asset);
+        }
+
         list.appendChild(li);
     });
-
-    updateSelectedAssetControls();
 }
 
 function createPreviewElement(asset) {
@@ -675,22 +736,17 @@ function getSelectedAsset() {
     return selectedAssetId ? assets.get(selectedAssetId) : null;
 }
 
-function updateSelectedAssetControls() {
-    if (!controlsPanel) {
-        return;
-    }
-    const asset = getSelectedAsset();
-    if (!asset) {
-        controlsPanel.classList.add('hidden');
+function updateSelectedAssetControls(asset = getSelectedAsset()) {
+    if (!controlsPanel || !asset) {
+        if (controlsPanel) controlsPanel.classList.add('hidden');
         return;
     }
 
     controlsPanel.classList.remove('hidden');
     lastSizeInputChanged = null;
     selectedAssetName.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
-    selectedAssetMeta.textContent = `Z ${asset.zIndex ?? 0} · ${Math.round(asset.width)}x${Math.round(asset.height)} · ${getDisplayMediaType(asset)} · ${asset.hidden ? 'Hidden' : 'Visible'}`;
     if (selectedZLabel) {
-        selectedZLabel.textContent = asset.zIndex ?? 0;
+        selectedZLabel.textContent = asset.zIndex ?? 1;
     }
     if (selectedTypeLabel) {
         selectedTypeLabel.textContent = getDisplayMediaType(asset);
@@ -700,8 +756,11 @@ function updateSelectedAssetControls() {
         selectedVisibilityBadge.classList.toggle('danger', !!asset.hidden);
     }
     if (selectedToggleBtn) {
-        selectedToggleBtn.querySelector('.label').textContent = asset.hidden ? 'Show' : 'Hide';
-        selectedToggleBtn.querySelector('.icon').textContent = asset.hidden ? '👁️' : '🙈';
+        const icon = selectedToggleBtn.querySelector('i');
+        if (icon) {
+            icon.className = `fa-solid ${asset.hidden ? 'fa-eye' : 'fa-eye-slash'}`;
+        }
+        selectedToggleBtn.title = asset.hidden ? 'Show asset' : 'Hide asset';
     }
 
     if (widthInput) widthInput.value = Math.round(asset.width);
@@ -711,7 +770,13 @@ function updateSelectedAssetControls() {
         aspectLockInput.onchange = () => setAspectLock(asset.id, aspectLockInput.checked);
     }
     if (speedInput) {
-        speedInput.value = Math.round((asset.speed && asset.speed > 0 ? asset.speed : 1) * 100);
+        const percent = Math.round((asset.speed ?? 1) * 100);
+        speedInput.value = Math.min(1000, Math.max(0, percent));
+    }
+    if (playbackSection) {
+        const shouldShowPlayback = isVideoAsset(asset);
+        playbackSection.classList.toggle('hidden', !shouldShowPlayback);
+        speedInput?.classList?.toggle('disabled', !shouldShowPlayback);
     }
     if (muteInput) {
         muteInput.checked = !!asset.muted;
@@ -740,18 +805,22 @@ function applyTransformFromInputs() {
 
     asset.width = Math.max(10, nextWidth);
     asset.height = Math.max(10, nextHeight);
-    renderStates.set(asset.id, { ...asset });
+    updateRenderState(asset);
     persistTransform(asset);
     drawAndList();
 }
 
 function updatePlaybackFromInputs() {
     const asset = getSelectedAsset();
-    if (!asset) return;
-    const percent = Math.max(10, Math.min(400, parseFloat(speedInput?.value) || 100));
+    if (!asset || !isVideoAsset(asset)) return;
+    const percent = Math.max(0, Math.min(1000, parseFloat(speedInput?.value) || 100));
     asset.speed = percent / 100;
-    renderStates.set(asset.id, { ...asset });
+    updateRenderState(asset);
     persistTransform(asset);
+    const media = mediaCache.get(asset.id);
+    if (media) {
+        applyMediaSettings(media, asset);
+    }
     drawAndList();
 }
 
@@ -759,7 +828,7 @@ function updateMuteFromInput() {
     const asset = getSelectedAsset();
     if (!asset || !isVideoAsset(asset)) return;
     asset.muted = !!muteInput?.checked;
-    renderStates.set(asset.id, { ...asset });
+    updateRenderState(asset);
     persistTransform(asset);
     const media = mediaCache.get(asset.id);
     if (media) {
@@ -773,7 +842,7 @@ function nudgeRotation(delta) {
     if (!asset) return;
     const next = (asset.rotation || 0) + delta;
     asset.rotation = next;
-    renderStates.set(asset.id, { ...asset });
+    updateRenderState(asset);
     persistTransform(asset);
     drawAndList();
 }
@@ -785,7 +854,7 @@ function recenterSelectedAsset() {
     const centerY = (canvas.height - asset.height) / 2;
     asset.x = centerX;
     asset.y = centerY;
-    renderStates.set(asset.id, { ...asset });
+    updateRenderState(asset);
     persistTransform(asset);
     drawAndList();
 }
@@ -829,13 +898,15 @@ function sendToBack() {
 function applyZOrder(ordered) {
     const changed = [];
     ordered.forEach((item, index) => {
-        if ((item.zIndex ?? 0) !== index) {
-            item.zIndex = index;
+        const nextIndex = index + 1;
+        if ((item.zIndex ?? 1) !== nextIndex) {
+            item.zIndex = nextIndex;
             changed.push(item);
         }
         assets.set(item.id, item);
-        renderStates.set(item.id, { ...item });
+        updateRenderState(item);
     });
+    zOrderDirty = true;
     changed.forEach((item) => persistTransform(item, true));
     drawAndList();
 }
@@ -891,7 +962,8 @@ function updateVisibility(asset, hidden) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hidden })
     }).then((r) => r.json()).then((updated) => {
-        assets.set(updated.id, updated);
+        storeAsset(updated);
+        updateRenderState(updated);
         drawAndList();
     });
 }
@@ -901,6 +973,7 @@ function deleteAsset(asset) {
         assets.delete(asset.id);
         mediaCache.delete(asset.id);
         renderStates.delete(asset.id);
+        zOrderDirty = true;
         if (selectedAssetId === asset.id) {
             selectedAssetId = null;
         }
@@ -953,6 +1026,7 @@ function findAssetAtPoint(x, y) {
 }
 
 function persistTransform(asset, silent = false) {
+    asset.zIndex = Math.max(1, asset.zIndex ?? 1);
     fetch(`/api/channels/${broadcaster}/assets/${asset.id}/transform`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -967,7 +1041,8 @@ function persistTransform(asset, silent = false) {
             zIndex: asset.zIndex
         })
     }).then((r) => r.json()).then((updated) => {
-        assets.set(updated.id, updated);
+        storeAsset(updated);
+        updateRenderState(updated);
         if (!silent) {
             drawAndList();
         }
@@ -1001,7 +1076,7 @@ canvas.addEventListener('mousedown', (event) => {
     const hit = findAssetAtPoint(point.x, point.y);
     if (hit) {
         selectedAssetId = hit.id;
-        renderStates.set(hit.id, { ...hit });
+        updateRenderState(hit);
         interactionState = {
             mode: 'move',
             assetId: hit.id,
@@ -1033,18 +1108,18 @@ canvas.addEventListener('mousemove', (event) => {
     if (interactionState.mode === 'move') {
         asset.x = point.x - interactionState.offsetX;
         asset.y = point.y - interactionState.offsetY;
-        renderStates.set(asset.id, { ...asset });
+        updateRenderState(asset);
         canvas.style.cursor = 'grabbing';
-        draw();
+        requestDraw();
     } else if (interactionState.mode === 'resize') {
         resizeFromHandle(interactionState, point);
         canvas.style.cursor = cursorForHandle(interactionState.handle);
     } else if (interactionState.mode === 'rotate') {
         const angle = angleFromCenter(asset, point);
         asset.rotation = (interactionState.startRotation || 0) + (angle - interactionState.startAngle);
-        renderStates.set(asset.id, { ...asset });
+        updateRenderState(asset);
         canvas.style.cursor = 'grabbing';
-        draw();
+        requestDraw();
     }
 });
 
@@ -1070,6 +1145,5 @@ window.addEventListener('resize', () => {
 
 fetchCanvasSettings().finally(() => {
     resizeCanvas();
-    startRenderLoop();
     connect();
 });

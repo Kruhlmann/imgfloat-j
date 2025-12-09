@@ -10,33 +10,33 @@ public class AssetEvent {
 
     private Type type;
     private String channel;
-    private Asset payload;
+    private AssetView payload;
     private String assetId;
 
-    public static AssetEvent created(String channel, Asset asset) {
+    public static AssetEvent created(String channel, AssetView asset) {
         AssetEvent event = new AssetEvent();
         event.type = Type.CREATED;
         event.channel = channel;
         event.payload = asset;
-        event.assetId = asset.getId();
+        event.assetId = asset.id();
         return event;
     }
 
-    public static AssetEvent updated(String channel, Asset asset) {
+    public static AssetEvent updated(String channel, AssetView asset) {
         AssetEvent event = new AssetEvent();
         event.type = Type.UPDATED;
         event.channel = channel;
         event.payload = asset;
-        event.assetId = asset.getId();
+        event.assetId = asset.id();
         return event;
     }
 
-    public static AssetEvent visibility(String channel, Asset asset) {
+    public static AssetEvent visibility(String channel, AssetView asset) {
         AssetEvent event = new AssetEvent();
         event.type = Type.VISIBILITY;
         event.channel = channel;
         event.payload = asset;
-        event.assetId = asset.getId();
+        event.assetId = asset.id();
         return event;
     }
 
@@ -56,7 +56,7 @@ public class AssetEvent {
         return channel;
     }
 
-    public Asset getPayload() {
+    public AssetView getPayload() {
         return payload;
     }
 

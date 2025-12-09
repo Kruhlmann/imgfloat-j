@@ -1,7 +1,7 @@
 package com.imgfloat.app.controller;
 
 import com.imgfloat.app.model.AdminRequest;
-import com.imgfloat.app.model.Asset;
+import com.imgfloat.app.model.AssetView;
 import com.imgfloat.app.model.CanvasSettingsRequest;
 import com.imgfloat.app.model.TransformRequest;
 import com.imgfloat.app.model.TwitchUserProfile;
@@ -94,8 +94,8 @@ public class ChannelApiController {
     }
 
     @GetMapping("/assets")
-    public Collection<Asset> listAssets(@PathVariable("broadcaster") String broadcaster,
-                                        OAuth2AuthenticationToken authentication) {
+    public Collection<AssetView> listAssets(@PathVariable("broadcaster") String broadcaster,
+                                            OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
         if (!channelDirectoryService.isBroadcaster(broadcaster, login)
                 && !channelDirectoryService.isAdmin(broadcaster, login)) {
@@ -105,8 +105,8 @@ public class ChannelApiController {
     }
 
     @GetMapping("/assets/visible")
-    public Collection<Asset> listVisible(@PathVariable("broadcaster") String broadcaster,
-                                         OAuth2AuthenticationToken authentication) {
+    public Collection<AssetView> listVisible(@PathVariable("broadcaster") String broadcaster,
+                                             OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
         if (!channelDirectoryService.isBroadcaster(broadcaster, login)) {
             throw new ResponseStatusException(FORBIDDEN, "Only broadcaster can load public overlay");
@@ -132,7 +132,7 @@ public class ChannelApiController {
     }
 
     @PostMapping(value = "/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Asset> createAsset(@PathVariable("broadcaster") String broadcaster,
+    public ResponseEntity<AssetView> createAsset(@PathVariable("broadcaster") String broadcaster,
                                              @org.springframework.web.bind.annotation.RequestPart("file") MultipartFile file,
                                              OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
@@ -150,10 +150,10 @@ public class ChannelApiController {
     }
 
     @PutMapping("/assets/{assetId}/transform")
-    public ResponseEntity<Asset> transform(@PathVariable("broadcaster") String broadcaster,
-                                           @PathVariable("assetId") String assetId,
-                                           @Valid @RequestBody TransformRequest request,
-                                           OAuth2AuthenticationToken authentication) {
+    public ResponseEntity<AssetView> transform(@PathVariable("broadcaster") String broadcaster,
+                                               @PathVariable("assetId") String assetId,
+                                               @Valid @RequestBody TransformRequest request,
+                                               OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
         ensureAuthorized(broadcaster, login);
         return channelDirectoryService.updateTransform(broadcaster, assetId, request)
@@ -162,14 +162,27 @@ public class ChannelApiController {
     }
 
     @PutMapping("/assets/{assetId}/visibility")
-    public ResponseEntity<Asset> visibility(@PathVariable("broadcaster") String broadcaster,
-                                            @PathVariable("assetId") String assetId,
-                                            @RequestBody VisibilityRequest request,
-                                            OAuth2AuthenticationToken authentication) {
+    public ResponseEntity<AssetView> visibility(@PathVariable("broadcaster") String broadcaster,
+                                                @PathVariable("assetId") String assetId,
+                                                @RequestBody VisibilityRequest request,
+                                                OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
         ensureAuthorized(broadcaster, login);
         return channelDirectoryService.updateVisibility(broadcaster, assetId, request)
                 .map(ResponseEntity::ok)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
+    }
+
+    @GetMapping("/assets/{assetId}/content")
+    public ResponseEntity<byte[]> getAssetContent(@PathVariable("broadcaster") String broadcaster,
+                                                  @PathVariable("assetId") String assetId,
+                                                  OAuth2AuthenticationToken authentication) {
+        String login = TwitchUser.from(authentication).login();
+        ensureAuthorized(broadcaster, login);
+        return channelDirectoryService.getAssetContent(broadcaster, assetId)
+                .map(content -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(content.mediaType()))
+                        .body(content.bytes()))
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
     }
 

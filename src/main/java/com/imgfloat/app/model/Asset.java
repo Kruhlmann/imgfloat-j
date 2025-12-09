@@ -53,7 +53,7 @@ public class Asset {
         this.rotation = 0;
         this.speed = 1.0;
         this.muted = false;
-        this.zIndex = 0;
+        this.zIndex = 1;
         this.hidden = false;
         this.createdAt = Instant.now();
     }
@@ -71,14 +71,14 @@ public class Asset {
         if (this.name == null || this.name.isBlank()) {
             this.name = this.id;
         }
-        if (this.speed == null || this.speed <= 0) {
+        if (this.speed == null) {
             this.speed = 1.0;
         }
         if (this.muted == null) {
             this.muted = Boolean.FALSE;
         }
-        if (this.zIndex == null) {
-            this.zIndex = 0;
+        if (this.zIndex == null || this.zIndex < 1) {
+            this.zIndex = 1;
         }
     }
 
@@ -203,11 +203,11 @@ public class Asset {
     }
 
     public Integer getZIndex() {
-        return zIndex == null ? 0 : zIndex;
+        return zIndex == null ? 1 : Math.max(1, zIndex);
     }
 
     public void setZIndex(Integer zIndex) {
-        this.zIndex = zIndex;
+        this.zIndex = zIndex == null ? null : Math.max(1, zIndex);
     }
 
     private static String normalize(String value) {

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Imgfloat Admin</title>
     <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
@@ -21,43 +22,35 @@
     <section class="controls">
         <div>
             <h3>Overlay assets</h3>
-            <p>Upload images to place on the broadcaster's overlay. Changes are visible to the broadcaster instantly.</p>
+            <p>Upload overlay visuals and adjust them inline.</p>
             <input id="asset-file" type="file" accept="image/*,video/*" />
             <button onclick="uploadAsset()">Upload</button>
             <ul id="asset-list" class="asset-list"></ul>
+            <div id="asset-controls-placeholder" class="hidden"></div>
             <div id="asset-controls" class="panel hidden asset-settings">
                 <div class="panel-header">
-                    <div class="selected-asset-banner">
-                        <div class="selected-asset-main">
-                            <p class="eyebrow subtle">Asset settings</p>
-                            <div class="title-row">
-                                <h4 id="selected-asset-name">Selected asset</h4>
-                                <span class="badge subtle" id="selected-asset-visibility">Visible</span>
-                            </div>
-                            <p class="muted meta-text" id="selected-asset-meta"></p>
-                        </div>
-                        <div class="selected-asset-actions">
-                            <button type="button" id="selected-asset-toggle" class="ghost icon-button" title="Toggle visibility">
-                                <span class="icon" aria-hidden="true">🙈</span>
-                                <span class="label">Hide</span>
-                            </button>
-                            <button type="button" id="selected-asset-delete" class="ghost danger icon-button" title="Delete asset">
-                                <span class="icon" aria-hidden="true">🗑️</span>
-                                <span class="label">Delete</span>
-                            </button>
-                        </div>
+                    <h4 id="selected-asset-name">Asset settings</h4>
+                    <div class="selected-asset-actions">
+                        <button type="button" id="selected-asset-toggle" class="ghost icon-button" title="Toggle visibility">
+                            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                            <span class="sr-only">Toggle visibility</span>
+                        </button>
+                        <button type="button" id="selected-asset-delete" class="ghost danger icon-button" title="Delete asset">
+                            <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                            <span class="sr-only">Delete asset</span>
+                        </button>
                     </div>
-                    <div class="panel-summary">
-                        <p class="muted">Fine-tune the selected overlay item with sizing, playback, and layering controls.</p>
-                    </div>
+                </div>
+                <div class="badge-row stacked">
+                    <span class="badge subtle" id="selected-asset-visibility">Visible</span>
+                    <span class="badge subtle" id="asset-type-label"></span>
                 </div>
 
                 <div class="panel-section">
                     <div class="section-header">
-                        <h5>Size & placement</h5>
-                        <p class="muted">Keep your overlay crisp by locking aspect ratio while resizing.</p>
+                        <h5>Layout & order</h5>
                     </div>
-                    <div class="control-grid condensed">
+                    <div class="control-grid condensed three-col">
                         <label>
                             Width
                             <input id="asset-width" class="number-input" type="number" min="10" step="5" />
@@ -68,56 +61,47 @@
                         </label>
                         <label class="checkbox-inline">
                             <input id="maintain-aspect" type="checkbox" checked />
-                            Maintain aspect ratio
+                            Maintain aspect
+                        </label>
+                    </div>
+                    <div class="control-grid condensed">
+                        <label>
+                            Layer (Z)
+                            <div class="badge-row stacked">
+                                <span class="badge">Layer <strong id="asset-z-level">1</strong></span>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="control-actions filled compact">
+                        <button type="button" onclick="sendToBack()" class="secondary" title="Send to back"><i class="fa-solid fa-angles-down"></i></button>
+                        <button type="button" onclick="bringBackward()" class="secondary" title="Move backward"><i class="fa-solid fa-arrow-down"></i></button>
+                        <button type="button" onclick="bringForward()" class="secondary" title="Move forward"><i class="fa-solid fa-arrow-up"></i></button>
+                        <button type="button" onclick="bringToFront()" class="secondary" title="Bring to front"><i class="fa-solid fa-angles-up"></i></button>
+                        <button type="button" onclick="recenterSelectedAsset()" class="secondary" title="Center on canvas"><i class="fa-solid fa-bullseye"></i></button>
+                    </div>
+                </div>
+
+                <div class="panel-section" id="playback-section">
+                    <div class="section-header">
+                        <h5>Playback</h5>
+                    </div>
+                    <div class="control-grid condensed">
+                        <label>
+                            Animation speed
+                            <input id="asset-speed" class="range-input" type="range" min="0" max="1000" step="10" value="100" />
+                        </label>
+                        <div class="range-meta"><span>0%</span><span>1000%</span></div>
+                        <label class="checkbox-inline">
+                            <input id="asset-muted" type="checkbox" />
+                            Mute
                         </label>
                     </div>
                 </div>
 
-                <div class="panel-section two-col">
-                    <div>
-                        <div class="section-header">
-                            <h5>Playback</h5>
-                            <p class="muted">Tweak animation speed or mute video assets.</p>
-                        </div>
-                        <div class="control-grid condensed">
-                            <label>
-                                Animation speed (% of original)
-                                <input id="asset-speed" class="number-input" type="number" min="10" max="400" step="5" value="100" />
-                            </label>
-                            <label class="checkbox-inline">
-                                <input id="asset-muted" type="checkbox" />
-                                Mute
-                            </label>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="section-header">
-                            <h5>Layering</h5>
-                            <p class="muted">Reorder assets to fit your scene.</p>
-                        </div>
-                        <div class="control-grid condensed">
-                            <label>
-                                Layer (Z)
-                                <div class="badge-row stacked">
-                                    <span class="badge">Layer <strong id="asset-z-level">0</strong></span>
-                                    <span class="badge subtle" id="asset-type-label"></span>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="control-actions filled">
-                    <button type="button" onclick="nudgeRotation(-5)" class="secondary">Rotate left</button>
-                    <button type="button" onclick="nudgeRotation(5)" class="secondary">Rotate right</button>
-                    <button type="button" onclick="applyTransformFromInputs()">Apply size</button>
-                    <button type="button" onclick="recenterSelectedAsset()" class="secondary">Re-center asset</button>
-                </div>
-                <div class="control-actions filled">
-                    <button type="button" onclick="sendToBack()" class="secondary">Send to back</button>
-                    <button type="button" onclick="bringBackward()" class="secondary">Bring backward</button>
-                    <button type="button" onclick="bringForward()" class="secondary">Bring forward</button>
-                    <button type="button" onclick="bringToFront()" class="secondary">Bring to front</button>
+                <div class="control-actions filled compact">
+                    <button type="button" onclick="nudgeRotation(-5)" class="secondary" title="Rotate left"><i class="fa-solid fa-rotate-left"></i></button>
+                    <button type="button" onclick="nudgeRotation(5)" class="secondary" title="Rotate right"><i class="fa-solid fa-rotate-right"></i></button>
+                    <button type="button" onclick="applyTransformFromInputs()" title="Apply size"><i class="fa-solid fa-floppy-disk"></i><span class="sr-only">Apply size</span></button>
                 </div>
             </div>
         </div>
