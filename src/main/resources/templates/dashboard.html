@@ -5,55 +5,88 @@
     <title>Imgfloat Dashboard</title>
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
-<body>
-<div class="container">
-    <h1>Welcome, <span th:text="${username}">user</span></h1>
-    <p>Manage your overlay or invite channel admins.</p>
-    <div class="actions">
-        <a class="button" th:href="@{'/view/' + ${channel} + '/admin'}">Admin console</a>
-        <a class="button" th:href="@{'/view/' + ${channel} + '/broadcast'}">Broadcast overlay</a>
-        <form th:action="@{/logout}" method="post">
-            <button class="secondary" type="submit">Logout</button>
-        </form>
-    </div>
-    <div class="panel">
-        <h3>Canvas size</h3>
-        <p>Set the pixel dimensions for your overlay. Admins will see this aspect ratio when positioning assets.</p>
-        <div class="control-grid">
-            <label>
-                Width
-                <input id="canvas-width" type="number" min="100" step="10" />
-            </label>
-            <label>
-                Height
-                <input id="canvas-height" type="number" min="100" step="10" />
-            </label>
+<body class="dashboard-body">
+<div class="dashboard-shell">
+    <header class="dashboard-header">
+        <div>
+            <p class="eyebrow">Logged in</p>
+            <h1>Welcome back, <span th:text="${username}">user</span></h1>
+            <p class="muted">Control your channel overlay, invite trusted teammates, and get to broadcasting faster.</p>
+            <div class="chip-row">
+                <span class="chip">Primary channel: <strong th:text="${channel}">channel</strong></span>
+                <span class="chip subtle">Secure dashboard</span>
+            </div>
         </div>
-        <div class="control-actions">
-            <button type="button" onclick="saveCanvasSettings()">Save canvas size</button>
-            <span id="canvas-status" class="muted"></span>
+        <div class="header-actions">
+            <a class="button" th:href="@{'/view/' + ${channel} + '/broadcast'}">Open broadcast overlay</a>
+            <a class="button ghost" th:href="@{'/view/' + ${channel} + '/admin'}">Open admin console</a>
+            <form th:action="@{/logout}" method="post">
+                <button class="secondary" type="submit">Logout</button>
+            </form>
         </div>
-    </div>
-    <div class="panel">
-        <h3>Channel admins</h3>
-        <p>Add trusted moderators who can upload overlay assets on your behalf.</p>
-        <div class="actions">
-            <input id="new-admin" placeholder="Twitch username" />
-            <button type="button" onclick="addAdmin()">Add admin</button>
+    </header>
+
+    <section class="card-grid two-col">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Canvas setup</p>
+                    <h3>Overlay dimensions</h3>
+                    <p class="muted">Match the canvas size to your streaming output so overlays sit exactly where you expect.</p>
+                </div>
+                <div class="pill">Visible to admins</div>
+            </div>
+            <div class="control-grid">
+                <label>
+                    Width
+                    <input id="canvas-width" type="number" min="100" step="10" />
+                </label>
+                <label>
+                    Height
+                    <input id="canvas-height" type="number" min="100" step="10" />
+                </label>
+            </div>
+            <div class="control-actions">
+                <button type="button" onclick="saveCanvasSettings()">Save canvas size</button>
+                <span id="canvas-status" class="muted"></span>
+            </div>
         </div>
-        <ul id="admin-list" class="stacked-list"></ul>
-    </div>
-    <div th:if="${adminChannels != null}"
-         class="panel">
-        <h3>Channels you administer</h3>
+
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Collaboration</p>
+                    <h3>Channel admins</h3>
+                    <p class="muted">Invite moderators or teammates to manage overlay assets without sharing your login.</p>
+                </div>
+            </div>
+            <div class="inline-form">
+                <input id="new-admin" placeholder="Twitch username" />
+                <button type="button" onclick="addAdmin()">Add admin</button>
+            </div>
+            <ul id="admin-list" class="stacked-list"></ul>
+        </div>
+    </section>
+
+    <section th:if="${adminChannels != null}" class="card">
+        <div class="card-header">
+            <div>
+                <p class="eyebrow">Your access</p>
+                <h3>Channels you administer</h3>
+                <p class="muted">Hop into a teammate's overlay console with the right permissions.</p>
+            </div>
+        </div>
         <p th:if="${#lists.isEmpty(adminChannels)}">No admin invitations yet.</p>
-        <ul th:if="${!#lists.isEmpty(adminChannels)}">
-            <li th:each="channelName : ${adminChannels}">
-                <a th:href="@{'/view/' + ${channelName} + '/admin'}"
-                   th:text="${channelName}">channel</a>
+        <ul th:if="${!#lists.isEmpty(adminChannels)}" class="stacked-list">
+            <li th:each="channelName : ${adminChannels}" class="stacked-list-item">
+                <div>
+                    <p class="list-title" th:text="${channelName}">channel</p>
+                    <p class="muted">Admin access</p>
+                </div>
+                <a class="button ghost" th:href="@{'/view/' + ${channelName} + '/admin'}">Open</a>
             </li>
         </ul>
-    </div>
+    </section>
 </div>
 <script th:inline="javascript">
     const broadcaster = /*[[${channel}]]*/ '';
