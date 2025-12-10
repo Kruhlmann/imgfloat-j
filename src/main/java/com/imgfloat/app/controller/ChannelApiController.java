@@ -8,6 +8,7 @@ import com.imgfloat.app.model.TwitchUserProfile;
 import com.imgfloat.app.model.VisibilityRequest;
 import com.imgfloat.app.service.ChannelDirectoryService;
 import com.imgfloat.app.service.TwitchUserLookupService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
@@ -37,6 +38,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @RestController
 @RequestMapping("/api/channels/{broadcaster}")
+@SecurityRequirement(name = "twitchOAuth")
 public class ChannelApiController {
     private final ChannelDirectoryService channelDirectoryService;
     private final OAuth2AuthorizedClientService authorizedClientService;
