@@ -11,6 +11,7 @@ const mediaCache = new Map();
 const renderStates = new Map();
 const animatedCache = new Map();
 const audioControllers = new Map();
+const pendingAudioUnlock = new Set();
 let drawPending = false;
 let zOrderDirty = true;
 let zOrderCache = [];
@@ -45,6 +46,17 @@ const selectedDeleteBtn = document.getElementById('selected-asset-delete');
 const audioPlaceholder = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="80"><rect width="100%" height="100%" fill="#1f2937" rx="8"/><g fill="#fbbf24" transform="translate(20 20)"><circle cx="15" cy="20" r="6"/><rect x="28" y="5" width="12" height="30" rx="2"/><rect x="45" y="10" width="140" height="5" fill="#fef3c7"/><rect x="45" y="23" width="110" height="5" fill="#fef3c7"/></g><text x="20" y="70" fill="#e5e7eb" font-family="sans-serif" font-size="14">Audio</text></svg>');
 const aspectLockState = new Map();
 const commitSizeChange = debounce(() => applyTransformFromInputs(), 180);
+const audioUnlockEvents = ['pointerdown', 'keydown', 'touchstart'];
+
+audioUnlockEvents.forEach((eventName) => {
+    window.addEventListener(eventName, () => {
+        if (!pendingAudioUnlock.size) return;
+        pendingAudioUnlock.forEach((controller) => {
+            safePlay(controller);
+        });
+        pendingAudioUnlock.clear();
+    });
+});
 
 function debounce(fn, wait = 150) {
     let timeout;
@@ -52,6 +64,60 @@ function debounce(fn, wait = 150) {
         clearTimeout(timeout);
         timeout = setTimeout(() => fn(...args), wait);
     };
+}
+
+function formatDurationLabel(durationMs) {
+    const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function recordDuration(assetId, seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        return;
+    }
+    const asset = assets.get(assetId);
+    if (!asset) {
+        return;
+    }
+    const nextMs = Math.round(seconds * 1000);
+    if (asset.durationMs === nextMs) {
+        return;
+    }
+    asset.durationMs = nextMs;
+    if (asset.id === selectedAssetId) {
+        updateSelectedAssetSummary(asset);
+    }
+    drawAndList();
+}
+
+function hasDuration(asset) {
+    return asset && Number.isFinite(asset.durationMs) && asset.durationMs > 0 && (isAudioAsset(asset) || isVideoAsset(asset));
+}
+
+function getDurationBadge(asset) {
+    if (!hasDuration(asset)) {
+        return null;
+    }
+    return formatDurationLabel(asset.durationMs);
+}
+
+function queueAudioForUnlock(controller) {
+    if (!controller) return;
+    pendingAudioUnlock.add(controller);
+}
+
+function safePlay(controller) {
+    if (!controller?.element) return;
+    const playPromise = controller.element.play();
+    if (playPromise?.catch) {
+        playPromise.catch(() => queueAudioForUnlock(controller));
+    }
 }
 
 if (widthInput) widthInput.addEventListener('input', () => handleSizeInputChange('width'));
@@ -604,8 +670,10 @@ function ensureAudioController(asset) {
     }
 
     const element = new Audio(asset.url);
+    element.autoplay = true;
     element.controls = true;
     element.preload = 'auto';
+    element.addEventListener('loadedmetadata', () => recordDuration(asset.id, element.duration));
     const controller = {
         id: asset.id,
         src: asset.url,
@@ -645,7 +713,7 @@ function handleAudioEnded(assetId) {
     }
     if (controller.loopEnabled) {
         controller.delayTimeout = setTimeout(() => {
-            controller.element.play().catch(() => {});
+            safePlay(controller);
         }, controller.delayMs);
     } else {
         controller.element.pause();
@@ -672,7 +740,7 @@ function playAudioFromCanvas(asset, resetDelay = false) {
     }
     controller.element.currentTime = 0;
     controller.delayMs = resetDelay ? 0 : controller.baseDelayMs;
-    controller.element.play().catch(() => {});
+    safePlay(controller);
     controller.delayMs = controller.baseDelayMs;
     requestDraw();
 }
@@ -684,7 +752,7 @@ function autoStartAudio(asset) {
     const controller = ensureAudioController(asset);
     if (controller.loopEnabled && controller.element.paused && !controller.delayTimeout) {
         controller.delayTimeout = setTimeout(() => {
-            controller.element.play().catch(() => {});
+            safePlay(controller);
         }, controller.delayMs);
     }
 }
@@ -719,6 +787,7 @@ function ensureMedia(asset) {
         element.playsInline = true;
         element.autoplay = true;
         element.onloadeddata = requestDraw;
+        element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
         element.src = asset.url;
         const playback = asset.speed ?? 1;
         element.playbackRate = Math.max(playback, 0.01);
@@ -890,6 +959,10 @@ function renderAssetList() {
         if (aspectLabel) {
             badges.appendChild(createBadge(aspectLabel, 'subtle'));
         }
+        const durationLabel = getDurationBadge(asset);
+        if (durationLabel) {
+            badges.appendChild(createBadge(durationLabel, 'subtle'));
+        }
         meta.appendChild(badges);
 
         const actions = document.createElement('div');
@@ -1016,6 +1089,12 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
     if (audioSection) {
         const showAudio = isAudioAsset(asset);
         audioSection.classList.toggle('hidden', !showAudio);
+        const audioInputs = [audioLoopInput, audioDelayInput, audioSpeedInput, audioPitchInput, audioVolumeInput];
+        audioInputs.forEach((input) => {
+            if (!input) return;
+            input.disabled = !showAudio;
+            input.parentElement?.classList?.toggle('disabled', !showAudio);
+        });
         if (showAudio) {
             audioLoopInput.checked = !!asset.audioLoop;
             audioDelayInput.value = Math.max(0, asset.audioDelayMillis ?? 0);
@@ -1047,6 +1126,10 @@ function updateSelectedAssetSummary(asset) {
             const aspectLabel = formatAspectRatioLabel(asset);
             if (aspectLabel) {
                 selectedAssetBadges.appendChild(createBadge(aspectLabel, 'subtle'));
+            }
+            const durationLabel = getDurationBadge(asset);
+            if (durationLabel) {
+                selectedAssetBadges.appendChild(createBadge(durationLabel, 'subtle'));
             }
         }
     }

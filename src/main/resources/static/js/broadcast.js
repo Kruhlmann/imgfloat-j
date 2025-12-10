@@ -8,6 +8,7 @@ const mediaCache = new Map();
 const renderStates = new Map();
 const animatedCache = new Map();
 const audioControllers = new Map();
+const pendingAudioUnlock = new Set();
 const TARGET_FPS = 60;
 const MIN_FRAME_TIME = 1000 / TARGET_FPS;
 let lastRenderTime = 0;
@@ -17,6 +18,15 @@ let sortedAssetsCache = [];
 let assetsDirty = true;
 let renderIntervalId = null;
 const audioPlaceholder = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="80"><rect width="100%" height="100%" fill="#0f172a" rx="8"/><g fill="#22d3ee" transform="translate(20 20)"><circle cx="15" cy="20" r="6"/><rect x="28" y="5" width="12" height="30" rx="2"/><rect x="45" y="10" width="140" height="5" fill="#a5f3fc"/><rect x="45" y="23" width="110" height="5" fill="#a5f3fc"/></g><text x="20" y="70" fill="#e5e7eb" font-family="sans-serif" font-size="14">Audio</text></svg>');
+const audioUnlockEvents = ['pointerdown', 'keydown', 'touchstart'];
+
+audioUnlockEvents.forEach((eventName) => {
+    window.addEventListener(eventName, () => {
+        if (!pendingAudioUnlock.size) return;
+        pendingAudioUnlock.forEach((controller) => safePlay(controller));
+        pendingAudioUnlock.clear();
+    });
+});
 
 function connect() {
     const socket = new SockJS('/ws');
@@ -177,6 +187,34 @@ function lerp(a, b, t) {
     return a + (b - a) * t;
 }
 
+function queueAudioForUnlock(controller) {
+    if (!controller) return;
+    pendingAudioUnlock.add(controller);
+}
+
+function safePlay(controller) {
+    if (!controller?.element) return;
+    const playPromise = controller.element.play();
+    if (playPromise?.catch) {
+        playPromise.catch(() => queueAudioForUnlock(controller));
+    }
+}
+
+function recordDuration(assetId, seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        return;
+    }
+    const asset = assets.get(assetId);
+    if (!asset) {
+        return;
+    }
+    const nextMs = Math.round(seconds * 1000);
+    if (asset.durationMs === nextMs) {
+        return;
+    }
+    asset.durationMs = nextMs;
+}
+
 function isVideoAsset(asset) {
     return asset?.mediaType?.startsWith('video/');
 }
@@ -295,8 +333,10 @@ function ensureAudioController(asset) {
     }
 
     const element = new Audio(asset.url);
+    element.autoplay = true;
     element.preload = 'auto';
     element.controls = false;
+    element.addEventListener('loadedmetadata', () => recordDuration(asset.id, element.duration));
     const controller = {
         id: asset.id,
         src: asset.url,
@@ -336,7 +376,7 @@ function handleAudioEnded(assetId) {
     }
     if (controller.loopEnabled) {
         controller.delayTimeout = setTimeout(() => {
-            controller.element.play().catch(() => {});
+            safePlay(controller);
         }, controller.delayMs);
     } else {
         controller.element.pause();
@@ -352,7 +392,7 @@ function playAudioImmediately(asset) {
     controller.element.currentTime = 0;
     const originalDelay = controller.delayMs;
     controller.delayMs = 0;
-    controller.element.play().catch(() => {});
+    safePlay(controller);
     controller.delayMs = controller.baseDelayMs ?? originalDelay ?? 0;
 }
 
@@ -368,7 +408,7 @@ function autoStartAudio(asset) {
         return;
     }
     controller.delayTimeout = setTimeout(() => {
-        controller.element.play().catch(() => {});
+        safePlay(controller);
     }, controller.delayMs);
 }
 
@@ -402,6 +442,7 @@ function ensureMedia(asset) {
         element.playsInline = true;
         element.autoplay = true;
         element.onloadeddata = draw;
+        element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
         element.src = asset.url;
         const playback = asset.speed ?? 1;
         element.playbackRate = Math.max(playback, 0.01);
