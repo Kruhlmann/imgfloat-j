@@ -7,6 +7,8 @@ const assets = new Map();
 const mediaCache = new Map();
 const renderStates = new Map();
 const animatedCache = new Map();
+const blobCache = new Map();
+const animationFailures = new Map();
 const audioControllers = new Map();
 const pendingAudioUnlock = new Set();
 const TARGET_FPS = 60;
@@ -283,6 +285,8 @@ function clearMedia(assetId) {
         animated.decoder?.close?.();
         animatedCache.delete(assetId);
     }
+    animationFailures.delete(assetId);
+    blobCache.delete(assetId);
     const audio = audioControllers.get(assetId);
     if (audio) {
         if (audio.delayTimeout) {
@@ -485,10 +489,16 @@ function ensureMedia(asset) {
 }
 
 function ensureAnimatedImage(asset) {
+    const failedAt = animationFailures.get(asset.id);
+    if (failedAt && Date.now() - failedAt < 15000) {
+        return null;
+    }
     const cached = animatedCache.get(asset.id);
     if (cached && cached.url === asset.url) {
         return cached;
     }
+
+    animationFailures.delete(asset.id);
 
     if (cached) {
         clearMedia(asset.id);
@@ -505,8 +515,7 @@ function ensureAnimatedImage(asset) {
         isAnimated: true
     };
 
-    fetch(asset.url)
-        .then((r) => r.blob())
+    fetchAssetBlob(asset)
         .then((blob) => new ImageDecoder({ data: blob, type: blob.type || 'image/gif' }))
         .then((decoder) => {
             if (controller.cancelled) {
@@ -519,10 +528,30 @@ function ensureAnimatedImage(asset) {
         })
         .catch(() => {
             animatedCache.delete(asset.id);
+            animationFailures.set(asset.id, Date.now());
         });
 
     animatedCache.set(asset.id, controller);
     return controller;
+}
+
+function fetchAssetBlob(asset) {
+    const cached = blobCache.get(asset.id);
+    if (cached && cached.url === asset.url && cached.blob) {
+        return Promise.resolve(cached.blob);
+    }
+    if (cached && cached.url === asset.url && cached.pending) {
+        return cached.pending;
+    }
+
+    const pending = fetch(asset.url)
+        .then((r) => r.blob())
+        .then((blob) => {
+            blobCache.set(asset.id, { url: asset.url, blob });
+            return blob;
+        });
+    blobCache.set(asset.id, { url: asset.url, pending });
+    return pending;
 }
 
 function scheduleNextFrame(controller) {
@@ -559,6 +588,7 @@ function scheduleNextFrame(controller) {
     }).catch(() => {
         // If decoding fails, clear animated cache so static fallback is used next render
         animatedCache.delete(controller.id);
+        animationFailures.set(controller.id, Date.now());
     });
 }
 

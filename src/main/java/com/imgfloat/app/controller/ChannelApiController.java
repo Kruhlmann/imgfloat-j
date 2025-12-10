@@ -231,6 +231,33 @@ public class ChannelApiController {
                 .orElseThrow(() -> new ResponseStatusException(FORBIDDEN, "Asset not available"));
     }
 
+    @GetMapping("/assets/{assetId}/preview")
+    public ResponseEntity<byte[]> getAssetPreview(@PathVariable("broadcaster") String broadcaster,
+                                                  @PathVariable("assetId") String assetId,
+                                                  OAuth2AuthenticationToken authentication) {
+        boolean authorized = false;
+        if (authentication != null) {
+            String login = TwitchUser.from(authentication).login();
+            authorized = channelDirectoryService.isBroadcaster(broadcaster, login)
+                    || channelDirectoryService.isAdmin(broadcaster, login);
+        }
+
+        if (authorized) {
+            LOG.debug("Serving preview for asset {} for broadcaster {}", assetId, broadcaster);
+            return channelDirectoryService.getAssetPreview(broadcaster, assetId, true)
+                    .map(content -> ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType(content.mediaType()))
+                            .body(content.bytes()))
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Preview not found"));
+        }
+
+        return channelDirectoryService.getAssetPreview(broadcaster, assetId, false)
+                .map(content -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(content.mediaType()))
+                        .body(content.bytes()))
+                .orElseThrow(() -> new ResponseStatusException(FORBIDDEN, "Preview not available"));
+    }
+
     @DeleteMapping("/assets/{assetId}")
     public ResponseEntity<?> delete(@PathVariable("broadcaster") String broadcaster,
                                     @PathVariable("assetId") String assetId,

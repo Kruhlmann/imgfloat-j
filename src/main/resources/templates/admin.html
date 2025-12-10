@@ -57,6 +57,7 @@
                                     <strong id="selected-asset-name">Choose an asset</strong>
                                 </div>
                                 <p class="meta-text" id="selected-asset-meta">Pick an asset in the list to adjust its placement and playback.</p>
+                                <p class="meta-text subtle-text hidden" id="selected-asset-id"></p>
                                 <div class="badge-row asset-meta-badges" id="selected-asset-badges"></div>
                             </div>
                                         <!--
@@ -116,19 +117,23 @@
                                 <div class="panel-section" id="playback-section">
                                     <div class="section-header">
                                         <h5>Playback</h5>
+                                        <p class="field-note">Video-only controls.</p>
                                     </div>
-                                    <div class="control-grid condensed">
-                                        <label>
-                                            Animation speed
-                                            <input id="asset-speed" class="range-input" type="range" min="0" max="1000" step="10" value="100" />
-                                        </label>
+                                    <div class="stacked-field">
+                                        <div class="label-row">
+                                            <span>Animation speed</span>
+                                            <span class="value-hint" id="asset-speed-label">100%</span>
+                                        </div>
+                                        <input id="asset-speed" class="range-input" type="range" min="0" max="1000" step="10" value="100" />
                                         <div class="range-meta"><span>0%</span><span>1000%</span></div>
-                                        <label class="checkbox-inline toggle">
+                                    </div>
+                                    <div class="control-grid condensed split-row">
+                                        <label class="checkbox-inline toggle inline-toggle">
                                             <input id="asset-muted" type="checkbox" />
                                             <span class="toggle-track" aria-hidden="true">
                                                 <span class="toggle-thumb"></span>
                                             </span>
-                                            <span class="toggle-label">Mute</span>
+                                            <span class="toggle-label">Mute video</span>
                                         </label>
                                     </div>
                                 </div>
@@ -137,8 +142,9 @@
                                     <div class="section-header">
                                         <h5>Audio</h5>
                                     </div>
-                                    <div class="control-grid condensed three-col">
-                                        <label class="checkbox-inline toggle">
+                                    <div class="control-grid condensed two-col">
+        
+                                        <label class="checkbox-inline toggle inline-toggle">
                                             <input id="asset-audio-loop" type="checkbox" />
                                             <span class="toggle-track" aria-hidden="true">
                                                 <span class="toggle-thumb"></span>
@@ -149,6 +155,16 @@
                                             Delay (ms)
                                             <input id="asset-audio-delay" class="number-input" type="number" min="0" step="100" />
                                         </label>
+                                    </div>
+                                    <div class="stacked-field">
+                                        <div class="label-row">
+                                            <span>Playback speed</span>
+                                            <span class="value-hint" id="asset-audio-speed-label">1.0x</span>
+                                        </div>
+                                        <input id="asset-audio-speed" class="range-input" type="range" min="25" max="400" step="5" value="100" />
+                                        <div class="range-meta"><span>0.25x</span><span>4x</span></div>
+                                    </div>
+                                    <div class="control-grid condensed two-col">
                                         <label>
                                             Pitch (%)
                                             <input id="asset-audio-pitch" class="range-input" type="range" min="50" max="200" step="5" value="100" />
@@ -157,13 +173,6 @@
                                             Volume (%)
                                             <input id="asset-audio-volume" class="range-input" type="range" min="0" max="100" step="1" value="100" />
                                         </label>
-                                    </div>
-                                    <div class="control-grid condensed">
-                                        <label>
-                                            Playback speed
-                                            <input id="asset-audio-speed" class="range-input" type="range" min="25" max="400" step="5" value="100" />
-                                        </label>
-                                        <div class="range-meta"><span>0.25x</span><span>4x</span></div>
                                     </div>
                                 </div>
                             </div>

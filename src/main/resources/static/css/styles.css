@@ -695,6 +695,11 @@ body {
     margin: 6px 0 0;
 }
 
+.subtle-text {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
 .panel-section {
     margin-top: 12px;
     padding: 14px;
@@ -718,6 +723,31 @@ body {
 
 .section-header h5 {
     margin: 0;
+}
+
+.field-note {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.stacked-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.value-hint {
+    color: #cbd5e1;
+    font-size: 12px;
 }
 
 .asset-list {
@@ -938,6 +968,11 @@ body {
     margin-top: 8px;
 }
 
+.control-grid.split-row {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    margin-top: 6px;
+}
+
 .control-grid.three-col {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
@@ -947,6 +982,11 @@ body {
     flex-direction: column;
     gap: 6px;
     color: #cbd5e1;
+}
+
+.control-grid .inline-toggle {
+    align-items: center;
+    justify-content: space-between;
 }
 
 .control-grid input[type="number"],

@@ -66,6 +66,7 @@ public class SchemaMigration implements ApplicationRunner {
         addColumnIfMissing("assets", columns, "audio_speed", "REAL", "1.0");
         addColumnIfMissing("assets", columns, "audio_pitch", "REAL", "1.0");
         addColumnIfMissing("assets", columns, "audio_volume", "REAL", "1.0");
+        addColumnIfMissing("assets", columns, "preview", "TEXT", "NULL");
     }
 
     private void addColumnIfMissing(String tableName, List<String> existingColumns, String columnName, String dataType, String defaultValue) {

@@ -15,6 +15,7 @@ const audioControllers = new Map();
 const pendingAudioUnlock = new Set();
 const loopPlaybackState = new Map();
 const previewCache = new Map();
+const previewImageCache = new Map();
 let drawPending = false;
 let zOrderDirty = true;
 let zOrderCache = [];
@@ -30,6 +31,7 @@ const heightInput = document.getElementById('asset-height');
 const aspectLockInput = document.getElementById('maintain-aspect');
 const speedInput = document.getElementById('asset-speed');
 const muteInput = document.getElementById('asset-muted');
+const speedLabel = document.getElementById('asset-speed-label');
 const selectedZLabel = document.getElementById('asset-z-level');
 const playbackSection = document.getElementById('playback-section');
 const audioSection = document.getElementById('audio-section');
@@ -37,6 +39,7 @@ const layoutSection = document.getElementById('layout-section');
 const audioLoopInput = document.getElementById('asset-audio-loop');
 const audioDelayInput = document.getElementById('asset-audio-delay');
 const audioSpeedInput = document.getElementById('asset-audio-speed');
+const audioSpeedLabel = document.getElementById('asset-audio-speed-label');
 const audioPitchInput = document.getElementById('asset-audio-pitch');
 const audioVolumeInput = document.getElementById('asset-audio-volume');
 const controlsPlaceholder = document.getElementById('asset-controls-placeholder');
@@ -44,6 +47,7 @@ const fileNameLabel = document.getElementById('asset-file-name');
 const assetInspector = document.getElementById('asset-inspector');
 const selectedAssetName = document.getElementById('selected-asset-name');
 const selectedAssetMeta = document.getElementById('selected-asset-meta');
+const selectedAssetIdLabel = document.getElementById('selected-asset-id');
 const selectedAssetBadges = document.getElementById('selected-asset-badges');
 const selectedVisibilityBtn = document.getElementById('selected-asset-visibility');
 const selectedDeleteBtn = document.getElementById('selected-asset-delete');
@@ -142,6 +146,18 @@ function getDurationBadge(asset) {
         return null;
     }
     return formatDurationLabel(asset.durationMs);
+}
+
+function setSpeedLabel(percent) {
+    if (!speedLabel) return;
+    speedLabel.textContent = `${Math.round(percent)}%`;
+}
+
+function setAudioSpeedLabel(percentValue) {
+    if (!audioSpeedLabel) return;
+    const multiplier = Math.max(0, percentValue) / 100;
+    const formatted = multiplier >= 10 ? multiplier.toFixed(0) : multiplier.toFixed(2);
+    audioSpeedLabel.textContent = `${formatted}x`;
 }
 
 function queueAudioForUnlock(controller) {
@@ -266,20 +282,22 @@ function renderAssets(list) {
 function storeAsset(asset) {
     if (!asset) return;
     const existing = assets.get(asset.id);
-    if (existing && existing.url !== asset.url) {
+    const merged = existing ? { ...existing, ...asset } : { ...asset };
+    const mediaChanged = existing && existing.url !== merged.url;
+    const previewChanged = existing && existing.previewUrl !== merged.previewUrl;
+    if (mediaChanged || previewChanged) {
         clearMedia(asset.id);
-        previewCache.delete(asset.id);
     }
-    asset.zIndex = Math.max(1, asset.zIndex ?? 1);
-    const parsedCreatedAt = asset.createdAt ? new Date(asset.createdAt).getTime() : NaN;
-    const hasCreatedAtMs = typeof asset.createdAtMs === 'number' && Number.isFinite(asset.createdAtMs);
+    merged.zIndex = Math.max(1, merged.zIndex ?? 1);
+    const parsedCreatedAt = merged.createdAt ? new Date(merged.createdAt).getTime() : NaN;
+    const hasCreatedAtMs = typeof merged.createdAtMs === 'number' && Number.isFinite(merged.createdAtMs);
     if (!hasCreatedAtMs) {
-        asset.createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
+        merged.createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
     }
-    assets.set(asset.id, asset);
+    assets.set(asset.id, merged);
     zOrderDirty = true;
     if (!renderStates.has(asset.id)) {
-        renderStates.set(asset.id, { ...asset });
+        renderStates.set(asset.id, { ...merged });
     }
     resolvePendingUploadByName(asset.name);
 }
@@ -376,9 +394,18 @@ function drawAsset(asset) {
         return;
     }
 
-    const media = ensureMedia(asset);
-    const drawSource = media?.isAnimated ? media.bitmap : media;
-    const ready = isDrawable(media);
+    let drawSource = null;
+    let ready = false;
+    let showPlayOverlay = false;
+    if (isVideoAsset(asset) || isGifAsset(asset)) {
+        drawSource = ensureCanvasPreview(asset);
+        ready = isDrawable(drawSource);
+        showPlayOverlay = true;
+    } else {
+        const media = ensureMedia(asset);
+        drawSource = media?.isAnimated ? media.bitmap : media;
+        ready = isDrawable(media);
+    }
     if (ready && drawSource) {
         ctx.globalAlpha = asset.hidden ? 0.35 : 0.9;
         ctx.drawImage(drawSource, -halfWidth, -halfHeight, renderState.width, renderState.height);
@@ -398,6 +425,9 @@ function drawAsset(asset) {
     ctx.lineWidth = asset.id === selectedAssetId ? 2 : 1;
     ctx.setLineDash(asset.id === selectedAssetId ? [6, 4] : []);
     ctx.strokeRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
+    if (showPlayOverlay) {
+        drawPlayOverlay(renderState);
+    }
     if (asset.id === selectedAssetId) {
         drawSelectionOverlay(renderState);
     }
@@ -423,6 +453,24 @@ function smoothAngle(current, target, factor) {
 
 function lerp(a, b, t) {
     return a + (b - a) * t;
+}
+
+function drawPlayOverlay(asset) {
+    const size = Math.max(24, Math.min(asset.width, asset.height) * 0.2);
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.75, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.3, -size * 0.45);
+    ctx.lineTo(size * 0.55, 0);
+    ctx.lineTo(-size * 0.3, size * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
 }
 
 function drawSelectionOverlay(asset) {
@@ -658,7 +706,12 @@ function isDrawable(element) {
 
 function clearMedia(assetId) {
     mediaCache.delete(assetId);
+    const cachedPreview = previewCache.get(assetId);
+    if (cachedPreview && cachedPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(cachedPreview);
+    }
     previewCache.delete(assetId);
+    previewImageCache.delete(assetId);
     const animated = animatedCache.get(assetId);
     if (animated) {
         animated.cancelled = true;
@@ -964,10 +1017,12 @@ function renderAssetList() {
 
         const badges = document.createElement('div');
         badges.className = 'badge-row asset-meta-badges';
-        badges.appendChild(createBadge(asset.hidden ? 'Hidden' : 'Visible', asset.hidden ? 'danger' : ''));
         badges.appendChild(createBadge(getDisplayMediaType(asset)));
-        badges.appendChild(createBadge(`Z ${asset.zIndex ?? 1}`));
-        const aspectLabel = formatAspectRatioLabel(asset);
+        if (!isAudioAsset(asset)) {
+            badges.appendChild(createBadge(asset.hidden ? 'Hidden' : 'Visible', asset.hidden ? 'danger' : ''));
+            badges.appendChild(createBadge(`Z ${asset.zIndex ?? 1}`));
+        }
+        const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : '';
         if (aspectLabel) {
             badges.appendChild(createBadge(aspectLabel, 'subtle'));
         }
@@ -979,17 +1034,6 @@ function renderAssetList() {
 
         const actions = document.createElement('div');
         actions.className = 'actions';
-
-        const toggleBtn = document.createElement('button');
-        toggleBtn.type = 'button';
-        toggleBtn.className = 'ghost icon-button';
-        toggleBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
-        toggleBtn.title = asset.hidden ? 'Show asset' : 'Hide asset';
-        toggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            selectedAssetId = asset.id;
-            updateVisibility(asset, !asset.hidden);
-        });
 
         if (isAudioAsset(asset)) {
             const playBtn = document.createElement('button');
@@ -1016,6 +1060,20 @@ function renderAssetList() {
             actions.appendChild(playBtn);
         }
 
+        if (!isAudioAsset(asset)) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.type = 'button';
+            toggleBtn.className = 'ghost icon-button';
+            toggleBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+            toggleBtn.title = asset.hidden ? 'Show asset' : 'Hide asset';
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedAssetId = asset.id;
+                updateVisibility(asset, !asset.hidden);
+            });
+            actions.appendChild(toggleBtn);
+        }
+
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.className = 'ghost danger icon-button';
@@ -1026,7 +1084,6 @@ function renderAssetList() {
             deleteAsset(asset);
         });
 
-        actions.appendChild(toggleBtn);
         actions.appendChild(deleteBtn);
 
         row.appendChild(preview);
@@ -1136,26 +1193,50 @@ function createPreviewElement(asset) {
     return img;
 }
 
-function loadPreviewFrame(asset, element) {
-    if (!asset || !element) return;
+function fetchPreviewData(asset) {
+    if (!asset) return Promise.resolve(null);
     const cached = previewCache.get(asset.id);
     if (cached) {
-        applyPreviewFrame(element, cached);
-        return;
+        return Promise.resolve(cached);
     }
 
-    const source = isVideoAsset(asset)
-        ? captureVideoFrame(asset)
-        : isGifAsset(asset)
-            ? captureGifFrame(asset)
-            : Promise.resolve(null);
+    const primary = asset.previewUrl
+        ? fetch(asset.previewUrl)
+            .then((r) => {
+                if (!r.ok) throw new Error('preview fetch failed');
+                return r.blob();
+            })
+            .then((blob) => URL.createObjectURL(blob))
+            .catch(() => null)
+        : Promise.resolve(null);
 
-    source
+    return primary
         .then((dataUrl) => {
-            if (!dataUrl) {
-                return;
+            if (dataUrl) {
+                previewCache.set(asset.id, dataUrl);
+                return dataUrl;
             }
-            previewCache.set(asset.id, dataUrl);
+            const fallback = isVideoAsset(asset)
+                ? captureVideoFrame(asset)
+                : isGifAsset(asset)
+                    ? captureGifFrame(asset)
+                    : Promise.resolve(null);
+            return fallback.then((result) => {
+                if (!result) {
+                    return null;
+                }
+                previewCache.set(asset.id, result);
+                return result;
+            });
+        })
+        .catch(() => null);
+}
+
+function loadPreviewFrame(asset, element) {
+    if (!asset || !element) return;
+    fetchPreviewData(asset)
+        .then((dataUrl) => {
+            if (!dataUrl) return;
             applyPreviewFrame(element, dataUrl);
         })
         .catch(() => { });
@@ -1165,6 +1246,36 @@ function applyPreviewFrame(element, dataUrl) {
     if (!element || !dataUrl) return;
     element.style.backgroundImage = `url(${dataUrl})`;
     element.classList.add('has-image');
+}
+
+function ensureCanvasPreview(asset) {
+    const cachedData = previewCache.get(asset.id);
+    const cachedImage = previewImageCache.get(asset.id);
+    if (cachedData && cachedImage?.src === cachedData) {
+        return cachedImage.image;
+    }
+
+    if (cachedData) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = requestDraw;
+        img.src = cachedData;
+        previewImageCache.set(asset.id, { src: cachedData, image: img });
+        return img;
+    }
+
+    fetchPreviewData(asset)
+        .then((dataUrl) => {
+            if (!dataUrl) return;
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = requestDraw;
+            img.src = dataUrl;
+            previewImageCache.set(asset.id, { src: dataUrl, image: img });
+        })
+        .catch(() => { });
+
+    return null;
 }
 
 function captureVideoFrame(asset) {
@@ -1273,6 +1384,7 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
     if (speedInput) {
         const percent = Math.round((asset.speed ?? 1) * 100);
         speedInput.value = Math.min(1000, Math.max(0, percent));
+        setSpeedLabel(speedInput.value);
     }
     if (playbackSection) {
         const shouldShowPlayback = isVideoAsset(asset);
@@ -1297,6 +1409,7 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
             audioLoopInput.checked = !!asset.audioLoop;
             audioDelayInput.value = Math.max(0, asset.audioDelayMillis ?? 0);
             audioSpeedInput.value = Math.round(Math.max(0.25, asset.audioSpeed ?? 1) * 100);
+            setAudioSpeedLabel(audioSpeedInput.value);
             audioPitchInput.value = Math.round(Math.max(0.5, asset.audioPitch ?? 1) * 100);
             audioVolumeInput.value = Math.round(Math.max(0, Math.min(1, asset.audioVolume ?? 1)) * 100);
         }
@@ -1312,16 +1425,29 @@ function updateSelectedAssetSummary(asset) {
         selectedAssetName.textContent = asset ? (asset.name || `Asset ${asset.id.slice(0, 6)}`) : 'Choose an asset';
     }
     if (selectedAssetMeta) {
+        const baseMeta = asset ? `${Math.round(asset.width)}x${Math.round(asset.height)}` : null;
+        const layerMeta = asset && !isAudioAsset(asset) ? ` · Layer ${asset.zIndex ?? 1}` : '';
         selectedAssetMeta.textContent = asset
-            ? `${Math.round(asset.width)}x${Math.round(asset.height)} · Layer ${asset.zIndex ?? 1}`
+            ? `${baseMeta}${layerMeta}`
             : 'Pick an asset in the list to adjust its placement and playback.';
+    }
+    if (selectedAssetIdLabel) {
+        if (asset) {
+            selectedAssetIdLabel.textContent = `ID: ${asset.id}`;
+            selectedAssetIdLabel.classList.remove('hidden');
+        } else {
+            selectedAssetIdLabel.classList.add('hidden');
+            selectedAssetIdLabel.textContent = '';
+        }
     }
     if (selectedAssetBadges) {
         selectedAssetBadges.innerHTML = '';
         if (asset) {
-            selectedAssetBadges.appendChild(createBadge(asset.hidden ? 'Hidden' : 'Visible', asset.hidden ? 'danger' : ''));
             selectedAssetBadges.appendChild(createBadge(getDisplayMediaType(asset)));
-            const aspectLabel = formatAspectRatioLabel(asset);
+            if (!isAudioAsset(asset)) {
+                selectedAssetBadges.appendChild(createBadge(asset.hidden ? 'Hidden' : 'Visible', asset.hidden ? 'danger' : ''));
+            }
+            const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : '';
             if (aspectLabel) {
                 selectedAssetBadges.appendChild(createBadge(aspectLabel, 'subtle'));
             }
@@ -1373,6 +1499,7 @@ function updatePlaybackFromInputs() {
     const asset = getSelectedAsset();
     if (!asset || !isVideoAsset(asset)) return;
     const percent = Math.max(0, Math.min(1000, parseFloat(speedInput?.value) || 100));
+    setSpeedLabel(percent);
     asset.speed = percent / 100;
     updateRenderState(asset);
     persistTransform(asset);
@@ -1401,7 +1528,9 @@ function updateAudioSettingsFromInputs() {
     if (!asset || !isAudioAsset(asset)) return;
     asset.audioLoop = !!audioLoopInput?.checked;
     asset.audioDelayMillis = Math.max(0, parseInt(audioDelayInput?.value || '0', 10));
-    asset.audioSpeed = Math.max(0.25, (parseInt(audioSpeedInput?.value || '100', 10) / 100));
+    const nextAudioSpeedPercent = Math.max(25, parseInt(audioSpeedInput?.value || '100', 10));
+    setAudioSpeedLabel(nextAudioSpeedPercent);
+    asset.audioSpeed = Math.max(0.25, (nextAudioSpeedPercent / 100));
     asset.audioPitch = Math.max(0.5, (parseInt(audioPitchInput?.value || '100', 10) / 100));
     asset.audioVolume = Math.max(0, Math.min(1, (parseInt(audioVolumeInput?.value || '100', 10) / 100)));
     const controller = ensureAudioController(asset);
@@ -1499,6 +1628,9 @@ function getAssetAspectRatio(asset) {
 }
 
 function formatAspectRatioLabel(asset) {
+    if (isAudioAsset(asset)) {
+        return '';
+    }
     const ratio = getAssetAspectRatio(asset);
     if (!ratio) {
         return '';

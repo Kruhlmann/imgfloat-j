@@ -34,6 +34,8 @@ public class Asset {
     private Boolean muted;
     private String mediaType;
     private String originalMediaType;
+    @Column(columnDefinition = "TEXT")
+    private String preview;
     private Integer zIndex;
     private Boolean audioLoop;
     private Integer audioDelayMillis;
@@ -200,6 +202,14 @@ public class Asset {
 
     public void setOriginalMediaType(String originalMediaType) {
         this.originalMediaType = originalMediaType;
+    }
+
+    public String getPreview() {
+        return preview;
+    }
+
+    public void setPreview(String preview) {
+        this.preview = preview;
     }
 
     public boolean isVideo() {

@@ -15,6 +15,7 @@ import org.jcodec.api.JCodecException;
 import org.jcodec.api.awt.AWTSequenceEncoder;
 import org.jcodec.common.io.ByteBufferSeekableByteChannel;
 import org.jcodec.common.model.Picture;
+import org.jcodec.scale.AWTUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -131,6 +132,7 @@ public class ChannelDirectoryService {
         Asset asset = new Asset(channel.getBroadcaster(), name, dataUrl, width, height);
         asset.setOriginalMediaType(mediaType);
         asset.setMediaType(optimized.mediaType());
+        asset.setPreview(optimized.previewDataUrl());
         asset.setSpeed(1.0);
         asset.setMuted(optimized.mediaType().startsWith("video/"));
         asset.setAudioLoop(false);
@@ -240,6 +242,24 @@ public class ChannelDirectoryService {
                 .flatMap(this::decodeAssetData);
     }
 
+    public Optional<AssetContent> getAssetPreview(String broadcaster, String assetId, boolean includeHidden) {
+        String normalized = normalize(broadcaster);
+        return assetRepository.findById(assetId)
+                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .filter(asset -> includeHidden || !asset.isHidden())
+                .map(asset -> {
+                    Optional<AssetContent> preview = decodeDataUrl(asset.getPreview());
+                    if (preview.isPresent()) {
+                        return preview.get();
+                    }
+                    if (asset.getMediaType() != null && asset.getMediaType().startsWith("image/")) {
+                        return decodeAssetData(asset).orElse(null);
+                    }
+                    return null;
+                })
+                .flatMap(Optional::ofNullable);
+    }
+
     public boolean isBroadcaster(String broadcaster, String username) {
         return broadcaster != null && broadcaster.equalsIgnoreCase(username);
     }
@@ -279,23 +299,30 @@ public class ChannelDirectoryService {
     }
 
     private Optional<AssetContent> decodeAssetData(Asset asset) {
-        String url = asset.getUrl();
-        if (url == null || !url.startsWith("data:")) {
+        return decodeDataUrl(asset.getUrl())
+                .or(() -> {
+                    logger.warn("Unable to decode asset data for {}", asset.getId());
+                    return Optional.empty();
+                });
+    }
+
+    private Optional<AssetContent> decodeDataUrl(String dataUrl) {
+        if (dataUrl == null || !dataUrl.startsWith("data:")) {
             return Optional.empty();
         }
-        int commaIndex = url.indexOf(',');
+        int commaIndex = dataUrl.indexOf(',');
         if (commaIndex < 0) {
             return Optional.empty();
         }
-        String metadata = url.substring(5, commaIndex);
+        String metadata = dataUrl.substring(5, commaIndex);
         String[] parts = metadata.split(";", 2);
         String mediaType = parts.length > 0 && !parts[0].isBlank() ? parts[0] : "application/octet-stream";
-        String encoded = url.substring(commaIndex + 1);
+        String encoded = dataUrl.substring(commaIndex + 1);
         try {
             byte[] bytes = Base64.getDecoder().decode(encoded);
             return Optional.of(new AssetContent(bytes, mediaType));
         } catch (IllegalArgumentException e) {
-            logger.warn("Unable to decode asset data for {}", asset.getId(), e);
+            logger.warn("Unable to decode data url", e);
             return Optional.empty();
         }
     }
@@ -353,7 +380,7 @@ public class ChannelDirectoryService {
                 return null;
             }
             byte[] compressed = compressPng(image);
-            return new OptimizedAsset(compressed, "image/png", image.getWidth(), image.getHeight());
+            return new OptimizedAsset(compressed, "image/png", image.getWidth(), image.getHeight(), null);
         }
 
         if (mediaType.startsWith("image/")) {
@@ -361,21 +388,22 @@ public class ChannelDirectoryService {
             if (image == null) {
                 return null;
             }
-            return new OptimizedAsset(bytes, mediaType, image.getWidth(), image.getHeight());
+            return new OptimizedAsset(bytes, mediaType, image.getWidth(), image.getHeight(), null);
         }
 
         if (mediaType.startsWith("video/")) {
             var dimensions = extractVideoDimensions(bytes);
-            return new OptimizedAsset(bytes, mediaType, dimensions.width(), dimensions.height());
+            String preview = extractVideoPreview(bytes, mediaType);
+            return new OptimizedAsset(bytes, mediaType, dimensions.width(), dimensions.height(), preview);
         }
 
         if (mediaType.startsWith("audio/")) {
-            return new OptimizedAsset(bytes, mediaType, 0, 0);
+            return new OptimizedAsset(bytes, mediaType, 0, 0, null);
         }
 
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
         if (image != null) {
-            return new OptimizedAsset(bytes, mediaType, image.getWidth(), image.getHeight());
+            return new OptimizedAsset(bytes, mediaType, image.getWidth(), image.getHeight(), null);
         }
         return null;
     }
@@ -404,7 +432,7 @@ public class ChannelDirectoryService {
                 encoder.finish();
                 BufferedImage cover = frames.get(0).image();
                 byte[] video = Files.readAllBytes(temp.toPath());
-                return new OptimizedAsset(video, "video/mp4", cover.getWidth(), cover.getHeight());
+                return new OptimizedAsset(video, "video/mp4", cover.getWidth(), cover.getHeight(), encodePreview(cover));
             } finally {
                 Files.deleteIfExists(temp.toPath());
             }
@@ -498,6 +526,19 @@ public class ChannelDirectoryService {
         }
     }
 
+    private String encodePreview(BufferedImage image) {
+        if (image == null) {
+            return null;
+        }
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "png", baos);
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray());
+        } catch (IOException e) {
+            logger.warn("Unable to encode preview image", e);
+            return null;
+        }
+    }
+
     private Dimension extractVideoDimensions(byte[] bytes) {
         try (var channel = new ByteBufferSeekableByteChannel(ByteBuffer.wrap(bytes), bytes.length)) {
             FrameGrab grab = FrameGrab.createFrameGrab(channel);
@@ -511,9 +552,24 @@ public class ChannelDirectoryService {
         return new Dimension(640, 360);
     }
 
+    private String extractVideoPreview(byte[] bytes, String mediaType) {
+        try (var channel = new ByteBufferSeekableByteChannel(ByteBuffer.wrap(bytes), bytes.length)) {
+            FrameGrab grab = FrameGrab.createFrameGrab(channel);
+            Picture frame = grab.getNativeFrame();
+            if (frame == null) {
+                return null;
+            }
+            BufferedImage image = AWTUtil.toBufferedImage(frame);
+            return encodePreview(image);
+        } catch (IOException | JCodecException e) {
+            logger.warn("Unable to capture video preview frame for {}", mediaType, e);
+            return null;
+        }
+    }
+
     public record AssetContent(byte[] bytes, String mediaType) { }
 
-    private record OptimizedAsset(byte[] bytes, String mediaType, int width, int height) { }
+    private record OptimizedAsset(byte[] bytes, String mediaType, int width, int height, String previewDataUrl) { }
 
     private record GifFrame(BufferedImage image, int delayMs) { }
 
