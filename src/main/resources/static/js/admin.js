@@ -112,10 +112,17 @@ function formatDurationLabel(durationMs) {
     const seconds = totalSeconds % 60;
     const minutes = Math.floor(totalSeconds / 60) % 60;
     const hours = Math.floor(totalSeconds / 3600);
+    const parts = [];
     if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        parts.push(`${hours}h`);
     }
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (minutes > 0 || hours > 0) {
+        parts.push(`${minutes}m`);
+    }
+    if (seconds > 0 || parts.length === 0) {
+        parts.push(`${seconds}s`);
+    }
+    return parts.join(' ');
 }
 
 function recordDuration(assetId, seconds) {
@@ -328,7 +335,7 @@ function handleEvent(event) {
         applyPatch(assetId, event.patch);
     } else if (event.payload) {
         storeAsset(event.payload);
-        if (!event.payload.hidden) {
+        if (!event.payload.hidden && !isVideoAsset(event.payload)) {
             ensureMedia(event.payload);
             if (isAudioAsset(event.payload) && !loopPlaybackState.has(event.payload.id)) {
                 loopPlaybackState.set(event.payload.id, true);
@@ -848,6 +855,10 @@ function ensureMedia(asset) {
         return null;
     }
 
+    if (isVideoAsset(asset)) {
+        return null;
+    }
+
     if (isGifAsset(asset) && 'ImageDecoder' in window) {
         const animated = ensureAnimatedImage(asset);
         if (animated) {
@@ -1046,7 +1057,7 @@ function renderAssetList() {
         badges.appendChild(createBadge(getDisplayMediaType(asset)));
         if (!isAudioAsset(asset)) {
             badges.appendChild(createBadge(asset.hidden ? 'Hidden' : 'Visible', asset.hidden ? 'danger' : ''));
-            badges.appendChild(createBadge(`Z ${asset.zIndex ?? 1}`));
+            badges.appendChild(createBadge(`Layer ${asset.zIndex ?? 1}`));
         }
         const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : '';
         if (aspectLabel) {
