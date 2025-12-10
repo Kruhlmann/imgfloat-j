@@ -3,6 +3,7 @@
 pkgs.mkShell {
   packages = [
     pkgs.openssl
+    pkgs.electron
     pkgs.openjdk
     pkgs.maven
     pkgs.nodejs

@@ -29,9 +29,11 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
-                                "/swagger-ui/**"
+                                "/swagger-ui/**",
+                                "/channels"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/view/*/broadcast").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/channels").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/visible").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/channels/*/canvas").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/*/content").permitAll()

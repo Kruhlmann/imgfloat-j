@@ -39,6 +39,8 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -73,6 +75,18 @@ public class ChannelDirectoryService {
         String normalized = normalize(broadcaster);
         return channelRepository.findById(normalized)
                 .orElseGet(() -> channelRepository.save(new Channel(normalized)));
+    }
+
+    public List<String> searchBroadcasters(String query) {
+        String normalizedQuery = normalize(query);
+        return channelRepository.findAll().stream()
+                .map(Channel::getBroadcaster)
+                .map(this::normalize)
+                .filter(Objects::nonNull)
+                .filter(name -> normalizedQuery == null || normalizedQuery.isBlank() || name.contains(normalizedQuery))
+                .sorted()
+                .limit(50)
+                .toList();
     }
 
     public boolean addAdmin(String broadcaster, String username) {
@@ -298,7 +312,7 @@ public class ChannelDirectoryService {
     }
 
     private String normalize(String value) {
-        return value == null ? null : value.toLowerCase();
+        return value == null ? null : value.toLowerCase(Locale.ROOT);
     }
 
     private List<AssetView> sortAndMapAssets(String broadcaster, Collection<Asset> assets) {

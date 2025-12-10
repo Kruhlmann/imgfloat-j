@@ -32,6 +32,12 @@ public class ViewController {
         return "index";
     }
 
+    @org.springframework.web.bind.annotation.GetMapping("/channels")
+    public String channelDirectory() {
+        LOG.info("Rendering channel directory");
+        return "channels";
+    }
+
     @org.springframework.web.bind.annotation.GetMapping("/view/{broadcaster}/admin")
     public String adminView(@org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
                              OAuth2AuthenticationToken authentication,
