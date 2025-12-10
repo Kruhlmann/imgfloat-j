@@ -5,6 +5,7 @@ public class AssetEvent {
         CREATED,
         UPDATED,
         VISIBILITY,
+        PLAY,
         DELETED
     }
 
@@ -12,6 +13,7 @@ public class AssetEvent {
     private String channel;
     private AssetView payload;
     private String assetId;
+    private Boolean play;
 
     public static AssetEvent created(String channel, AssetView asset) {
         AssetEvent event = new AssetEvent();
@@ -19,6 +21,16 @@ public class AssetEvent {
         event.channel = channel;
         event.payload = asset;
         event.assetId = asset.id();
+        return event;
+    }
+
+    public static AssetEvent play(String channel, AssetView asset, boolean play) {
+        AssetEvent event = new AssetEvent();
+        event.type = Type.PLAY;
+        event.channel = channel;
+        event.payload = asset;
+        event.assetId = asset.id();
+        event.play = play;
         return event;
     }
 
@@ -62,5 +74,9 @@ public class AssetEvent {
 
     public String getAssetId() {
         return assetId;
+    }
+
+    public Boolean getPlay() {
+        return play;
     }
 }

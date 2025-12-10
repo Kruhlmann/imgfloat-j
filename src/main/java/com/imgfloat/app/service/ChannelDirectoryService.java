@@ -5,6 +5,7 @@ import com.imgfloat.app.model.AssetEvent;
 import com.imgfloat.app.model.Channel;
 import com.imgfloat.app.model.AssetView;
 import com.imgfloat.app.model.CanvasSettingsRequest;
+import com.imgfloat.app.model.PlaybackRequest;
 import com.imgfloat.app.model.TransformRequest;
 import com.imgfloat.app.model.VisibilityRequest;
 import com.imgfloat.app.repository.AssetRepository;
@@ -183,6 +184,18 @@ public class ChannelDirectoryService {
                     assetRepository.save(asset);
                     AssetView view = AssetView.from(normalized, asset);
                     messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, view));
+                    return view;
+                });
+    }
+
+    public Optional<AssetView> triggerPlayback(String broadcaster, String assetId, PlaybackRequest request) {
+        String normalized = normalize(broadcaster);
+        return assetRepository.findById(assetId)
+                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .map(asset -> {
+                    AssetView view = AssetView.from(normalized, asset);
+                    boolean shouldPlay = request == null || request.getPlay();
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.play(broadcaster, view, shouldPlay));
                     return view;
                 });
     }

@@ -834,6 +834,14 @@ body {
     flex-shrink: 0;
 }
 
+.audio-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #fbbf24;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;

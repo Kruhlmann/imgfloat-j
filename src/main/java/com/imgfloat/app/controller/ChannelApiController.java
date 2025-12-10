@@ -3,6 +3,7 @@ package com.imgfloat.app.controller;
 import com.imgfloat.app.model.AdminRequest;
 import com.imgfloat.app.model.AssetView;
 import com.imgfloat.app.model.CanvasSettingsRequest;
+import com.imgfloat.app.model.PlaybackRequest;
 import com.imgfloat.app.model.TransformRequest;
 import com.imgfloat.app.model.TwitchUserProfile;
 import com.imgfloat.app.model.VisibilityRequest;
@@ -173,6 +174,18 @@ public class ChannelApiController {
                     LOG.warn("Transform request for missing asset {} on {} by {}", assetId, broadcaster, login);
                     return new ResponseStatusException(NOT_FOUND, "Asset not found");
                 });
+    }
+
+    @PostMapping("/assets/{assetId}/play")
+    public ResponseEntity<AssetView> play(@PathVariable("broadcaster") String broadcaster,
+                                          @PathVariable("assetId") String assetId,
+                                          @RequestBody(required = false) PlaybackRequest request,
+                                          OAuth2AuthenticationToken authentication) {
+        String login = TwitchUser.from(authentication).login();
+        ensureAuthorized(broadcaster, login);
+        return channelDirectoryService.triggerPlayback(broadcaster, assetId, request)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
     }
 
     @PutMapping("/assets/{assetId}/visibility")
