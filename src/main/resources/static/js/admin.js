@@ -210,7 +210,7 @@ function connect() {
     }, (error) => {
         console.warn('WebSocket connection issue', error);
         if (typeof showToast === 'function') {
-            showToast('Live updates connection interrupted. Retrying may be necessary.', 'warning');
+            setTimeout(() => showToast('Live updates connection interrupted. Retrying may be necessary.', 'warning'), 1000);
         }
     });
 }

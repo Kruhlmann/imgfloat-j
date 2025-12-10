@@ -11,6 +11,11 @@ spring:
     import: optional:file:.env[.properties]
   application:
     name: imgfloat
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
   servlet:
     multipart:
       max-file-size: 256MB
