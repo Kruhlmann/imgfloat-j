@@ -29,7 +29,11 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
@@ -49,6 +53,8 @@ import org.w3c.dom.NodeList;
 @Service
 public class ChannelDirectoryService {
     private static final int MIN_GIF_DELAY_MS = 20;
+    private static final String PREVIEW_MEDIA_TYPE = "image/png";
+    private static final Path PREVIEW_ROOT = Paths.get("previews");
     private static final Logger logger = LoggerFactory.getLogger(ChannelDirectoryService.class);
     private final ChannelRepository channelRepository;
     private final AssetRepository assetRepository;
@@ -132,7 +138,7 @@ public class ChannelDirectoryService {
         Asset asset = new Asset(channel.getBroadcaster(), name, dataUrl, width, height);
         asset.setOriginalMediaType(mediaType);
         asset.setMediaType(optimized.mediaType());
-        asset.setPreview(optimized.previewDataUrl());
+        asset.setPreview(storePreview(channel.getBroadcaster(), asset.getId(), optimized.previewBytes()));
         asset.setSpeed(1.0);
         asset.setMuted(optimized.mediaType().startsWith("video/"));
         asset.setAudioLoop(false);
@@ -220,6 +226,7 @@ public class ChannelDirectoryService {
         return assetRepository.findById(assetId)
                 .filter(asset -> normalized.equals(asset.getBroadcaster()))
                 .map(asset -> {
+                    deletePreviewFile(asset.getPreview());
                     assetRepository.delete(asset);
                     messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.deleted(broadcaster, assetId));
                     return true;
@@ -248,7 +255,8 @@ public class ChannelDirectoryService {
                 .filter(asset -> normalized.equals(asset.getBroadcaster()))
                 .filter(asset -> includeHidden || !asset.isHidden())
                 .map(asset -> {
-                    Optional<AssetContent> preview = decodeDataUrl(asset.getPreview());
+                    Optional<AssetContent> preview = loadPreview(asset.getPreview())
+                            .or(() -> decodeDataUrl(asset.getPreview()));
                     if (preview.isPresent()) {
                         return preview.get();
                     }
@@ -327,6 +335,54 @@ public class ChannelDirectoryService {
         }
     }
 
+    private Optional<AssetContent> loadPreview(String previewPath) {
+        if (previewPath == null || previewPath.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            Path path = Paths.get(previewPath);
+            if (!Files.exists(path)) {
+                return Optional.empty();
+            }
+            try {
+                return Optional.of(new AssetContent(Files.readAllBytes(path), PREVIEW_MEDIA_TYPE));
+            } catch (IOException e) {
+                logger.warn("Unable to read preview from {}", previewPath, e);
+                return Optional.empty();
+            }
+        } catch (InvalidPathException e) {
+            logger.debug("Preview path {} is not a file path; skipping", previewPath);
+            return Optional.empty();
+        }
+    }
+
+    private String storePreview(String broadcaster, String assetId, byte[] previewBytes) throws IOException {
+        if (previewBytes == null || previewBytes.length == 0) {
+            return null;
+        }
+        Path directory = PREVIEW_ROOT.resolve(normalize(broadcaster));
+        Files.createDirectories(directory);
+        Path previewFile = directory.resolve(assetId + ".png");
+        Files.write(previewFile, previewBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        return previewFile.toString();
+    }
+
+    private void deletePreviewFile(String previewPath) {
+        if (previewPath == null || previewPath.isBlank()) {
+            return;
+        }
+        try {
+            Path path = Paths.get(previewPath);
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException e) {
+                logger.warn("Unable to delete preview file {}", previewPath, e);
+            }
+        } catch (InvalidPathException e) {
+            logger.debug("Preview value {} is not a file path; nothing to delete", previewPath);
+        }
+    }
+
     private int nextZIndex(String broadcaster) {
         return assetRepository.findByBroadcaster(normalize(broadcaster)).stream()
                 .mapToInt(Asset::getZIndex)
@@ -393,7 +449,7 @@ public class ChannelDirectoryService {
 
         if (mediaType.startsWith("video/")) {
             var dimensions = extractVideoDimensions(bytes);
-            String preview = extractVideoPreview(bytes, mediaType);
+            byte[] preview = extractVideoPreview(bytes, mediaType);
             return new OptimizedAsset(bytes, mediaType, dimensions.width(), dimensions.height(), preview);
         }
 
@@ -526,13 +582,13 @@ public class ChannelDirectoryService {
         }
     }
 
-    private String encodePreview(BufferedImage image) {
+    private byte[] encodePreview(BufferedImage image) {
         if (image == null) {
             return null;
         }
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             ImageIO.write(image, "png", baos);
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray());
+            return baos.toByteArray();
         } catch (IOException e) {
             logger.warn("Unable to encode preview image", e);
             return null;
@@ -552,7 +608,7 @@ public class ChannelDirectoryService {
         return new Dimension(640, 360);
     }
 
-    private String extractVideoPreview(byte[] bytes, String mediaType) {
+    private byte[] extractVideoPreview(byte[] bytes, String mediaType) {
         try (var channel = new ByteBufferSeekableByteChannel(ByteBuffer.wrap(bytes), bytes.length)) {
             FrameGrab grab = FrameGrab.createFrameGrab(channel);
             Picture frame = grab.getNativeFrame();
@@ -569,7 +625,7 @@ public class ChannelDirectoryService {
 
     public record AssetContent(byte[] bytes, String mediaType) { }
 
-    private record OptimizedAsset(byte[] bytes, String mediaType, int width, int height, String previewDataUrl) { }
+    private record OptimizedAsset(byte[] bytes, String mediaType, int width, int height, byte[] previewBytes) { }
 
     private record GifFrame(BufferedImage image, int delayMs) { }
 

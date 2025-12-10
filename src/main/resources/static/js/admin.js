@@ -1193,36 +1193,34 @@ function fetchPreviewData(asset) {
         return Promise.resolve(cached);
     }
 
-    const primary = asset.previewUrl
-        ? fetch(asset.previewUrl)
-            .then((r) => {
-                if (!r.ok) throw new Error('preview fetch failed');
-                return r.blob();
-            })
-            .then((blob) => URL.createObjectURL(blob))
-            .catch(() => null)
-        : Promise.resolve(null);
-
-    return primary
-        .then((dataUrl) => {
-            if (dataUrl) {
-                previewCache.set(asset.id, dataUrl);
-                return dataUrl;
+    const fallback = () => {
+        const fallbackPromise = isVideoAsset(asset)
+            ? captureVideoFrame(asset)
+            : isGifAsset(asset)
+                ? captureGifFrame(asset)
+                : Promise.resolve(null);
+        return fallbackPromise.then((result) => {
+            if (!result) {
+                return null;
             }
-            const fallback = isVideoAsset(asset)
-                ? captureVideoFrame(asset)
-                : isGifAsset(asset)
-                    ? captureGifFrame(asset)
-                    : Promise.resolve(null);
-            return fallback.then((result) => {
-                if (!result) {
-                    return null;
-                }
-                previewCache.set(asset.id, result);
-                return result;
-            });
-        })
-        .catch(() => null);
+            previewCache.set(asset.id, result);
+            return result;
+        });
+    };
+
+    if (!asset.previewUrl) {
+        return fallback();
+    }
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            previewCache.set(asset.id, asset.previewUrl);
+            resolve(asset.previewUrl);
+        };
+        img.onerror = () => fallback().then(resolve);
+        img.src = asset.previewUrl;
+    }).catch(() => null);
 }
 
 function loadPreviewFrame(asset, element) {
