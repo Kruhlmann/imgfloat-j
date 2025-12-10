@@ -14,7 +14,6 @@
     <div class="admin-shell">
         <header class="admin-header">
             <div class="admin-identity">
-                <p class="eyebrow subtle">Channel</p>
                 <h1 th:text="${broadcaster}"></h1>
             </div>
             <div class="header-actions horizontal">
@@ -23,9 +22,6 @@
                     <span class="sr-only">Back to dashboard</span>
                 </a>
                 <a class="button ghost" th:href="${'/view/' + broadcaster + '/broadcast'}" target="_blank" rel="noopener">Broadcaster view</a>
-                <form th:action="@{/logout}" method="post">
-                    <button class="secondary" type="submit">Logout</button>
-                </form>
             </div>
         </header>
         <section class="overlay" id="admin-overlay">
@@ -61,15 +57,6 @@
                                 <p class="meta-text subtle-text hidden" id="selected-asset-id"></p>
                                 <div class="badge-row asset-meta-badges" id="selected-asset-badges"></div>
                             </div>
-                                        <!--
-                            <div class="selected-asset-actions">
-                                <button type="button" class="ghost icon-button" id="selected-asset-visibility" title="Toggle visibility">
-                                    <i class="fa-solid fa-eye-slash"></i><span class="sr-only">Toggle visibility</span>
-                                </button>
-                                <button type="button" class="ghost danger icon-button" id="selected-asset-delete" title="Delete asset">
-                                    <i class="fa-solid fa-trash"></i><span class="sr-only">Delete asset</span>
-                                </button>
-                            </div>-->
                         </div>
                         <div id="asset-controls-placeholder" class="asset-controls-placeholder">
                             <div id="asset-controls" class="hidden asset-settings">
