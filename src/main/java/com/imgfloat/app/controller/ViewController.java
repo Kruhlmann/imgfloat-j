@@ -44,14 +44,8 @@ public class ViewController {
 
     @org.springframework.web.bind.annotation.GetMapping("/view/{broadcaster}/broadcast")
     public String broadcastView(@org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
-                                 OAuth2AuthenticationToken authentication,
                                  Model model) {
-        String login = TwitchUser.from(authentication).login();
-        if (!channelDirectoryService.isBroadcaster(broadcaster, login)) {
-            throw new ResponseStatusException(FORBIDDEN, "Only the broadcaster can render this view");
-        }
         model.addAttribute("broadcaster", broadcaster.toLowerCase());
-        model.addAttribute("username", login);
         return "broadcast";
     }
 }

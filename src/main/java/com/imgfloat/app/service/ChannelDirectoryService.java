@@ -219,6 +219,14 @@ public class ChannelDirectoryService {
                 .flatMap(this::decodeAssetData);
     }
 
+    public Optional<AssetContent> getVisibleAssetContent(String broadcaster, String assetId) {
+        String normalized = normalize(broadcaster);
+        return assetRepository.findById(assetId)
+                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .filter(asset -> !asset.isHidden())
+                .flatMap(this::decodeAssetData);
+    }
+
     public boolean isBroadcaster(String broadcaster, String username) {
         return broadcaster != null && broadcaster.equalsIgnoreCase(username);
     }

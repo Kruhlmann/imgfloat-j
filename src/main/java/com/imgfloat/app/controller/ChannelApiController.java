@@ -107,20 +107,12 @@ public class ChannelApiController {
     }
 
     @GetMapping("/assets/visible")
-    public Collection<AssetView> listVisible(@PathVariable("broadcaster") String broadcaster,
-                                             OAuth2AuthenticationToken authentication) {
-        String login = TwitchUser.from(authentication).login();
-        if (!channelDirectoryService.isBroadcaster(broadcaster, login)) {
-            throw new ResponseStatusException(FORBIDDEN, "Only broadcaster can load public overlay");
-        }
+    public Collection<AssetView> listVisible(@PathVariable("broadcaster") String broadcaster) {
         return channelDirectoryService.getVisibleAssets(broadcaster);
     }
 
     @GetMapping("/canvas")
-    public CanvasSettingsRequest getCanvas(@PathVariable("broadcaster") String broadcaster,
-                                           OAuth2AuthenticationToken authentication) {
-        String login = TwitchUser.from(authentication).login();
-        ensureAuthorized(broadcaster, login);
+    public CanvasSettingsRequest getCanvas(@PathVariable("broadcaster") String broadcaster) {
         return channelDirectoryService.getCanvasSettings(broadcaster);
     }
 
@@ -179,13 +171,26 @@ public class ChannelApiController {
     public ResponseEntity<byte[]> getAssetContent(@PathVariable("broadcaster") String broadcaster,
                                                   @PathVariable("assetId") String assetId,
                                                   OAuth2AuthenticationToken authentication) {
-        String login = TwitchUser.from(authentication).login();
-        ensureAuthorized(broadcaster, login);
-        return channelDirectoryService.getAssetContent(broadcaster, assetId)
+        boolean authorized = false;
+        if (authentication != null) {
+            String login = TwitchUser.from(authentication).login();
+            authorized = channelDirectoryService.isBroadcaster(broadcaster, login)
+                    || channelDirectoryService.isAdmin(broadcaster, login);
+        }
+
+        if (authorized) {
+            return channelDirectoryService.getAssetContent(broadcaster, assetId)
+                    .map(content -> ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType(content.mediaType()))
+                            .body(content.bytes()))
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
+        }
+
+        return channelDirectoryService.getVisibleAssetContent(broadcaster, assetId)
                 .map(content -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(content.mediaType()))
                         .body(content.bytes()))
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
+                .orElseThrow(() -> new ResponseStatusException(FORBIDDEN, "Asset not available"));
     }
 
     @DeleteMapping("/assets/{assetId}")
