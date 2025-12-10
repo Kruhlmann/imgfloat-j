@@ -96,18 +96,21 @@ function resizeCanvas() {
 }
 
 function handleEvent(event) {
+    const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
     if (event.type === 'DELETED') {
-        assets.delete(event.assetId);
-        clearMedia(event.assetId);
-        renderStates.delete(event.assetId);
+        assets.delete(assetId);
+        clearMedia(assetId);
+        renderStates.delete(assetId);
+    } else if (event.patch) {
+        applyPatch(assetId, event.patch);
     } else if (event.type === 'PLAY' && event.payload) {
-        const payload = { ...event.payload, zIndex: Math.max(1, event.payload.zIndex ?? 1) };
+        const payload = normalizePayload(event.payload);
         assets.set(payload.id, payload);
         if (isAudioAsset(payload)) {
             handleAudioPlay(payload, event.play !== false);
         }
     } else if (event.payload && !event.payload.hidden) {
-        const payload = { ...event.payload, zIndex: Math.max(1, event.payload.zIndex ?? 1) };
+        const payload = normalizePayload(event.payload);
         assets.set(payload.id, payload);
         ensureMedia(payload);
         if (isAudioAsset(payload)) {
@@ -120,6 +123,40 @@ function handleEvent(event) {
     }
     assetsDirty = true;
     draw();
+}
+
+function normalizePayload(payload) {
+    return { ...payload, zIndex: Math.max(1, payload.zIndex ?? 1) };
+}
+
+function applyPatch(assetId, patch) {
+    if (!assetId || !patch) {
+        return;
+    }
+    const existing = assets.get(assetId);
+    if (!existing) {
+        return;
+    }
+    const merged = normalizePayload({ ...existing, ...patch });
+    if (patch.hidden) {
+        assets.delete(assetId);
+        clearMedia(assetId);
+        renderStates.delete(assetId);
+        return;
+    }
+    assets.set(assetId, merged);
+    ensureMedia(merged);
+    renderStates.set(assetId, { ...renderStates.get(assetId), ...pickTransform(merged) });
+}
+
+function pickTransform(asset) {
+    return {
+        x: asset.x,
+        y: asset.y,
+        width: asset.width,
+        height: asset.height,
+        rotation: asset.rotation
+    };
 }
 
 function draw() {
@@ -286,6 +323,10 @@ function clearMedia(assetId) {
         animatedCache.delete(assetId);
     }
     animationFailures.delete(assetId);
+    const cachedBlob = blobCache.get(assetId);
+    if (cachedBlob?.objectUrl) {
+        URL.revokeObjectURL(cachedBlob.objectUrl);
+    }
     blobCache.delete(assetId);
     const audio = audioControllers.get(assetId);
     if (audio) {
@@ -441,10 +482,11 @@ function autoStartAudio(asset) {
 
 function ensureMedia(asset) {
     const cached = mediaCache.get(asset.id);
-    if (cached && cached.src !== asset.url) {
+    const cachedSource = getCachedSource(cached);
+    if (cached && cachedSource !== asset.url) {
         clearMedia(asset.id);
     }
-    if (cached && cached.src === asset.url) {
+    if (cached && cachedSource === asset.url) {
         applyMediaSettings(cached, asset);
         return cached;
     }
@@ -464,6 +506,7 @@ function ensureMedia(asset) {
     }
 
     const element = isVideoAsset(asset) ? document.createElement('video') : new Image();
+    element.dataset.sourceUrl = asset.url;
     element.crossOrigin = 'anonymous';
     if (isVideoElement(element)) {
         element.loop = true;
@@ -472,14 +515,9 @@ function ensureMedia(asset) {
         element.autoplay = true;
         element.onloadeddata = draw;
         element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
-        element.src = asset.url;
-        const playback = asset.speed ?? 1;
-        element.playbackRate = Math.max(playback, 0.01);
-        if (playback === 0) {
-            element.pause();
-        } else {
-            element.play().catch(() => {});
-        }
+        element.preload = 'auto';
+        element.addEventListener('error', () => clearMedia(asset.id));
+        setVideoSource(element, asset);
     } else {
         element.onload = draw;
         element.src = asset.url;
@@ -547,11 +585,45 @@ function fetchAssetBlob(asset) {
     const pending = fetch(asset.url)
         .then((r) => r.blob())
         .then((blob) => {
-            blobCache.set(asset.id, { url: asset.url, blob });
+            const previous = blobCache.get(asset.id);
+            const existingUrl = previous?.url === asset.url ? previous.objectUrl : null;
+            const objectUrl = existingUrl || URL.createObjectURL(blob);
+            blobCache.set(asset.id, { url: asset.url, blob, objectUrl });
             return blob;
         });
     blobCache.set(asset.id, { url: asset.url, pending });
     return pending;
+}
+
+function setVideoSource(element, asset) {
+    const cached = blobCache.get(asset.id);
+    if (cached?.url === asset.url && cached.objectUrl) {
+        applyVideoSource(element, cached.objectUrl, asset);
+        return;
+    }
+
+    fetchAssetBlob(asset).then(() => {
+        const next = blobCache.get(asset.id);
+        if (next?.url !== asset.url || !next.objectUrl) {
+            return;
+        }
+        applyVideoSource(element, next.objectUrl, asset);
+    }).catch(() => {});
+}
+
+function applyVideoSource(element, objectUrl, asset) {
+    element.src = objectUrl;
+    const playback = asset.speed ?? 1;
+    element.playbackRate = Math.max(playback, 0.01);
+    if (playback === 0) {
+        element.pause();
+    } else {
+        element.play().catch(() => {});
+    }
+}
+
+function getCachedSource(element) {
+    return element?.dataset?.sourceUrl || element?.src;
 }
 
 function scheduleNextFrame(controller) {

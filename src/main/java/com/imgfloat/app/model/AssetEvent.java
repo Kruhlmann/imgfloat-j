@@ -14,6 +14,7 @@ public class AssetEvent {
     private AssetView payload;
     private String assetId;
     private Boolean play;
+    private AssetPatch patch;
 
     public static AssetEvent created(String channel, AssetView asset) {
         AssetEvent event = new AssetEvent();
@@ -21,6 +22,15 @@ public class AssetEvent {
         event.channel = channel;
         event.payload = asset;
         event.assetId = asset.id();
+        return event;
+    }
+
+    public static AssetEvent updated(String channel, AssetPatch patch) {
+        AssetEvent event = new AssetEvent();
+        event.type = Type.UPDATED;
+        event.channel = channel;
+        event.assetId = patch.id();
+        event.patch = patch;
         return event;
     }
 
@@ -34,21 +44,12 @@ public class AssetEvent {
         return event;
     }
 
-    public static AssetEvent updated(String channel, AssetView asset) {
-        AssetEvent event = new AssetEvent();
-        event.type = Type.UPDATED;
-        event.channel = channel;
-        event.payload = asset;
-        event.assetId = asset.id();
-        return event;
-    }
-
-    public static AssetEvent visibility(String channel, AssetView asset) {
+    public static AssetEvent visibility(String channel, AssetPatch patch) {
         AssetEvent event = new AssetEvent();
         event.type = Type.VISIBILITY;
         event.channel = channel;
-        event.payload = asset;
-        event.assetId = asset.id();
+        event.patch = patch;
+        event.assetId = patch.id();
         return event;
     }
 
@@ -78,5 +79,9 @@ public class AssetEvent {
 
     public Boolean getPlay() {
         return play;
+    }
+
+    public AssetPatch getPatch() {
+        return patch;
     }
 }

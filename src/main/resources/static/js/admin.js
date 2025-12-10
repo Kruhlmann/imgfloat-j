@@ -314,15 +314,18 @@ function updateRenderState(asset) {
 }
 
 function handleEvent(event) {
+    const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
     if (event.type === 'DELETED') {
-        assets.delete(event.assetId);
+        assets.delete(assetId);
         zOrderDirty = true;
-        clearMedia(event.assetId);
-        renderStates.delete(event.assetId);
-        loopPlaybackState.delete(event.assetId);
-        if (selectedAssetId === event.assetId) {
+        clearMedia(assetId);
+        renderStates.delete(assetId);
+        loopPlaybackState.delete(assetId);
+        if (selectedAssetId === assetId) {
             selectedAssetId = null;
         }
+    } else if (event.patch) {
+        applyPatch(assetId, event.patch);
     } else if (event.payload) {
         storeAsset(event.payload);
         if (!event.payload.hidden) {
@@ -336,6 +339,23 @@ function handleEvent(event) {
         }
     }
     drawAndList();
+}
+
+function applyPatch(assetId, patch) {
+    if (!assetId || !patch) {
+        return;
+    }
+    const existing = assets.get(assetId);
+    if (!existing) {
+        return;
+    }
+    const merged = { ...existing, ...patch };
+    if (patch.hidden) {
+        clearMedia(assetId);
+        loopPlaybackState.delete(assetId);
+    }
+    storeAsset(merged);
+    updateRenderState(merged);
 }
 
 function drawAndList() {

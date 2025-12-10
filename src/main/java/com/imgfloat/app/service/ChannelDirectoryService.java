@@ -2,6 +2,7 @@ package com.imgfloat.app.service;
 
 import com.imgfloat.app.model.Asset;
 import com.imgfloat.app.model.AssetEvent;
+import com.imgfloat.app.model.AssetPatch;
 import com.imgfloat.app.model.Channel;
 import com.imgfloat.app.model.AssetView;
 import com.imgfloat.app.model.CanvasSettingsRequest;
@@ -191,7 +192,8 @@ public class ChannelDirectoryService {
                     }
                     assetRepository.save(asset);
                     AssetView view = AssetView.from(normalized, asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, view));
+                    AssetPatch patch = AssetPatch.fromTransform(asset);
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, patch));
                     return view;
                 });
     }
@@ -216,7 +218,8 @@ public class ChannelDirectoryService {
                     asset.setHidden(request.isHidden());
                     assetRepository.save(asset);
                     AssetView view = AssetView.from(normalized, asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, view));
+                    AssetPatch patch = AssetPatch.fromVisibility(asset);
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, patch));
                     return view;
                 });
     }
