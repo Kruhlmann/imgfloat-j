@@ -65,10 +65,12 @@ public class TwitchUserLookupService {
                                                    String accessToken,
                                                    String clientId) {
         if (broadcasterLogin == null || broadcasterLogin.isBlank()) {
+            LOG.warn("Cannot fetch moderators without a broadcaster login");
             return List.of();
         }
 
         if (accessToken == null || accessToken.isBlank() || clientId == null || clientId.isBlank()) {
+            LOG.warn("Missing Twitch auth details when requesting moderators for {}", broadcasterLogin);
             return List.of();
         }
 
@@ -116,6 +118,7 @@ public class TwitchUserLookupService {
                         TwitchModeratorsResponse.class);
 
                 TwitchModeratorsResponse body = response.getBody();
+                LOG.debug("Fetched {} moderator records for {} (cursor={})", body != null && body.data() != null ? body.data().size() : 0, broadcasterLogin, cursor);
                 if (body != null && body.data() != null) {
                     body.data().stream()
                             .filter(Objects::nonNull)
@@ -136,6 +139,7 @@ public class TwitchUserLookupService {
         } while (cursor != null && !cursor.isBlank());
 
         if (moderatorLogins.isEmpty()) {
+            LOG.info("No moderator suggestions available for {} after filtering existing admins", broadcasterLogin);
             return List.of();
         }
 

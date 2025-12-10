@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.client.annotation.RegisteredOAuth2AuthorizedClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -72,7 +73,8 @@ public class ChannelApiController {
 
     @GetMapping("/admins")
     public Collection<TwitchUserProfile> listAdmins(@PathVariable("broadcaster") String broadcaster,
-                                                    OAuth2AuthenticationToken authentication) {
+                                                    OAuth2AuthenticationToken authentication,
+                                                    @RegisteredOAuth2AuthorizedClient("twitch") OAuth2AuthorizedClient authorizedClient) {
         String login = TwitchUser.from(authentication).login();
         ensureBroadcaster(broadcaster, login);
         LOG.debug("Listing admins for {} by {}", broadcaster, login);
@@ -80,9 +82,7 @@ public class ChannelApiController {
         List<String> admins = channel.getAdmins().stream()
                 .sorted(Comparator.naturalOrder())
                 .toList();
-        OAuth2AuthorizedClient authorizedClient = authorizedClientService.loadAuthorizedClient(
-                authentication.getAuthorizedClientRegistrationId(),
-                authentication.getName());
+        authorizedClient = resolveAuthorizedClient(authentication, authorizedClient);
         String accessToken = Optional.ofNullable(authorizedClient)
                 .map(OAuth2AuthorizedClient::getAccessToken)
                 .map(token -> token.getTokenValue())
@@ -96,14 +96,18 @@ public class ChannelApiController {
 
     @GetMapping("/admins/suggestions")
     public Collection<TwitchUserProfile> listAdminSuggestions(@PathVariable("broadcaster") String broadcaster,
-                                                              OAuth2AuthenticationToken authentication) {
+                                                              OAuth2AuthenticationToken authentication,
+                                                              @RegisteredOAuth2AuthorizedClient("twitch") OAuth2AuthorizedClient authorizedClient) {
         String login = TwitchUser.from(authentication).login();
         ensureBroadcaster(broadcaster, login);
         LOG.debug("Listing admin suggestions for {} by {}", broadcaster, login);
         var channel = channelDirectoryService.getOrCreateChannel(broadcaster);
-        OAuth2AuthorizedClient authorizedClient = authorizedClientService.loadAuthorizedClient(
-                authentication.getAuthorizedClientRegistrationId(),
-                authentication.getName());
+        authorizedClient = resolveAuthorizedClient(authentication, authorizedClient);
+
+        if (authorizedClient == null) {
+            LOG.warn("No authorized Twitch client found for {} while fetching admin suggestions for {}", login, broadcaster);
+            return List.of();
+        }
         String accessToken = Optional.ofNullable(authorizedClient)
                 .map(OAuth2AuthorizedClient::getAccessToken)
                 .map(token -> token.getTokenValue())
@@ -112,6 +116,10 @@ public class ChannelApiController {
                 .map(OAuth2AuthorizedClient::getClientRegistration)
                 .map(registration -> registration.getClientId())
                 .orElse(null);
+        if (accessToken == null || accessToken.isBlank() || clientId == null || clientId.isBlank()) {
+            LOG.warn("Missing Twitch credentials for {} while fetching admin suggestions for {}", login, broadcaster);
+            return List.of();
+        }
         return twitchUserLookupService.fetchModerators(broadcaster, channel.getAdmins(), accessToken, clientId);
     }
 
@@ -307,5 +315,18 @@ public class ChannelApiController {
             LOG.warn("Unauthorized access to channel {} by {}", broadcaster, login);
             throw new ResponseStatusException(FORBIDDEN, "No permission for channel");
         }
+    }
+
+    private OAuth2AuthorizedClient resolveAuthorizedClient(OAuth2AuthenticationToken authentication,
+                                                           OAuth2AuthorizedClient authorizedClient) {
+        if (authorizedClient != null) {
+            return authorizedClient;
+        }
+        if (authentication == null) {
+            return null;
+        }
+        return authorizedClientService.loadAuthorizedClient(
+                authentication.getAuthorizedClientRegistrationId(),
+                authentication.getName());
     }
 }
