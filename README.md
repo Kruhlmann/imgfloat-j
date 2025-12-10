@@ -10,6 +10,7 @@ A Spring Boot overlay server for Twitch broadcasters and their channel admins. B
 - In-memory channel directory optimized with lock-free collections for fast updates.
 - Optional SSL with local self-signed keystore support.
 - Dockerfile, Makefile, CI workflow, and Maven build.
+- OpenAPI/Swagger UI docs available at `/swagger-ui.html`.
 
 ## Getting started
 ### Prerequisites
