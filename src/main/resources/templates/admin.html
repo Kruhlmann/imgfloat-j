@@ -28,10 +28,9 @@
             <iframe th:src="${'https://player.twitch.tv/?channel=' + broadcaster + '&parent=localhost'}" allowfullscreen></iframe>
             <canvas id="admin-canvas"></canvas>
         </section>
-        <section class="controls assets-panel">
-            <div class="controls-full panel">
-                <h3>Overlay assets</h3>
-                <p>Upload overlay visuals and adjust them inline.</p>
+        <section class="controls-full panel">
+            <h3>Overlay assets</h3>
+            <p>Upload overlay visuals and adjust them inline.</p>
             <div class="asset-management">
                 <div class="asset-column">
                     <div class="upload-row">
@@ -105,7 +104,6 @@
                                 <div class="panel-section" id="playback-section">
                                     <div class="section-header">
                                         <h5>Playback</h5>
-                                        <p class="field-note">Video-only controls.</p>
                                     </div>
                                     <div class="stacked-field">
                                         <div class="label-row">
@@ -115,14 +113,19 @@
                                         <input id="asset-speed" class="range-input" type="range" min="0" max="1000" step="10" value="100" />
                                         <div class="range-meta"><span>0%</span><span>1000%</span></div>
                                     </div>
-                                    <div class="control-grid condensed split-row">
-                                        <label class="checkbox-inline toggle inline-toggle">
-                                            <input id="asset-muted" type="checkbox" />
-                                            <span class="toggle-track" aria-hidden="true">
-                                                <span class="toggle-thumb"></span>
-                                            </span>
-                                            <span class="toggle-label">Mute video</span>
-                                        </label>
+                                </div>
+
+                                <div class="panel-section" id="volume-section">
+                                    <div class="section-header">
+                                        <h5>Volume</h5>
+                                    </div>
+                                    <div class="stacked-field">
+                                        <div class="label-row">
+                                            <span>Playback volume</span>
+                                            <span class="value-hint" id="asset-volume-label">100%</span>
+                                        </div>
+                                        <input id="asset-volume" class="range-input" type="range" min="0" max="200" step="1" value="100" />
+                                        <div class="range-meta"><span>0%</span><span>200%</span></div>
                                     </div>
                                 </div>
 
@@ -157,10 +160,7 @@
                                             Pitch (%)
                                             <input id="asset-audio-pitch" class="range-input" type="range" min="50" max="200" step="5" value="100" />
                                         </label>
-                                        <label>
-                                            Volume (%)
-                                            <input id="asset-audio-volume" class="range-input" type="range" min="0" max="100" step="1" value="100" />
-                                        </label>
+                                        <div></div>
                                     </div>
                                 </div>
                             </div>
@@ -168,7 +168,6 @@
                     </div>
                 </div>
             </div>
-        </div>
         </section>
     </div>
 </div>

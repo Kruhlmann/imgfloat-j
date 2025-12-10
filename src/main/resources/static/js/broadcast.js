@@ -387,8 +387,20 @@ function applyAudioElementSettings(element, asset) {
     const speed = Math.max(0.25, asset.audioSpeed || 1);
     const pitch = Math.max(0.5, asset.audioPitch || 1);
     element.playbackRate = speed * pitch;
-    const volume = Math.max(0, Math.min(1, asset.audioVolume ?? 1));
-    element.volume = volume;
+    const volume = Math.max(0, Math.min(2, asset.audioVolume ?? 1));
+    element.volume = Math.min(volume, 1);
+}
+
+function getAssetVolume(asset) {
+    return Math.max(0, Math.min(2, asset?.audioVolume ?? 1));
+}
+
+function applyMediaVolume(element, asset) {
+    if (!element) return 1;
+    const volume = getAssetVolume(asset);
+    element.muted = volume === 0;
+    element.volume = Math.min(volume, 1);
+    return volume;
 }
 
 function handleAudioEnded(assetId) {
@@ -510,7 +522,7 @@ function ensureMedia(asset) {
     element.crossOrigin = 'anonymous';
     if (isVideoElement(element)) {
         element.loop = true;
-        element.muted = asset.muted ?? true;
+        applyMediaVolume(element, asset);
         element.playsInline = true;
         element.autoplay = true;
         element.onloadeddata = draw;
@@ -618,7 +630,7 @@ function applyVideoSource(element, objectUrl, asset) {
     if (playback === 0) {
         element.pause();
     } else {
-        element.play().catch(() => {});
+        element.play().catch(() => queueAudioForUnlock({ element }));
     }
 }
 
@@ -670,25 +682,16 @@ function applyMediaSettings(element, asset) {
     }
     const nextSpeed = asset.speed ?? 1;
     const effectiveSpeed = Math.max(nextSpeed, 0.01);
-    const wasMuted = element.muted;
     if (element.playbackRate !== effectiveSpeed) {
         element.playbackRate = effectiveSpeed;
     }
-    const shouldMute = asset.muted ?? true;
-    if (element.muted !== shouldMute) {
-        element.muted = shouldMute;
-    }
+    applyMediaVolume(element, asset);
     if (nextSpeed === 0) {
         element.pause();
     } else {
         const playPromise = element.play();
         if (playPromise?.catch) {
-            playPromise.catch(() => {
-                if (!shouldMute && wasMuted) {
-                    element.muted = true;
-                    element.play().catch(() => {});
-                }
-            });
+            playPromise.catch(() => queueAudioForUnlock({ element }));
         }
     }
 }

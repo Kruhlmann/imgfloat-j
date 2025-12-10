@@ -187,7 +187,7 @@ public class ChannelDirectoryService {
                         asset.setAudioPitch(request.getAudioPitch());
                     }
                     if (request.getAudioVolume() != null && request.getAudioVolume() >= 0) {
-                        double clamped = Math.max(0.0, Math.min(1.0, request.getAudioVolume()));
+                        double clamped = Math.max(0.0, Math.min(2.0, request.getAudioVolume()));
                         asset.setAudioVolume(clamped);
                     }
                     assetRepository.save(asset);

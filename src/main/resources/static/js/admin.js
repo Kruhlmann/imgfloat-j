@@ -24,16 +24,22 @@ let interactionState = null;
 let lastSizeInputChanged = null;
 const HANDLE_SIZE = 10;
 const ROTATE_HANDLE_OFFSET = 32;
+const MAX_VOLUME = 2;
+const VOLUME_SLIDER_MAX = 200;
+const VOLUME_CURVE_STRENGTH = -0.6;
+
 
 const controlsPanel = document.getElementById('asset-controls');
 const widthInput = document.getElementById('asset-width');
 const heightInput = document.getElementById('asset-height');
 const aspectLockInput = document.getElementById('maintain-aspect');
 const speedInput = document.getElementById('asset-speed');
-const muteInput = document.getElementById('asset-muted');
 const speedLabel = document.getElementById('asset-speed-label');
+const volumeInput = document.getElementById('asset-volume');
+const volumeLabel = document.getElementById('asset-volume-label');
 const selectedZLabel = document.getElementById('asset-z-level');
 const playbackSection = document.getElementById('playback-section');
+const volumeSection = document.getElementById('volume-section');
 const audioSection = document.getElementById('audio-section');
 const layoutSection = document.getElementById('layout-section');
 const audioLoopInput = document.getElementById('asset-audio-loop');
@@ -41,7 +47,6 @@ const audioDelayInput = document.getElementById('asset-audio-delay');
 const audioSpeedInput = document.getElementById('asset-audio-speed');
 const audioSpeedLabel = document.getElementById('asset-audio-speed-label');
 const audioPitchInput = document.getElementById('asset-audio-pitch');
-const audioVolumeInput = document.getElementById('asset-audio-volume');
 const controlsPlaceholder = document.getElementById('asset-controls-placeholder');
 const fileNameLabel = document.getElementById('asset-file-name');
 const assetInspector = document.getElementById('asset-inspector');
@@ -167,6 +172,38 @@ function setAudioSpeedLabel(percentValue) {
     audioSpeedLabel.textContent = `${formatted}x`;
 }
 
+function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function sliderToVolume(sliderValue) {
+    const normalized = clamp(sliderValue, 0, VOLUME_SLIDER_MAX) / VOLUME_SLIDER_MAX;
+    const curved = normalized + VOLUME_CURVE_STRENGTH * normalized * (1 - normalized) * (1 - 2 * normalized);
+    return clamp(curved * MAX_VOLUME, 0, MAX_VOLUME);
+}
+
+function volumeToSlider(volumeValue) {
+    const target = clamp(volumeValue ?? 1, 0, MAX_VOLUME) / MAX_VOLUME;
+    let low = 0;
+    let high = VOLUME_SLIDER_MAX;
+    for (let i = 0; i < 24; i += 1) {
+        const mid = (low + high) / 2;
+        const midNormalized = sliderToVolume(mid) / MAX_VOLUME;
+        if (midNormalized < target) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    return Math.round(high);
+}
+
+function setVolumeLabel(sliderValue) {
+    if (!volumeLabel) return;
+    const volumePercent = Math.round(sliderToVolume(sliderValue) * 100);
+    volumeLabel.textContent = `${volumePercent}%`;
+}
+
 function queueAudioForUnlock(controller) {
     if (!controller) return;
     pendingAudioUnlock.add(controller);
@@ -185,12 +222,11 @@ if (widthInput) widthInput.addEventListener('change', () => commitSizeChange());
 if (heightInput) heightInput.addEventListener('input', () => handleSizeInputChange('height'));
 if (heightInput) heightInput.addEventListener('change', () => commitSizeChange());
 if (speedInput) speedInput.addEventListener('input', updatePlaybackFromInputs);
-if (muteInput) muteInput.addEventListener('change', updateMuteFromInput);
+if (volumeInput) volumeInput.addEventListener('input', updateVolumeFromInput);
 if (audioLoopInput) audioLoopInput.addEventListener('change', updateAudioSettingsFromInputs);
 if (audioDelayInput) audioDelayInput.addEventListener('change', updateAudioSettingsFromInputs);
 if (audioSpeedInput) audioSpeedInput.addEventListener('change', updateAudioSettingsFromInputs);
 if (audioPitchInput) audioPitchInput.addEventListener('change', updateAudioSettingsFromInputs);
-if (audioVolumeInput) audioVolumeInput.addEventListener('change', updateAudioSettingsFromInputs);
 if (selectedVisibilityBtn) {
     selectedVisibilityBtn.addEventListener('click', () => {
         const asset = getSelectedAsset();
@@ -796,7 +832,7 @@ function applyAudioSettings(controller, asset, resetPosition = false) {
     const speed = Math.max(0.25, asset.audioSpeed || 1);
     const pitch = Math.max(0.5, asset.audioPitch || 1);
     controller.element.playbackRate = speed * pitch;
-    const volume = Math.max(0, Math.min(1, asset.audioVolume ?? 1));
+    const volume = clamp(asset.audioVolume ?? 1, 0, MAX_VOLUME);
     controller.element.volume = volume;
     if (resetPosition) {
         controller.element.currentTime = 0;
@@ -871,7 +907,9 @@ function ensureMedia(asset) {
     element.crossOrigin = 'anonymous';
     if (isVideoElement(element)) {
         element.loop = true;
-        element.muted = asset.muted ?? true;
+        const volume = clamp(asset.audioVolume ?? 1, 0, MAX_VOLUME);
+        element.muted = volume === 0;
+        element.volume = Math.min(volume, 1);
         element.playsInline = true;
         element.autoplay = false;
         element.preload = 'metadata';
@@ -972,26 +1010,19 @@ function applyMediaSettings(element, asset) {
     }
     const nextSpeed = asset.speed ?? 1;
     const effectiveSpeed = Math.max(nextSpeed, 0.01);
-    const wasMuted = element.muted;
     if (element.playbackRate !== effectiveSpeed) {
         element.playbackRate = effectiveSpeed;
     }
-    const shouldMute = asset.muted ?? true;
-    if (element.muted !== shouldMute) {
-        element.muted = shouldMute;
-    }
+    const volume = clamp(asset.audioVolume ?? 1, 0, MAX_VOLUME);
+    element.muted = volume === 0;
+    element.volume = Math.min(volume, 1);
     if (nextSpeed === 0) {
         element.pause();
         return;
     }
     const playPromise = element.play();
     if (playPromise?.catch) {
-        playPromise.catch(() => {
-            if (!shouldMute && wasMuted) {
-                element.muted = true;
-                element.play().catch(() => { });
-            }
-        });
+        playPromise.catch(() => { });
     }
 }
 
@@ -1426,15 +1457,24 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
         playbackSection.classList.toggle('hidden', !shouldShowPlayback);
         speedInput?.classList?.toggle('disabled', !shouldShowPlayback);
     }
-    if (muteInput) {
-        muteInput.checked = !!asset.muted;
-        muteInput.disabled = !isVideoAsset(asset);
-        muteInput.parentElement?.classList.toggle('disabled', !isVideoAsset(asset));
+    if (volumeSection) {
+        const showVolume = isAudioAsset(asset) || isVideoAsset(asset);
+        volumeSection.classList.toggle('hidden', !showVolume);
+        const volumeControls = volumeSection.querySelectorAll('input');
+        volumeControls.forEach((control) => {
+            control.disabled = !showVolume;
+            control.classList.toggle('disabled', !showVolume);
+        });
+        if (showVolume && volumeInput) {
+            const sliderValue = volumeToSlider(asset.audioVolume ?? 1);
+            volumeInput.value = sliderValue;
+            setVolumeLabel(sliderValue);
+        }
     }
     if (audioSection) {
         const showAudio = isAudioAsset(asset);
         audioSection.classList.toggle('hidden', !showAudio);
-        const audioInputs = [audioLoopInput, audioDelayInput, audioSpeedInput, audioPitchInput, audioVolumeInput];
+        const audioInputs = [audioLoopInput, audioDelayInput, audioSpeedInput, audioPitchInput];
         audioInputs.forEach((input) => {
             if (!input) return;
             input.disabled = !showAudio;
@@ -1446,7 +1486,6 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
             audioSpeedInput.value = Math.round(Math.max(0.25, asset.audioSpeed ?? 1) * 100);
             setAudioSpeedLabel(audioSpeedInput.value);
             audioPitchInput.value = Math.round(Math.max(0.5, asset.audioPitch ?? 1) * 100);
-            audioVolumeInput.value = Math.round(Math.max(0, Math.min(1, asset.audioVolume ?? 1)) * 100);
         }
     }
 }
@@ -1544,16 +1583,22 @@ function updatePlaybackFromInputs() {
     drawAndList();
 }
 
-function updateMuteFromInput() {
+function updateVolumeFromInput() {
     const asset = getSelectedAsset();
-    if (!asset || !isVideoAsset(asset)) return;
-    asset.muted = !!muteInput?.checked;
-    updateRenderState(asset);
-    persistTransform(asset);
+    if (!asset || !(isVideoAsset(asset) || isAudioAsset(asset))) return;
+    const sliderValue = Math.max(0, Math.min(VOLUME_SLIDER_MAX, parseFloat(volumeInput?.value) || 100));
+    const volumeValue = sliderToVolume(sliderValue);
+    setVolumeLabel(sliderValue);
+    asset.audioVolume = volumeValue;
     const media = mediaCache.get(asset.id);
     if (media) {
         applyMediaSettings(media, asset);
     }
+    if (isAudioAsset(asset)) {
+        const controller = ensureAudioController(asset);
+        applyAudioSettings(controller, asset);
+    }
+    persistTransform(asset);
     drawAndList();
 }
 
@@ -1566,7 +1611,6 @@ function updateAudioSettingsFromInputs() {
     setAudioSpeedLabel(nextAudioSpeedPercent);
     asset.audioSpeed = Math.max(0.25, (nextAudioSpeedPercent / 100));
     asset.audioPitch = Math.max(0.5, (parseInt(audioPitchInput?.value || '100', 10) / 100));
-    asset.audioVolume = Math.max(0, Math.min(1, (parseInt(audioVolumeInput?.value || '100', 10) / 100)));
     const controller = ensureAudioController(asset);
     applyAudioSettings(controller, asset);
     persistTransform(asset);
@@ -1876,7 +1920,6 @@ function persistTransform(asset, silent = false) {
             height: asset.height,
             rotation: asset.rotation,
             speed: asset.speed,
-            muted: asset.muted,
             zIndex: asset.zIndex,
             audioLoop: asset.audioLoop,
             audioDelayMillis: asset.audioDelayMillis,
