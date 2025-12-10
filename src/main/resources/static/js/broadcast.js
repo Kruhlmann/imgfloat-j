@@ -522,13 +522,16 @@ function ensureMedia(asset) {
     element.crossOrigin = 'anonymous';
     if (isVideoElement(element)) {
         element.loop = true;
-        applyMediaVolume(element, asset);
         element.playsInline = true;
         element.autoplay = true;
+        element.controls = false;
         element.onloadeddata = draw;
         element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
         element.preload = 'auto';
         element.addEventListener('error', () => clearMedia(asset.id));
+        const volume = applyMediaVolume(element, asset);
+        element.defaultMuted = volume === 0;
+        element.muted = element.defaultMuted;
         setVideoSource(element, asset);
     } else {
         element.onload = draw;
@@ -625,13 +628,7 @@ function setVideoSource(element, asset) {
 
 function applyVideoSource(element, objectUrl, asset) {
     element.src = objectUrl;
-    const playback = asset.speed ?? 1;
-    element.playbackRate = Math.max(playback, 0.01);
-    if (playback === 0) {
-        element.pause();
-    } else {
-        element.play().catch(() => queueAudioForUnlock({ element }));
-    }
+    startVideoPlayback(element, asset);
 }
 
 function getCachedSource(element) {
@@ -680,20 +677,43 @@ function applyMediaSettings(element, asset) {
     if (!isVideoElement(element)) {
         return;
     }
+    startVideoPlayback(element, asset);
+}
+
+function startVideoPlayback(element, asset) {
     const nextSpeed = asset.speed ?? 1;
     const effectiveSpeed = Math.max(nextSpeed, 0.01);
     if (element.playbackRate !== effectiveSpeed) {
         element.playbackRate = effectiveSpeed;
     }
-    applyMediaVolume(element, asset);
-    if (nextSpeed === 0) {
+    const volume = applyMediaVolume(element, asset);
+    element.defaultMuted = volume === 0;
+    element.muted = element.defaultMuted;
+
+    if (effectiveSpeed === 0) {
         element.pause();
-    } else {
-        const playPromise = element.play();
-        if (playPromise?.catch) {
-            playPromise.catch(() => queueAudioForUnlock({ element }));
-        }
+        return;
     }
+
+    const attemptPlay = (allowFallback) => {
+        const playPromise = element.play();
+        if (playPromise?.then) {
+            playPromise.then(() => {
+                if (volume > 0) {
+                    element.muted = false;
+                }
+            }).catch(() => {
+                if (!allowFallback) {
+                    queueAudioForUnlock({ element });
+                    return;
+                }
+                element.muted = true;
+                element.play().catch(() => queueAudioForUnlock({ element }));
+            });
+        }
+    };
+
+    attemptPlay(true);
 }
 
 function startRenderLoop() {

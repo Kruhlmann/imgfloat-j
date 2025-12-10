@@ -7,22 +7,34 @@
 </head>
 <body class="dashboard-body">
 <div class="dashboard-shell">
-    <header class="dashboard-header">
-        <div>
-            <p class="eyebrow">Logged in</p>
-            <h1>Welcome back, <span th:text="${username}">user</span></h1>
-            <p class="muted">Control your channel overlay, invite trusted teammates, and get to broadcasting faster.</p>
-            <div class="chip-row">
-                <span class="chip">Primary channel: <strong th:text="${channel}">channel</strong></span>
-                <span class="chip subtle">Secure dashboard</span>
-            </div>
+    <header class="dashboard-hero hero hero-compact">
+        <div class="hero-text">
+            <p class="eyebrow">Dashboard</p>
+            <h1>Hello, <span th:text="${username}">user</span></h1>
+            <p class="lead">Manage overlay assets, keep your canvas sized correctly, and hand off control to trusted mods.</p>
+            <ul class="pill-list minimal">
+                <li>Channel: <strong th:text="${channel}">channel</strong></li>
+                <li>Secure dashboard</li>
+            </ul>
         </div>
-        <div class="header-actions">
-            <a class="button" th:href="@{'/view/' + ${channel} + '/broadcast'}">Open broadcast overlay</a>
-            <a class="button ghost" th:href="@{'/view/' + ${channel} + '/admin'}">Open admin console</a>
-            <form th:action="@{/logout}" method="post">
-                <button class="secondary" type="submit">Logout</button>
-            </form>
+        <div class="hero-panel hero-preview">
+            <div class="panel-header">
+                <div>
+                    <p class="eyebrow subtle">Quick actions</p>
+                    <h3>Jump into your overlay</h3>
+                </div>
+                <span class="badge">Live</span>
+            </div>
+            <div class="preview-summary">
+                <p class="muted">Open your broadcast view or delegate control without leaving this page.</p>
+            </div>
+            <div class="panel-actions">
+                <a class="button block" th:href="@{'/view/' + ${channel} + '/broadcast'}">Open broadcast overlay</a>
+                <a class="button ghost block" th:href="@{'/view/' + ${channel} + '/admin'}">Open admin console</a>
+                <form class="block" th:action="@{/logout}" method="post">
+                    <button class="secondary block" type="submit">Logout</button>
+                </form>
+            </div>
         </div>
     </header>
 
@@ -30,9 +42,9 @@
         <div class="card">
             <div class="card-header">
                 <div>
-                    <p class="eyebrow">Canvas setup</p>
-                    <h3>Overlay dimensions</h3>
-                    <p class="muted">Match the canvas size to your streaming output so overlays sit exactly where you expect.</p>
+                    <p class="eyebrow">Canvas</p>
+                    <h3>Overlay size</h3>
+                    <p class="muted">Match your OBS output so overlays land where you expect.</p>
                 </div>
                 <div class="pill">Visible to admins</div>
             </div>
@@ -57,7 +69,7 @@
                 <div>
                     <p class="eyebrow">Collaboration</p>
                     <h3>Channel admins</h3>
-                    <p class="muted">Invite moderators or teammates to manage overlay assets without sharing your login.</p>
+                    <p class="muted">Invite moderators to help manage assets.</p>
                 </div>
             </div>
             <div class="inline-form">
@@ -73,7 +85,7 @@
             <div>
                 <p class="eyebrow">Your access</p>
                 <h3>Channels you administer</h3>
-                <p class="muted">Hop into a teammate's overlay console with the right permissions.</p>
+                <p class="muted">Jump into a teammate's overlay console.</p>
             </div>
         </div>
         <p th:if="${#lists.isEmpty(adminChannels)}">No admin invitations yet.</p>
