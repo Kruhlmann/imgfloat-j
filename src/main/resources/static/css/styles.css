@@ -31,6 +31,34 @@ body {
     padding: 40px 20px 64px;
 }
 
+.landing-meta {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
+}
+
+.build-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+}
+
+.version-badge {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(59, 130, 246, 0.12));
+    border: 1px solid rgba(124, 58, 237, 0.35);
+    color: #cbd5e1;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    font-size: 13px;
+}
+
 .channels-body {
     min-height: 100vh;
     background: radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.16), transparent 30%),
@@ -226,6 +254,17 @@ body {
 
 .button.block {
     width: 100%;
+}
+
+.broadcaster-button {
+    background: linear-gradient(115deg, #7c3aed, #2563eb);
+    border: 1px solid rgba(124, 58, 237, 0.35);
+    box-shadow: 0 14px 35px rgba(37, 99, 235, 0.3);
+}
+
+.broadcaster-button:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 16px 38px rgba(37, 99, 235, 0.38);
 }
 
 .block {

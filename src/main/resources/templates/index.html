@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <title>Imgfloat - Twitch overlay</title>
@@ -29,6 +29,13 @@
             </div>
         </div>
     </main>
+
+    <footer class="landing-meta">
+        <div class="build-chip">
+            <span class="muted">Build</span>
+            <span class="version-badge" th:text="${gitVersion}">unknown</span>
+        </div>
+    </footer>
 </div>
 </body>
 </html>

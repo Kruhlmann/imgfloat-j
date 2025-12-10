@@ -1,6 +1,7 @@
 package com.imgfloat.app.controller;
 
 import com.imgfloat.app.service.ChannelDirectoryService;
+import com.imgfloat.app.service.GitVersionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -14,9 +15,11 @@ import static org.springframework.http.HttpStatus.FORBIDDEN;
 public class ViewController {
     private static final Logger LOG = LoggerFactory.getLogger(ViewController.class);
     private final ChannelDirectoryService channelDirectoryService;
+    private final GitVersionService gitVersionService;
 
-    public ViewController(ChannelDirectoryService channelDirectoryService) {
+    public ViewController(ChannelDirectoryService channelDirectoryService, GitVersionService gitVersionService) {
         this.channelDirectoryService = channelDirectoryService;
+        this.gitVersionService = gitVersionService;
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/")
@@ -29,6 +32,7 @@ public class ViewController {
             model.addAttribute("adminChannels", channelDirectoryService.adminChannelsFor(login));
             return "dashboard";
         }
+        model.addAttribute("gitVersion", gitVersionService.getVersion());
         return "index";
     }
 
