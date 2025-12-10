@@ -3,7 +3,7 @@ APP_NAME=imgfloat
 .PHONY: run test package docker-build docker-run ssl
 
 run:
-	test -f .env && . ./.env; mvn spring-boot:run
+	test -f .env && . ./.env; mvn spring-boot:run -Dspring-boot.run.fork=true
 
 test:
 	mvn test

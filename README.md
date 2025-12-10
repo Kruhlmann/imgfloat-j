@@ -25,6 +25,10 @@ TWITCH_REDIRECT_URI=http://localhost:8080/login/oauth2/code/twitch mvn spring-bo
 ```
 The default server port is `8080`. Log in via `/oauth2/authorization/twitch`. The redirect URI above is what Twitch should be configured to call for local development.
 
+### Hot reload during development
+- The project includes Spring Boot DevTools so Java and Thymeleaf changes trigger a restart automatically when you run `make run` (which now forks the Spring Boot process so devtools can watch the classpath).
+- Static assets under `src/main/resources/static` are refreshed through the built-in LiveReload server from DevTools; install a LiveReload browser extension to automatically reload the overlay or dashboard when CSS/JS files change.
+
 ### Enable TLS locally
 ```bash
 make ssl

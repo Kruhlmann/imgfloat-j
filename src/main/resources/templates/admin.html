@@ -59,6 +59,7 @@
                                 <p class="meta-text" id="selected-asset-meta">Pick an asset in the list to adjust its placement and playback.</p>
                                 <div class="badge-row asset-meta-badges" id="selected-asset-badges"></div>
                             </div>
+                                        <!--
                             <div class="selected-asset-actions">
                                 <button type="button" class="ghost icon-button" id="selected-asset-visibility" title="Toggle visibility">
                                     <i class="fa-solid fa-eye-slash"></i><span class="sr-only">Toggle visibility</span>
@@ -66,7 +67,7 @@
                                 <button type="button" class="ghost danger icon-button" id="selected-asset-delete" title="Delete asset">
                                     <i class="fa-solid fa-trash"></i><span class="sr-only">Delete asset</span>
                                 </button>
-                            </div>
+                            </div>-->
                         </div>
                         <div id="asset-controls-placeholder" class="asset-controls-placeholder">
                             <div id="asset-controls" class="hidden asset-settings">
@@ -83,12 +84,14 @@
                                             Height
                                             <input id="asset-height" class="number-input" type="number" min="10" step="5" />
                                         </label>
-                                        <label class="checkbox-inline toggle">
-                                            <input id="maintain-aspect" type="checkbox" checked />
-                                            <span class="toggle-track" aria-hidden="true">
-                                                <span class="toggle-thumb"></span>
-                                            </span>
-                                            <span class="toggle-label">Maintain aspect</span>
+                                        <label>
+                                            Maintain AR
+                                            <label class="checkbox-inline toggle">
+                                                <input id="maintain-aspect" type="checkbox" checked />
+                                                <span class="toggle-track" aria-hidden="true">
+                                                    <span class="toggle-thumb"></span>
+                                                </span>
+                                            </label>
                                         </label>
                                     </div>
                                     <div class="control-grid condensed">
