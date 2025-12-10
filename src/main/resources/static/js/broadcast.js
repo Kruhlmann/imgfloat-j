@@ -19,10 +19,9 @@ const MIN_FRAME_TIME = 1000 / TARGET_FPS;
 let lastRenderTime = 0;
 let frameScheduled = false;
 let pendingDraw = false;
-let sortedAssetsCache = [];
-let assetsDirty = true;
 let renderIntervalId = null;
 const audioUnlockEvents = ['pointerdown', 'keydown', 'touchstart'];
+let layerOrder = [];
 
 audioUnlockEvents.forEach((eventName) => {
     window.addEventListener(eventName, () => {
@@ -31,6 +30,46 @@ audioUnlockEvents.forEach((eventName) => {
         pendingAudioUnlock.clear();
     });
 });
+
+function ensureLayerPosition(assetId, placement = 'keep') {
+    const asset = assets.get(assetId);
+    if (asset && isAudioAsset(asset)) {
+        return;
+    }
+    const existingIndex = layerOrder.indexOf(assetId);
+    if (existingIndex !== -1 && placement === 'keep') {
+        return;
+    }
+    if (existingIndex !== -1) {
+        layerOrder.splice(existingIndex, 1);
+    }
+    if (placement === 'append') {
+        layerOrder.push(assetId);
+    } else {
+        layerOrder.unshift(assetId);
+    }
+    layerOrder = layerOrder.filter((id) => assets.has(id));
+}
+
+function getLayerOrder() {
+    layerOrder = layerOrder.filter((id) => {
+        const asset = assets.get(id);
+        return asset && !isAudioAsset(asset);
+    });
+    assets.forEach((asset, id) => {
+        if (isAudioAsset(asset)) {
+            return;
+        }
+        if (!layerOrder.includes(id)) {
+            layerOrder.unshift(id);
+        }
+    });
+    return layerOrder;
+}
+
+function getRenderOrder() {
+    return [...getLayerOrder()].reverse().map((id) => assets.get(id)).filter(Boolean);
+}
 
 function connect() {
     const socket = new SockJS('/ws');
@@ -57,12 +96,15 @@ function connect() {
 }
 
 function renderAssets(list) {
-    list.forEach(asset => {
-        asset.zIndex = Math.max(1, asset.zIndex ?? 1);
-        assets.set(asset.id, asset);
-    });
-    assetsDirty = true;
+    layerOrder = [];
+    list.forEach((asset) => storeAsset(asset, 'append'));
     draw();
+}
+
+function storeAsset(asset, placement = 'keep') {
+    if (!asset) return;
+    assets.set(asset.id, asset);
+    ensureLayerPosition(asset.id, placement);
 }
 
 function fetchCanvasSettings() {
@@ -102,34 +144,35 @@ function handleEvent(event) {
     const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
     if (event.type === 'DELETED') {
         assets.delete(assetId);
+        layerOrder = layerOrder.filter((id) => id !== assetId);
         clearMedia(assetId);
         renderStates.delete(assetId);
     } else if (event.patch) {
         applyPatch(assetId, event.patch);
     } else if (event.type === 'PLAY' && event.payload) {
         const payload = normalizePayload(event.payload);
-        assets.set(payload.id, payload);
+        storeAsset(payload);
         if (isAudioAsset(payload)) {
             handleAudioPlay(payload, event.play !== false);
         }
     } else if (event.payload && !event.payload.hidden) {
         const payload = normalizePayload(event.payload);
-        assets.set(payload.id, payload);
+        storeAsset(payload);
         ensureMedia(payload);
         if (isAudioAsset(payload)) {
             playAudioImmediately(payload);
         }
     } else if (event.payload && event.payload.hidden) {
         assets.delete(event.payload.id);
+        layerOrder = layerOrder.filter((id) => id !== event.payload.id);
         clearMedia(event.payload.id);
         renderStates.delete(event.payload.id);
     }
-    assetsDirty = true;
     draw();
 }
 
 function normalizePayload(payload) {
-    return { ...payload, zIndex: Math.max(1, payload.zIndex ?? 1) };
+    return { ...payload };
 }
 
 function applyPatch(assetId, patch) {
@@ -141,13 +184,24 @@ function applyPatch(assetId, patch) {
         return;
     }
     const merged = normalizePayload({ ...existing, ...patch });
+    const isAudio = isAudioAsset(merged);
     if (patch.hidden) {
         assets.delete(assetId);
+        layerOrder = layerOrder.filter((id) => id !== assetId);
         clearMedia(assetId);
         renderStates.delete(assetId);
         return;
     }
-    assets.set(assetId, merged);
+    const targetLayer = Number.isFinite(patch.layer)
+        ? patch.layer
+        : (Number.isFinite(patch.zIndex) ? patch.zIndex : null);
+    if (!isAudio && Number.isFinite(targetLayer)) {
+        const currentOrder = getLayerOrder().filter((id) => id !== assetId);
+        const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
+        currentOrder.splice(insertIndex, 0, assetId);
+        layerOrder = currentOrder;
+    }
+    storeAsset(merged);
     ensureMedia(merged);
     renderStates.set(assetId, { ...renderStates.get(assetId), ...pickTransform(merged) });
 }
@@ -188,24 +242,7 @@ function draw() {
 
 function renderFrame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    getZOrderedAssets().forEach(drawAsset);
-}
-
-function getZOrderedAssets() {
-    if (assetsDirty) {
-        sortedAssetsCache = Array.from(assets.values()).sort(zComparator);
-        assetsDirty = false;
-    }
-    return sortedAssetsCache;
-}
-
-function zComparator(a, b) {
-    const aZ = a?.zIndex ?? 1;
-    const bZ = b?.zIndex ?? 1;
-    if (aZ !== bZ) {
-        return aZ - bZ;
-    }
-    return new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
+    getRenderOrder().forEach(drawAsset);
 }
 
 function drawAsset(asset) {

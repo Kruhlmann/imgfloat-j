@@ -16,8 +16,7 @@ const loopPlaybackState = new Map();
 const previewCache = new Map();
 const previewImageCache = new Map();
 let drawPending = false;
-let zOrderDirty = true;
-let zOrderCache = [];
+let layerOrder = [];
 let selectedAssetId = null;
 let interactionState = null;
 let lastSizeInputChanged = null;
@@ -26,6 +25,7 @@ const ROTATE_HANDLE_OFFSET = 32;
 const MAX_VOLUME = 2;
 const VOLUME_SLIDER_MAX = 200;
 const VOLUME_CURVE_STRENGTH = -0.6;
+const pendingTransformSaves = new Map();
 
 
 const controlsPanel = document.getElementById('asset-controls');
@@ -82,6 +82,85 @@ function debounce(fn, wait = 150) {
         clearTimeout(timeout);
         timeout = setTimeout(() => fn(...args), wait);
     };
+}
+
+function schedulePersistTransform(asset, silent = false, delay = 200) {
+    if (!asset?.id) return;
+    cancelPendingTransform(asset.id);
+    const timeout = setTimeout(() => {
+        pendingTransformSaves.delete(asset.id);
+        persistTransform(asset, silent);
+    }, delay);
+    pendingTransformSaves.set(asset.id, timeout);
+}
+
+function cancelPendingTransform(assetId) {
+    const pending = pendingTransformSaves.get(assetId);
+    if (pending) {
+        clearTimeout(pending);
+        pendingTransformSaves.delete(assetId);
+    }
+}
+
+function ensureLayerPosition(assetId, placement = 'keep') {
+    const asset = assets.get(assetId);
+    if (asset && isAudioAsset(asset)) {
+        return;
+    }
+    const existingIndex = layerOrder.indexOf(assetId);
+    if (existingIndex !== -1 && placement === 'keep') {
+        return;
+    }
+    if (existingIndex !== -1) {
+        layerOrder.splice(existingIndex, 1);
+    }
+    if (placement === 'append') {
+        layerOrder.push(assetId);
+    } else {
+        layerOrder.unshift(assetId);
+    }
+    layerOrder = layerOrder.filter((id) => assets.has(id));
+}
+
+function getLayerOrder() {
+    layerOrder = layerOrder.filter((id) => {
+        const asset = assets.get(id);
+        return asset && !isAudioAsset(asset);
+    });
+    assets.forEach((asset, id) => {
+        if (isAudioAsset(asset)) {
+            return;
+        }
+        if (!layerOrder.includes(id)) {
+            layerOrder.unshift(id);
+        }
+    });
+    return layerOrder;
+}
+
+function getAssetsByLayer() {
+    return getLayerOrder().map((id) => assets.get(id)).filter(Boolean);
+}
+
+function getAudioAssets() {
+    return Array.from(assets.values())
+        .filter((asset) => isAudioAsset(asset))
+        .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+}
+
+function getRenderOrder() {
+    return [...getLayerOrder()].reverse().map((id) => assets.get(id)).filter(Boolean);
+}
+
+function getLayerValue(assetId) {
+    const asset = assets.get(assetId);
+    if (asset && isAudioAsset(asset)) {
+        return 0;
+    }
+    const order = getLayerOrder();
+    const index = order.indexOf(assetId);
+    if (index === -1) return 1;
+    return order.length - index;
 }
 
 function addPendingUpload(name) {
@@ -263,13 +342,6 @@ if (audioPitchInput) audioPitchInput.addEventListener('input', () => {
     setAudioPitchLabel(audioPitchInput.value);
     updateAudioSettingsFromInputs();
 });
-if (selectedVisibilityBtn) {
-    selectedVisibilityBtn.addEventListener('click', () => {
-        const asset = getSelectedAsset();
-        if (!asset) return;
-        updateVisibility(asset, !asset.hidden);
-    });
-}
 if (selectedDeleteBtn) {
     selectedDeleteBtn.addEventListener('click', () => {
         const asset = getSelectedAsset();
@@ -354,12 +426,14 @@ function resizeCanvas() {
 }
 
 function renderAssets(list) {
-    list.forEach(storeAsset);
+    layerOrder = [];
+    list.forEach((item) => storeAsset(item, { placement: 'append' }));
     drawAndList();
 }
 
-function storeAsset(asset) {
+function storeAsset(asset, options = {}) {
     if (!asset) return;
+    const placement = options.placement || 'keep';
     const existing = assets.get(asset.id);
     const merged = existing ? { ...existing, ...asset } : { ...asset };
     const mediaChanged = existing && existing.url !== merged.url;
@@ -367,14 +441,13 @@ function storeAsset(asset) {
     if (mediaChanged || previewChanged) {
         clearMedia(asset.id);
     }
-    merged.zIndex = Math.max(1, merged.zIndex ?? 1);
     const parsedCreatedAt = merged.createdAt ? new Date(merged.createdAt).getTime() : NaN;
     const hasCreatedAtMs = typeof merged.createdAtMs === 'number' && Number.isFinite(merged.createdAtMs);
     if (!hasCreatedAtMs) {
         merged.createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
     }
     assets.set(asset.id, merged);
-    zOrderDirty = true;
+    ensureLayerPosition(asset.id, existing ? 'keep' : placement);
     if (!renderStates.has(asset.id)) {
         renderStates.set(asset.id, { ...merged });
     }
@@ -396,10 +469,11 @@ function handleEvent(event) {
     const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
     if (event.type === 'DELETED') {
         assets.delete(assetId);
-        zOrderDirty = true;
+        layerOrder = layerOrder.filter((id) => id !== assetId);
         clearMedia(assetId);
         renderStates.delete(assetId);
         loopPlaybackState.delete(assetId);
+        cancelPendingTransform(assetId);
         if (selectedAssetId === assetId) {
             selectedAssetId = null;
         }
@@ -429,12 +503,24 @@ function applyPatch(assetId, patch) {
         return;
     }
     const merged = { ...existing, ...patch };
+    const isAudio = isAudioAsset(merged);
     if (patch.hidden) {
         clearMedia(assetId);
         loopPlaybackState.delete(assetId);
     }
+    const targetLayer = Number.isFinite(patch.layer)
+        ? patch.layer
+        : (Number.isFinite(patch.zIndex) ? patch.zIndex : null);
+    if (!isAudio && Number.isFinite(targetLayer)) {
+        const currentOrder = getLayerOrder().filter((id) => id !== assetId);
+        const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
+        currentOrder.splice(insertIndex, 0, assetId);
+        layerOrder = currentOrder;
+    }
     storeAsset(merged);
-    updateRenderState(merged);
+    if (!isAudio) {
+        updateRenderState(merged);
+    }
 }
 
 function drawAndList() {
@@ -455,28 +541,7 @@ function requestDraw() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    getZOrderedAssets().forEach((asset) => drawAsset(asset));
-}
-
-function getZOrderedAssets() {
-    if (zOrderDirty) {
-        zOrderCache = Array.from(assets.values()).sort(zComparator);
-        zOrderDirty = false;
-    }
-    return zOrderCache;
-}
-
-function zComparator(a, b) {
-    const aZ = a?.zIndex ?? 1;
-    const bZ = b?.zIndex ?? 1;
-    if (aZ !== bZ) {
-        return aZ - bZ;
-    }
-    return (a?.createdAtMs || 0) - (b?.createdAtMs || 0);
-}
-
-function getChronologicalAssets() {
-    return Array.from(assets.values()).sort((a, b) => (a?.createdAtMs || 0) - (b?.createdAtMs || 0));
+    getRenderOrder().forEach((asset) => drawAsset(asset));
 }
 
 function drawAsset(asset) {
@@ -1096,7 +1161,8 @@ function renderAssetList() {
         list.appendChild(createPendingListItem(pending));
     });
 
-    const sortedAssets = getChronologicalAssets();
+    const audioAssets = getAudioAssets();
+    const sortedAssets = [...audioAssets, ...getAssetsByLayer()];
     sortedAssets.forEach((asset) => {
         const li = document.createElement('li');
         li.className = 'asset-item';
@@ -1118,6 +1184,16 @@ function renderAssetList() {
         details.textContent = `${Math.round(asset.width)}x${Math.round(asset.height)}`;
         meta.appendChild(name);
         meta.appendChild(details);
+
+        const badges = document.createElement('div');
+        badges.className = 'badge-row asset-detail';
+        const durationLabel = getDurationBadge(asset);
+        if (durationLabel) {
+            badges.appendChild(createBadge(durationLabel, 'subtle'));
+        }
+        if (badges.children.length > 0) {
+            meta.appendChild(badges);
+        }
 
         const actions = document.createElement('div');
         actions.className = 'actions';
@@ -1436,7 +1512,7 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
     controlsPanel.classList.remove('hidden');
     lastSizeInputChanged = null;
     if (selectedZLabel) {
-        selectedZLabel.textContent = asset.zIndex ?? 1;
+        selectedZLabel.textContent = getLayerValue(asset.id);
     }
 
     if (widthInput) widthInput.value = Math.round(asset.width);
@@ -1545,9 +1621,6 @@ function updateSelectedAssetSummary(asset) {
         selectedAssetBadges.innerHTML = '';
         if (asset) {
             selectedAssetBadges.appendChild(createBadge(getDisplayMediaType(asset)));
-            if (!isAudioAsset(asset)) {
-                selectedAssetBadges.appendChild(createBadge(asset.hidden ? 'Hidden' : 'Visible', asset.hidden ? 'danger' : ''));
-            }
             const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : '';
             if (aspectLabel) {
                 selectedAssetBadges.appendChild(createBadge(aspectLabel, 'subtle'));
@@ -1560,10 +1633,33 @@ function updateSelectedAssetSummary(asset) {
     }
     if (selectedVisibilityBtn) {
         selectedVisibilityBtn.disabled = !asset;
-        selectedVisibilityBtn.title = asset ? (asset.hidden ? 'Show asset' : 'Hide asset') : 'Toggle visibility';
-        selectedVisibilityBtn.innerHTML = asset
-            ? `<i class="fa-solid ${asset.hidden ? 'fa-eye' : 'fa-eye-slash'}"></i>`
-            : '<i class="fa-solid fa-eye-slash"></i>';
+        selectedVisibilityBtn.onclick = null;
+        if (asset && isAudioAsset(asset)) {
+            const isLooping = !!asset.audioLoop;
+            const isPlayingLoop = getLoopPlaybackState(asset);
+            updatePlayButtonIcon(selectedVisibilityBtn, isLooping, isPlayingLoop);
+            selectedVisibilityBtn.title = isLooping
+                ? (isPlayingLoop ? 'Pause looping audio' : 'Play looping audio')
+                : 'Play audio';
+            selectedVisibilityBtn.onclick = () => {
+                const nextPlay = isLooping
+                    ? !(loopPlaybackState.get(asset.id) ?? getLoopPlaybackState(asset))
+                    : true;
+                if (isLooping) {
+                    loopPlaybackState.set(asset.id, nextPlay);
+                    updatePlayButtonIcon(selectedVisibilityBtn, true, nextPlay);
+                    selectedVisibilityBtn.title = nextPlay ? 'Pause looping audio' : 'Play looping audio';
+                }
+                triggerAudioPlayback(asset, nextPlay);
+            };
+        } else if (asset) {
+            selectedVisibilityBtn.title = asset.hidden ? 'Show asset' : 'Hide asset';
+            selectedVisibilityBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+            selectedVisibilityBtn.onclick = () => updateVisibility(asset, !asset.hidden);
+        } else {
+            selectedVisibilityBtn.title = 'Toggle visibility';
+            selectedVisibilityBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+        }
     }
     if (selectedDeleteBtn) {
         selectedDeleteBtn.disabled = !asset;
@@ -1603,7 +1699,7 @@ function updatePlaybackFromInputs() {
     setSpeedLabel(percent);
     asset.speed = percent / 100;
     updateRenderState(asset);
-    persistTransform(asset);
+    schedulePersistTransform(asset);
     const media = mediaCache.get(asset.id);
     if (media) {
         applyMediaSettings(media, asset);
@@ -1626,7 +1722,7 @@ function updateVolumeFromInput() {
         const controller = ensureAudioController(asset);
         applyAudioSettings(controller, asset);
     }
-    persistTransform(asset);
+    schedulePersistTransform(asset);
     drawAndList();
 }
 
@@ -1648,7 +1744,7 @@ function updateAudioSettingsFromInputs() {
     asset.audioPitch = Math.max(0.5, (nextAudioPitchPercent / 100));
     const controller = ensureAudioController(asset);
     applyAudioSettings(controller, asset);
-    persistTransform(asset);
+    schedulePersistTransform(asset);
     drawAndList();
 }
 
@@ -1677,52 +1773,45 @@ function recenterSelectedAsset() {
 function bringForward() {
     const asset = getSelectedAsset();
     if (!asset) return;
-    const ordered = [...getZOrderedAssets()];
+    const ordered = getAssetsByLayer();
     const index = ordered.findIndex((item) => item.id === asset.id);
-    if (index === -1 || index === ordered.length - 1) return;
-    [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]];
-    applyZOrder(ordered);
+    if (index <= 0) return;
+    [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]];
+    applyLayerOrder(ordered);
 }
 
 function bringBackward() {
     const asset = getSelectedAsset();
     if (!asset) return;
-    const ordered = [...getZOrderedAssets()];
+    const ordered = getAssetsByLayer();
     const index = ordered.findIndex((item) => item.id === asset.id);
-    if (index <= 0) return;
-    [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]];
-    applyZOrder(ordered);
+    if (index === -1 || index === ordered.length - 1) return;
+    [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]];
+    applyLayerOrder(ordered);
 }
 
 function bringToFront() {
     const asset = getSelectedAsset();
     if (!asset) return;
-    const ordered = getZOrderedAssets().filter((item) => item.id !== asset.id);
-    ordered.push(asset);
-    applyZOrder(ordered);
+    const ordered = getAssetsByLayer().filter((item) => item.id !== asset.id);
+    ordered.unshift(asset);
+    applyLayerOrder(ordered);
 }
 
 function sendToBack() {
     const asset = getSelectedAsset();
     if (!asset) return;
-    const ordered = getZOrderedAssets().filter((item) => item.id !== asset.id);
-    ordered.unshift(asset);
-    applyZOrder(ordered);
+    const ordered = getAssetsByLayer().filter((item) => item.id !== asset.id);
+    ordered.push(asset);
+    applyLayerOrder(ordered);
 }
 
-function applyZOrder(ordered) {
-    const changed = [];
-    ordered.forEach((item, index) => {
-        const nextIndex = index + 1;
-        if ((item.zIndex ?? 1) !== nextIndex) {
-            item.zIndex = nextIndex;
-            changed.push(item);
-        }
-        assets.set(item.id, item);
-        updateRenderState(item);
-    });
-    zOrderDirty = true;
-    changed.forEach((item) => persistTransform(item, true));
+function applyLayerOrder(ordered) {
+    const newOrder = ordered.map((item) => item.id).filter((id) => assets.has(id));
+    layerOrder = newOrder;
+    const changed = ordered.map((item) => assets.get(item.id)).filter(Boolean);
+    changed.forEach((item) => updateRenderState(item));
+    changed.forEach((item) => schedulePersistTransform(item, true));
     drawAndList();
 }
 
@@ -1845,7 +1934,8 @@ function deleteAsset(asset) {
             clearMedia(asset.id);
             assets.delete(asset.id);
             renderStates.delete(asset.id);
-            zOrderDirty = true;
+            layerOrder = layerOrder.filter((id) => id !== asset.id);
+            cancelPendingTransform(asset.id);
             if (selectedAssetId === asset.id) {
                 selectedAssetId = null;
             }
@@ -1939,12 +2029,13 @@ function isPointOnAsset(asset, x, y) {
 }
 
 function findAssetAtPoint(x, y) {
-    const ordered = [...getZOrderedAssets()].reverse();
+    const ordered = getAssetsByLayer();
     return ordered.find((asset) => !isAudioAsset(asset) && isPointOnAsset(asset, x, y)) || null;
 }
 
 function persistTransform(asset, silent = false) {
-    asset.zIndex = Math.max(1, asset.zIndex ?? 1);
+    cancelPendingTransform(asset.id);
+    const layer = getLayerValue(asset.id);
     fetch(`/api/channels/${broadcaster}/assets/${asset.id}/transform`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1955,7 +2046,8 @@ function persistTransform(asset, silent = false) {
             height: asset.height,
             rotation: asset.rotation,
             speed: asset.speed,
-            zIndex: asset.zIndex,
+            layer,
+            zIndex: layer,
             audioLoop: asset.audioLoop,
             audioDelayMillis: asset.audioDelayMillis,
             audioSpeed: asset.audioSpeed,
