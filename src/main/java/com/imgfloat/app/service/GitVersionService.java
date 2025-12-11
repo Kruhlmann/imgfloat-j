@@ -22,6 +22,20 @@ public class GitVersionService {
     }
 
     private String resolveVersion() {
+        String gitDescribeVersion = tryGitDescribe();
+        if (gitDescribeVersion != null) {
+            return gitDescribeVersion;
+        }
+
+        String manifestVersion = getClass().getPackage().getImplementationVersion();
+        if (manifestVersion != null && !manifestVersion.isBlank()) {
+            return manifestVersion;
+        }
+
+        return "unknown";
+    }
+
+    private String tryGitDescribe() {
         Process process = null;
         try {
             process = new ProcessBuilder("git", "describe", "--tags", "--always")
@@ -36,7 +50,7 @@ public class GitVersionService {
                 LOG.warn("git describe returned exit code {} with output: {}", exitCode, result);
             }
         } catch (IOException e) {
-            LOG.warn("Unable to determine git version", e);
+            LOG.warn("Unable to determine git version using git describe", e);
             if (process != null) {
                 process.destroyForcibly();
             }
@@ -47,6 +61,6 @@ public class GitVersionService {
             }
             Thread.currentThread().interrupt();
         }
-        return "unknown";
+        return null;
     }
 }
