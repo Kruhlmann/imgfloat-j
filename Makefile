@@ -3,6 +3,12 @@
 
 .DEFAULT_GOAL := build
 
+IMGFLOAT_ASSETS_PATH ?= ./assets
+IMGFLOAT_PREVIEWS_PATH ?= ./previews
+SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE ?= 10MB
+RUNTIME_ENV = IMGFLOAT_ASSETS_PATH=$(IMGFLOAT_ASSETS_PATH) \
+			  IMGFLOAT_PREVIEWS_PATH=$(IMGFLOAT_PREVIEWS_PATH) \
+			  SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=$(SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE)
 WATCHDIR = ./src/main
 
 .PHONY: build
@@ -11,11 +17,12 @@ build:
 
 .PHONY: run
 run:
-	test -f .env && . ./.env; IMGFLOAT_UPLOAD_MAX_BYTES=16777216 mvn spring-boot:run
+	test -f .env && . ./.env; $(RUNTIME_ENV) mvn spring-boot:run
 
 .PHONY: watch
 watch:
-	while sleep 0.1; do find $(WATCHDIR) -type f | entr -d mvn -q compile; done
+	mvn compile
+	while sleep 0.1; do find $(WATCHDIR) -type f | entr -d mvn compile; done
 
 .PHONY: test
 test:

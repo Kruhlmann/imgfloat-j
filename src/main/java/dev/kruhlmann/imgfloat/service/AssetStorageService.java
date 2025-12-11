@@ -1,161 +1,193 @@
 package dev.kruhlmann.imgfloat.service;
 
 import dev.kruhlmann.imgfloat.service.media.AssetContent;
+import dev.kruhlmann.imgfloat.model.Asset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class AssetStorageService {
     private static final Logger logger = LoggerFactory.getLogger(AssetStorageService.class);
+    private static final Map<String, String> EXTENSIONS = Map.ofEntries(
+        Map.entry("image/png", ".png"),
+        Map.entry("image/jpeg", ".jpg"),
+        Map.entry("image/jpg", ".jpg"),
+        Map.entry("image/gif", ".gif"),
+        Map.entry("image/webp", ".webp"),
+        Map.entry("image/bmp", ".bmp"),
+        Map.entry("image/tiff", ".tiff"),
+        Map.entry("video/mp4", ".mp4"),
+        Map.entry("video/webm", ".webm"),
+        Map.entry("video/quicktime", ".mov"),
+        Map.entry("video/x-matroska", ".mkv"),
+        Map.entry("audio/mpeg", ".mp3"),
+        Map.entry("audio/mp3", ".mp3"),
+        Map.entry("audio/wav", ".wav"),
+        Map.entry("audio/ogg", ".ogg"),
+        Map.entry("audio/webm", ".webm"),
+        Map.entry("audio/flac", ".flac")
+    );
+
     private final Path assetRoot;
     private final Path previewRoot;
 
-    public AssetStorageService(@Value("${IMGFLOAT_ASSETS_PATH:assets}") String assetRoot,
-                               @Value("${IMGFLOAT_PREVIEWS_PATH:previews}") String previewRoot) {
-        this.assetRoot = Paths.get(assetRoot);
-        this.previewRoot = Paths.get(previewRoot);
+    public AssetStorageService(
+            @Value("${IMGFLOAT_ASSETS_PATH:#{null}}") String assetRoot,
+            @Value("${IMGFLOAT_PREVIEWS_PATH:#{null}}") String previewRoot
+    ) {
+        this.assetRoot = Paths.get(assetRoot).normalize().toAbsolutePath();
+        this.previewRoot = Paths.get(previewRoot).normalize().toAbsolutePath();
     }
 
-    public String storeAsset(String broadcaster, String assetId, byte[] assetBytes, String mediaType) throws IOException {
+    public String storeAsset(String broadcaster, String assetId, byte[] assetBytes, String mediaType)
+            throws IOException {
+
         if (assetBytes == null || assetBytes.length == 0) {
             throw new IOException("Asset content is empty");
         }
-        Path directory = assetRoot.resolve(normalize(broadcaster));
+
+        String safeUser = sanitizeUserSegment(broadcaster);
+        Path directory = safeJoin(assetRoot, safeUser);
         Files.createDirectories(directory);
-        String extension = extensionForMediaType(mediaType);
-        Path assetFile = directory.resolve(assetId + extension);
-        Files.write(assetFile, assetBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        return assetFile.toString();
+
+        String extension = resolveExtension(mediaType);
+        Path file = directory.resolve(assetId + extension);
+
+        Files.write(file, assetBytes,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE);
+
+        return assetRoot.relativize(file).toString();
     }
 
-    public String storePreview(String broadcaster, String assetId, byte[] previewBytes) throws IOException {
+    public String storePreview(String broadcaster, String assetId, byte[] previewBytes)
+            throws IOException {
+
         if (previewBytes == null || previewBytes.length == 0) {
             return null;
         }
-        Path directory = previewRoot.resolve(normalize(broadcaster));
+
+        String safeUser = sanitizeUserSegment(broadcaster);
+        Path directory = safeJoin(previewRoot, safeUser);
         Files.createDirectories(directory);
-        Path previewFile = directory.resolve(assetId + ".png");
-        Files.write(previewFile, previewBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        return previewFile.toString();
+
+        Path file = directory.resolve(assetId + ".png");
+
+        Files.write(file, previewBytes,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE);
+
+        return previewRoot.relativize(file).toString();
     }
 
-    public Optional<AssetContent> loadPreview(String previewPath) {
-        if (previewPath == null || previewPath.isBlank()) {
-            return Optional.empty();
-        }
-        try {
-            Path path = Paths.get(previewPath);
-            if (!Files.exists(path)) {
-                return Optional.empty();
-            }
-            try {
-                return Optional.of(new AssetContent(Files.readAllBytes(path), "image/png"));
-            } catch (IOException e) {
-                logger.warn("Unable to read preview from {}", previewPath, e);
-                return Optional.empty();
-            }
-        } catch (InvalidPathException e) {
-            logger.debug("Preview path {} is not a file path; skipping", previewPath);
-            return Optional.empty();
-        }
-    }
+    public Optional<AssetContent> loadAssetFile(String relativePath, String mediaType) {
+        if (relativePath == null || relativePath.isBlank()) return Optional.empty();
 
-    public Optional<AssetContent> loadAssetFile(String assetPath, String mediaType) {
-        if (assetPath == null || assetPath.isBlank()) {
-            return Optional.empty();
-        }
         try {
-            Path path = Paths.get(assetPath);
-            if (!Files.exists(path)) {
-                return Optional.empty();
+            Path file = safeJoin(assetRoot, relativePath);
+
+            if (!Files.exists(file)) return Optional.empty();
+
+            String resolved = mediaType;
+            if (resolved == null || resolved.isBlank()) {
+                resolved = Files.probeContentType(file);
             }
-            try {
-                String resolvedMediaType = mediaType;
-                if (resolvedMediaType == null || resolvedMediaType.isBlank()) {
-                    resolvedMediaType = Files.probeContentType(path);
-                }
-                if (resolvedMediaType == null || resolvedMediaType.isBlank()) {
-                    resolvedMediaType = "application/octet-stream";
-                }
-                return Optional.of(new AssetContent(Files.readAllBytes(path), resolvedMediaType));
-            } catch (IOException e) {
-                logger.warn("Unable to read asset from {}", assetPath, e);
-                return Optional.empty();
+            if (resolved == null || resolved.isBlank()) {
+                resolved = "application/octet-stream";
             }
-        } catch (InvalidPathException e) {
-            logger.debug("Asset path {} is not a file path; skipping", assetPath);
+
+            byte[] bytes = Files.readAllBytes(file);
+            return Optional.of(new AssetContent(bytes, resolved));
+
+        } catch (Exception e) {
+            logger.warn("Failed to load asset {}", relativePath, e);
             return Optional.empty();
         }
     }
 
-    public void deleteAssetFile(String assetPath) {
-        if (assetPath == null || assetPath.isBlank()) {
-            return;
-        }
+    public Optional<AssetContent> loadPreview(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) return Optional.empty();
+
         try {
-            Path path = Paths.get(assetPath);
-            try {
-                Files.deleteIfExists(path);
-            } catch (IOException e) {
-                logger.warn("Unable to delete asset file {}", assetPath, e);
-            }
-        } catch (InvalidPathException e) {
-            logger.debug("Asset value {} is not a file path; nothing to delete", assetPath);
+            Path file = safeJoin(previewRoot, relativePath);
+
+            if (!Files.exists(file)) return Optional.empty();
+
+            byte[] bytes = Files.readAllBytes(file);
+            return Optional.of(new AssetContent(bytes, "image/png"));
+
+        } catch (Exception e) {
+            logger.warn("Failed to load preview {}", relativePath, e);
+            return Optional.empty();
         }
     }
 
-    public void deletePreviewFile(String previewPath) {
-        if (previewPath == null || previewPath.isBlank()) {
-            return;
-        }
+    public Optional<AssetContent> loadAssetFileSafely(Asset asset) {
+        if (asset.getUrl() == null) return Optional.empty();
+        return loadAssetFile(asset.getUrl(), asset.getMediaType());
+    }
+
+    public Optional<AssetContent> loadPreviewSafely(Asset asset) {
+        if (asset.getPreview() == null) return Optional.empty();
+        return loadPreview(asset.getPreview());
+    }
+
+    public void deleteAssetFile(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) return;
+
         try {
-            Path path = Paths.get(previewPath);
-            try {
-                Files.deleteIfExists(path);
-            } catch (IOException e) {
-                logger.warn("Unable to delete preview file {}", previewPath, e);
-            }
-        } catch (InvalidPathException e) {
-            logger.debug("Preview value {} is not a file path; nothing to delete", previewPath);
+            Path file = safeJoin(assetRoot, relativePath);
+            Files.deleteIfExists(file);
+        } catch (Exception e) {
+            logger.warn("Failed to delete asset {}", relativePath, e);
         }
     }
 
-    private String extensionForMediaType(String mediaType) {
-        if (mediaType == null || mediaType.isBlank()) {
-            return ".bin";
+    public void deletePreviewFile(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) return;
+
+        try {
+            Path file = safeJoin(previewRoot, relativePath);
+            Files.deleteIfExists(file);
+        } catch (Exception e) {
+            logger.warn("Failed to delete preview {}", relativePath, e);
         }
-        return switch (mediaType.toLowerCase(Locale.ROOT)) {
-            case "image/png" -> ".png";
-            case "image/jpeg", "image/jpg" -> ".jpg";
-            case "image/gif" -> ".gif";
-            case "video/mp4" -> ".mp4";
-            case "video/webm" -> ".webm";
-            case "video/quicktime" -> ".mov";
-            case "audio/mpeg" -> ".mp3";
-            case "audio/wav" -> ".wav";
-            case "audio/ogg" -> ".ogg";
-            default -> {
-                int slash = mediaType.indexOf('/');
-                if (slash > -1 && slash < mediaType.length() - 1) {
-                    yield "." + mediaType.substring(slash + 1).replaceAll("[^a-z0-9.+-]", "");
-                }
-                yield ".bin";
-            }
-        };
     }
 
-    private String normalize(String value) {
-        return value == null ? null : value.toLowerCase(Locale.ROOT);
+    private String sanitizeUserSegment(String value) {
+        if (value == null) throw new IllegalArgumentException("Broadcaster is null");
+
+        String safe = value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "");
+        if (safe.isBlank()) throw new IllegalArgumentException("Invalid broadcaster: " + value);
+        return safe;
+    }
+
+    private String resolveExtension(String mediaType) throws IOException {
+        if (mediaType == null || !EXTENSIONS.containsKey(mediaType)) {
+            throw new IOException("Unsupported media type: " + mediaType);
+        }
+        return EXTENSIONS.get(mediaType);
+    }
+
+    /**
+     * Safe path-join that prevents path traversal.
+     * Accepts both "abc/123.png" (relative multi-level) and single components.
+     */
+    private Path safeJoin(Path root, String relative) throws IOException {
+        Path resolved = root.resolve(relative).normalize();
+        if (!resolved.startsWith(root)) {
+            throw new IOException("Path traversal attempt: " + relative);
+        }
+        return resolved;
     }
 }

@@ -11,6 +11,11 @@ import dev.kruhlmann.imgfloat.model.TransformRequest;
 import dev.kruhlmann.imgfloat.model.VisibilityRequest;
 import dev.kruhlmann.imgfloat.repository.AssetRepository;
 import dev.kruhlmann.imgfloat.repository.ChannelRepository;
+import dev.kruhlmann.imgfloat.service.media.AssetContent;
+import dev.kruhlmann.imgfloat.service.media.MediaDetectionService;
+import dev.kruhlmann.imgfloat.service.media.MediaOptimizationService;
+import dev.kruhlmann.imgfloat.service.media.OptimizedAsset;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,53 +25,46 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-
-import dev.kruhlmann.imgfloat.service.media.AssetContent;
-import dev.kruhlmann.imgfloat.service.media.MediaDetectionService;
-import dev.kruhlmann.imgfloat.service.media.MediaOptimizationService;
-import dev.kruhlmann.imgfloat.service.media.OptimizedAsset;
+import java.util.*;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.PAYLOAD_TOO_LARGE;
 
 @Service
 public class ChannelDirectoryService {
+    private static final Logger logger = LoggerFactory.getLogger(ChannelDirectoryService.class);
     private static final double MAX_SPEED = 4.0;
     private static final double MIN_AUDIO_SPEED = 0.1;
     private static final double MAX_AUDIO_SPEED = 4.0;
     private static final double MIN_AUDIO_PITCH = 0.5;
     private static final double MAX_AUDIO_PITCH = 2.0;
     private static final double MAX_AUDIO_VOLUME = 1.0;
-    private static final Logger logger = LoggerFactory.getLogger(ChannelDirectoryService.class);
+    private static final Pattern SAFE_FILENAME = Pattern.compile("[^a-zA-Z0-9._ -]");
+
     private final ChannelRepository channelRepository;
     private final AssetRepository assetRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final AssetStorageService assetStorageService;
     private final MediaDetectionService mediaDetectionService;
     private final MediaOptimizationService mediaOptimizationService;
-    private final long maxUploadBytes;
 
-    public ChannelDirectoryService(ChannelRepository channelRepository,
-                                   AssetRepository assetRepository,
-                                   SimpMessagingTemplate messagingTemplate,
-                                   AssetStorageService assetStorageService,
-                                   MediaDetectionService mediaDetectionService,
-                                   MediaOptimizationService mediaOptimizationService,
-                                   @Value("${IMGFLOAT_UPLOAD_MAX_BYTES:26214400}") long maxUploadBytes) {
+    public ChannelDirectoryService(
+            ChannelRepository channelRepository,
+            AssetRepository assetRepository,
+            SimpMessagingTemplate messagingTemplate,
+            AssetStorageService assetStorageService,
+            MediaDetectionService mediaDetectionService,
+            MediaOptimizationService mediaOptimizationService
+    ) {
         this.channelRepository = channelRepository;
         this.assetRepository = assetRepository;
         this.messagingTemplate = messagingTemplate;
         this.assetStorageService = assetStorageService;
         this.mediaDetectionService = mediaDetectionService;
         this.mediaOptimizationService = mediaOptimizationService;
-        this.maxUploadBytes = maxUploadBytes;
     }
+
 
     public Channel getOrCreateChannel(String broadcaster) {
         String normalized = normalize(broadcaster);
@@ -75,9 +73,10 @@ public class ChannelDirectoryService {
     }
 
     public List<String> searchBroadcasters(String query) {
-        String normalizedQuery = normalize(query);
-        String searchTerm = normalizedQuery == null || normalizedQuery.isBlank() ? "" : normalizedQuery;
-        return channelRepository.findTop50ByBroadcasterContainingIgnoreCaseOrderByBroadcasterAsc(searchTerm)
+        String q = normalize(query);
+        return channelRepository
+                .findTop50ByBroadcasterContainingIgnoreCaseOrderByBroadcasterAsc(
+                        q == null ? "" : q)
                 .stream()
                 .map(Channel::getBroadcaster)
                 .toList();
@@ -88,7 +87,8 @@ public class ChannelDirectoryService {
         boolean added = channel.addAdmin(username);
         if (added) {
             channelRepository.save(channel);
-            messagingTemplate.convertAndSend(topicFor(broadcaster), "Admin added: " + username);
+            messagingTemplate.convertAndSend(topicFor(broadcaster),
+                    "Admin added: " + username);
         }
         return added;
     }
@@ -98,19 +98,22 @@ public class ChannelDirectoryService {
         boolean removed = channel.removeAdmin(username);
         if (removed) {
             channelRepository.save(channel);
-            messagingTemplate.convertAndSend(topicFor(broadcaster), "Admin removed: " + username);
+            messagingTemplate.convertAndSend(topicFor(broadcaster),
+                    "Admin removed: " + username);
         }
         return removed;
     }
 
     public Collection<AssetView> getAssetsForAdmin(String broadcaster) {
         String normalized = normalize(broadcaster);
-        return sortAndMapAssets(normalized, assetRepository.findByBroadcaster(normalized));
+        return sortAndMapAssets(normalized,
+                assetRepository.findByBroadcaster(normalized));
     }
 
     public Collection<AssetView> getVisibleAssets(String broadcaster) {
         String normalized = normalize(broadcaster);
-        return sortAndMapAssets(normalized, assetRepository.findByBroadcasterAndHiddenFalse(normalize(broadcaster)));
+        return sortAndMapAssets(normalized,
+                assetRepository.findByBroadcasterAndHiddenFalse(normalized));
     }
 
     public CanvasSettingsRequest getCanvasSettings(String broadcaster) {
@@ -118,46 +121,59 @@ public class ChannelDirectoryService {
         return new CanvasSettingsRequest(channel.getCanvasWidth(), channel.getCanvasHeight());
     }
 
-    public CanvasSettingsRequest updateCanvasSettings(String broadcaster, CanvasSettingsRequest request) {
+    public CanvasSettingsRequest updateCanvasSettings(String broadcaster, CanvasSettingsRequest req) {
         Channel channel = getOrCreateChannel(broadcaster);
-        channel.setCanvasWidth(request.getWidth());
-        channel.setCanvasHeight(request.getHeight());
+        channel.setCanvasWidth(req.getWidth());
+        channel.setCanvasHeight(req.getHeight());
         channelRepository.save(channel);
         return new CanvasSettingsRequest(channel.getCanvasWidth(), channel.getCanvasHeight());
     }
 
     public Optional<AssetView> createAsset(String broadcaster, MultipartFile file) throws IOException {
+
         Channel channel = getOrCreateChannel(broadcaster);
-        long reportedSize = file.getSize();
-        if (reportedSize > 0 && reportedSize > maxUploadBytes) {
-            throw new ResponseStatusException(PAYLOAD_TOO_LARGE, "Upload exceeds limit");
-        }
+
+        long reported = file.getSize();
 
         byte[] bytes = file.getBytes();
-        if (bytes.length > maxUploadBytes) {
-            throw new ResponseStatusException(PAYLOAD_TOO_LARGE, "Upload exceeds limit");
-        }
 
         String mediaType = mediaDetectionService.detectAllowedMediaType(file, bytes)
-                .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unsupported media type"));
+                .orElseThrow(() -> new ResponseStatusException(
+                        BAD_REQUEST, "Unsupported media type"));
 
         OptimizedAsset optimized = mediaOptimizationService.optimizeAsset(bytes, mediaType);
         if (optimized == null) {
             return Optional.empty();
         }
 
-        String name = Optional.ofNullable(file.getOriginalFilename())
-                .map(filename -> filename.replaceAll("^.*[/\\\\]", ""))
+        String safeName = Optional.ofNullable(file.getOriginalFilename())
+                .map(this::sanitizeFilename)
                 .filter(s -> !s.isBlank())
-                .orElse("Asset " + System.currentTimeMillis());
+                .orElse("asset_" + System.currentTimeMillis());
 
-        double width = optimized.width() > 0 ? optimized.width() : (optimized.mediaType().startsWith("audio/") ? 400 : 640);
-        double height = optimized.height() > 0 ? optimized.height() : (optimized.mediaType().startsWith("audio/") ? 80 : 360);
-        Asset asset = new Asset(channel.getBroadcaster(), name, "", width, height);
+        double width = optimized.width() > 0 ? optimized.width() :
+                (optimized.mediaType().startsWith("audio/") ? 400 : 640);
+        double height = optimized.height() > 0 ? optimized.height() :
+                (optimized.mediaType().startsWith("audio/") ? 80 : 360);
+
+        Asset asset = new Asset(channel.getBroadcaster(), safeName, "",
+                width, height);
         asset.setOriginalMediaType(mediaType);
         asset.setMediaType(optimized.mediaType());
-        asset.setUrl(assetStorageService.storeAsset(channel.getBroadcaster(), asset.getId(), optimized.bytes(), optimized.mediaType()));
-        asset.setPreview(assetStorageService.storePreview(channel.getBroadcaster(), asset.getId(), optimized.previewBytes()));
+
+        asset.setUrl(assetStorageService.storeAsset(
+                channel.getBroadcaster(),
+                asset.getId(),
+                optimized.bytes(),
+                optimized.mediaType()
+        ));
+
+        asset.setPreview(assetStorageService.storePreview(
+                channel.getBroadcaster(),
+                asset.getId(),
+                optimized.previewBytes()
+        ));
+
         asset.setSpeed(1.0);
         asset.setMuted(optimized.mediaType().startsWith("video/"));
         asset.setAudioLoop(false);
@@ -168,89 +184,78 @@ public class ChannelDirectoryService {
         asset.setZIndex(nextZIndex(channel.getBroadcaster()));
 
         assetRepository.save(asset);
+
         AssetView view = AssetView.from(channel.getBroadcaster(), asset);
-        messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, view));
+        messagingTemplate.convertAndSend(topicFor(broadcaster),
+                AssetEvent.created(broadcaster, view));
+
         return Optional.of(view);
     }
 
-    public Optional<AssetView> updateTransform(String broadcaster, String assetId, TransformRequest request) {
+    private String sanitizeFilename(String original) {
+        String stripped = original.replaceAll("^.*[/\\\\]", "");
+        return SAFE_FILENAME.matcher(stripped).replaceAll("_");
+    }
+
+    public Optional<AssetView> updateTransform(String broadcaster, String assetId, TransformRequest req) {
         String normalized = normalize(broadcaster);
+
         return assetRepository.findById(assetId)
                 .filter(asset -> normalized.equals(asset.getBroadcaster()))
                 .map(asset -> {
-                    validateTransform(request);
-                    asset.setX(request.getX());
-                    asset.setY(request.getY());
-                    asset.setWidth(request.getWidth());
-                    asset.setHeight(request.getHeight());
-                    asset.setRotation(request.getRotation());
-                    if (request.getZIndex() != null) {
-                        asset.setZIndex(request.getZIndex());
-                    }
-                    if (request.getSpeed() != null) {
-                        asset.setSpeed(request.getSpeed());
-                    }
-                    if (request.getMuted() != null && asset.isVideo()) {
-                        asset.setMuted(request.getMuted());
-                    }
-                    if (request.getAudioLoop() != null) {
-                        asset.setAudioLoop(request.getAudioLoop());
-                    }
-                    if (request.getAudioDelayMillis() != null) {
-                        asset.setAudioDelayMillis(request.getAudioDelayMillis());
-                    }
-                    if (request.getAudioSpeed() != null) {
-                        asset.setAudioSpeed(request.getAudioSpeed());
-                    }
-                    if (request.getAudioPitch() != null) {
-                        asset.setAudioPitch(request.getAudioPitch());
-                    }
-                    if (request.getAudioVolume() != null) {
-                        asset.setAudioVolume(request.getAudioVolume());
-                    }
+                    validateTransform(req);
+
+                    asset.setX(req.getX());
+                    asset.setY(req.getY());
+                    asset.setWidth(req.getWidth());
+                    asset.setHeight(req.getHeight());
+                    asset.setRotation(req.getRotation());
+
+                    if (req.getZIndex() != null) asset.setZIndex(req.getZIndex());
+                    if (req.getSpeed() != null) asset.setSpeed(req.getSpeed());
+                    if (req.getMuted() != null && asset.isVideo()) asset.setMuted(req.getMuted());
+                    if (req.getAudioLoop() != null) asset.setAudioLoop(req.getAudioLoop());
+                    if (req.getAudioDelayMillis() != null) asset.setAudioDelayMillis(req.getAudioDelayMillis());
+                    if (req.getAudioSpeed() != null) asset.setAudioSpeed(req.getAudioSpeed());
+                    if (req.getAudioPitch() != null) asset.setAudioPitch(req.getAudioPitch());
+                    if (req.getAudioVolume() != null) asset.setAudioVolume(req.getAudioVolume());
+
                     assetRepository.save(asset);
+
                     AssetView view = AssetView.from(normalized, asset);
                     AssetPatch patch = AssetPatch.fromTransform(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, patch));
+                    messagingTemplate.convertAndSend(topicFor(broadcaster),
+                            AssetEvent.updated(broadcaster, patch));
                     return view;
                 });
     }
 
-    private void validateTransform(TransformRequest request) {
-        if (request.getWidth() <= 0) {
-            throw new ResponseStatusException(BAD_REQUEST, "Width must be greater than 0");
-        }
-        if (request.getHeight() <= 0) {
-            throw new ResponseStatusException(BAD_REQUEST, "Height must be greater than 0");
-        }
-        if (request.getSpeed() != null && (request.getSpeed() < 0 || request.getSpeed() > MAX_SPEED)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Playback speed must be between 0 and " + MAX_SPEED);
-        }
-        if (request.getZIndex() != null && request.getZIndex() < 1) {
-            throw new ResponseStatusException(BAD_REQUEST, "zIndex must be at least 1");
-        }
-        if (request.getAudioDelayMillis() != null && request.getAudioDelayMillis() < 0) {
-            throw new ResponseStatusException(BAD_REQUEST, "Audio delay must be zero or greater");
-        }
-        if (request.getAudioSpeed() != null && (request.getAudioSpeed() < MIN_AUDIO_SPEED || request.getAudioSpeed() > MAX_AUDIO_SPEED)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Audio speed must be between " + MIN_AUDIO_SPEED + " and " + MAX_AUDIO_SPEED + "x");
-        }
-        if (request.getAudioPitch() != null && (request.getAudioPitch() < MIN_AUDIO_PITCH || request.getAudioPitch() > MAX_AUDIO_PITCH)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Audio pitch must be between " + MIN_AUDIO_PITCH + " and " + MAX_AUDIO_PITCH + "x");
-        }
-        if (request.getAudioVolume() != null && (request.getAudioVolume() < 0 || request.getAudioVolume() > MAX_AUDIO_VOLUME)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Audio volume must be between 0 and " + MAX_AUDIO_VOLUME);
-        }
+    private void validateTransform(TransformRequest req) {
+        if (req.getWidth() <= 0) throw new ResponseStatusException(BAD_REQUEST, "Width must be > 0");
+        if (req.getHeight() <= 0) throw new ResponseStatusException(BAD_REQUEST, "Height must be > 0");
+        if (req.getSpeed() != null && (req.getSpeed() < 0 || req.getSpeed() > MAX_SPEED))
+            throw new ResponseStatusException(BAD_REQUEST, "Speed must be between 0 and " + MAX_SPEED);
+        if (req.getZIndex() != null && req.getZIndex() < 1)
+            throw new ResponseStatusException(BAD_REQUEST, "zIndex must be >= 1");
+        if (req.getAudioDelayMillis() != null && req.getAudioDelayMillis() < 0)
+            throw new ResponseStatusException(BAD_REQUEST, "Audio delay >= 0");
+        if (req.getAudioSpeed() != null && (req.getAudioSpeed() < MIN_AUDIO_SPEED || req.getAudioSpeed() > MAX_AUDIO_SPEED))
+            throw new ResponseStatusException(BAD_REQUEST, "Audio speed out of range");
+        if (req.getAudioPitch() != null && (req.getAudioPitch() < MIN_AUDIO_PITCH || req.getAudioPitch() > MAX_AUDIO_PITCH))
+            throw new ResponseStatusException(BAD_REQUEST, "Audio pitch out of range");
+        if (req.getAudioVolume() != null && (req.getAudioVolume() < 0 || req.getAudioVolume() > MAX_AUDIO_VOLUME))
+            throw new ResponseStatusException(BAD_REQUEST, "Audio volume out of range");
     }
 
-    public Optional<AssetView> triggerPlayback(String broadcaster, String assetId, PlaybackRequest request) {
+    public Optional<AssetView> triggerPlayback(String broadcaster, String assetId, PlaybackRequest req) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
-                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .filter(a -> normalized.equals(a.getBroadcaster()))
                 .map(asset -> {
                     AssetView view = AssetView.from(normalized, asset);
-                    boolean shouldPlay = request == null || request.getPlay();
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.play(broadcaster, view, shouldPlay));
+                    boolean play = req == null || req.getPlay();
+                    messagingTemplate.convertAndSend(topicFor(broadcaster),
+                            AssetEvent.play(broadcaster, view, play));
                     return view;
                 });
     }
@@ -258,26 +263,27 @@ public class ChannelDirectoryService {
     public Optional<AssetView> updateVisibility(String broadcaster, String assetId, VisibilityRequest request) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
-                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .filter(a -> normalized.equals(a.getBroadcaster()))
                 .map(asset -> {
                     asset.setHidden(request.isHidden());
                     assetRepository.save(asset);
-                    AssetView view = AssetView.from(normalized, asset);
                     AssetPatch patch = AssetPatch.fromVisibility(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, patch));
-                    return view;
+                    messagingTemplate.convertAndSend(topicFor(broadcaster),
+                            AssetEvent.visibility(broadcaster, patch));
+                    return AssetView.from(normalized, asset);
                 });
     }
 
     public boolean deleteAsset(String broadcaster, String assetId) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
-                .filter(asset -> normalized.equals(asset.getBroadcaster()))
+                .filter(a -> normalized.equals(a.getBroadcaster()))
                 .map(asset -> {
                     assetStorageService.deleteAssetFile(asset.getUrl());
                     assetStorageService.deletePreviewFile(asset.getPreview());
                     assetRepository.delete(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.deleted(broadcaster, assetId));
+                    messagingTemplate.convertAndSend(topicFor(broadcaster),
+                            AssetEvent.deleted(broadcaster, assetId));
                     return true;
                 })
                 .orElse(false);
@@ -286,35 +292,23 @@ public class ChannelDirectoryService {
     public Optional<AssetContent> getAssetContent(String broadcaster, String assetId) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
-                .filter(asset -> normalized.equals(asset.getBroadcaster()))
-                .flatMap(this::decodeAssetData);
+                .filter(a -> normalized.equals(a.getBroadcaster()))
+                .flatMap(assetStorageService::loadAssetFileSafely);
     }
 
     public Optional<AssetContent> getVisibleAssetContent(String broadcaster, String assetId) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
-                .filter(asset -> normalized.equals(asset.getBroadcaster()))
-                .filter(asset -> !asset.isHidden())
-                .flatMap(this::decodeAssetData);
+                .filter(a -> normalized.equals(a.getBroadcaster()) && !a.isHidden())
+                .flatMap(assetStorageService::loadAssetFileSafely);
     }
 
     public Optional<AssetContent> getAssetPreview(String broadcaster, String assetId, boolean includeHidden) {
         String normalized = normalize(broadcaster);
         return assetRepository.findById(assetId)
-                .filter(asset -> normalized.equals(asset.getBroadcaster()))
-                .filter(asset -> includeHidden || !asset.isHidden())
-                .map(asset -> {
-                    Optional<AssetContent> preview = assetStorageService.loadPreview(asset.getPreview())
-                            .or(() -> decodeDataUrl(asset.getPreview()));
-                    if (preview.isPresent()) {
-                        return preview.get();
-                    }
-                    if (asset.getMediaType() != null && asset.getMediaType().startsWith("image/")) {
-                        return decodeAssetData(asset).orElse(null);
-                    }
-                    return null;
-                })
-                .flatMap(Optional::ofNullable);
+                .filter(a -> normalized.equals(a.getBroadcaster()))
+                .filter(a -> includeHidden || !a.isHidden())
+                .flatMap(assetStorageService::loadPreviewSafely);
     }
 
     public boolean isBroadcaster(String broadcaster, String username) {
@@ -329,67 +323,35 @@ public class ChannelDirectoryService {
     }
 
     public Collection<String> adminChannelsFor(String username) {
-        if (username == null) {
-            return List.of();
-        }
+        if (username == null) return List.of();
         String login = username.toLowerCase();
         return channelRepository.findAll().stream()
-                .filter(channel -> channel.getAdmins().contains(login))
+                .filter(c -> c.getAdmins().contains(login))
                 .map(Channel::getBroadcaster)
                 .toList();
-    }
-
-    private String topicFor(String broadcaster) {
-        return "/topic/channel/" + broadcaster.toLowerCase();
     }
 
     private String normalize(String value) {
         return value == null ? null : value.toLowerCase(Locale.ROOT);
     }
 
+    private String topicFor(String broadcaster) {
+        return "/topic/channel/" + broadcaster.toLowerCase(Locale.ROOT);
+    }
+
     private List<AssetView> sortAndMapAssets(String broadcaster, Collection<Asset> assets) {
         return assets.stream()
                 .sorted(Comparator.comparingInt(Asset::getZIndex)
                         .thenComparing(Asset::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
-                .map(asset -> AssetView.from(broadcaster, asset))
+                .map(a -> AssetView.from(broadcaster, a))
                 .toList();
     }
 
-    private Optional<AssetContent> decodeAssetData(Asset asset) {
-        return assetStorageService.loadAssetFile(asset.getUrl(), asset.getMediaType())
-                .or(() -> decodeDataUrl(asset.getUrl()))
-                .or(() -> {
-                    logger.warn("Unable to decode asset data for {}", asset.getId());
-                    return Optional.empty();
-                });
-    }
-
-    private Optional<AssetContent> decodeDataUrl(String dataUrl) {
-        if (dataUrl == null || !dataUrl.startsWith("data:")) {
-            return Optional.empty();
-        }
-        int commaIndex = dataUrl.indexOf(',');
-        if (commaIndex < 0) {
-            return Optional.empty();
-        }
-        String metadata = dataUrl.substring(5, commaIndex);
-        String[] parts = metadata.split(";", 2);
-        String mediaType = parts.length > 0 && !parts[0].isBlank() ? parts[0] : "application/octet-stream";
-        String encoded = dataUrl.substring(commaIndex + 1);
-        try {
-            byte[] bytes = Base64.getDecoder().decode(encoded);
-            return Optional.of(new AssetContent(bytes, mediaType));
-        } catch (IllegalArgumentException e) {
-            logger.warn("Unable to decode data url", e);
-            return Optional.empty();
-        }
-    }
-
     private int nextZIndex(String broadcaster) {
-        return assetRepository.findByBroadcaster(normalize(broadcaster)).stream()
+        return assetRepository.findByBroadcaster(normalize(broadcaster))
+                .stream()
                 .mapToInt(Asset::getZIndex)
                 .max()
                 .orElse(0) + 1;
     }
-
 }
