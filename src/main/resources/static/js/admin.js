@@ -26,6 +26,8 @@ const MAX_VOLUME = 2;
 const VOLUME_SLIDER_MAX = 200;
 const VOLUME_CURVE_STRENGTH = -0.6;
 const pendingTransformSaves = new Map();
+const KEYBOARD_NUDGE_STEP = 5;
+const KEYBOARD_NUDGE_FAST_STEP = 20;
 
 
 const controlsPanel = document.getElementById('asset-controls');
@@ -82,6 +84,13 @@ function debounce(fn, wait = 150) {
         clearTimeout(timeout);
         timeout = setTimeout(() => fn(...args), wait);
     };
+}
+
+function isFormInputElement(element) {
+    if (!element) return false;
+    if (element.isContentEditable) return true;
+    const tag = element.tagName ? element.tagName.toLowerCase() : '';
+    return ['input', 'textarea', 'select', 'button', 'option'].includes(tag);
 }
 
 function schedulePersistTransform(asset, silent = false, delay = 200) {
@@ -349,6 +358,55 @@ if (selectedDeleteBtn) {
         deleteAsset(asset);
     });
 }
+
+window.addEventListener('keydown', (event) => {
+    if (isFormInputElement(event.target)) {
+        return;
+    }
+
+    const asset = getSelectedAsset();
+
+    if ((event.key === 'Delete' || event.key === 'Backspace') && asset) {
+        event.preventDefault();
+        deleteAsset(asset);
+        return;
+    }
+
+    if (!asset || isAudioAsset(asset)) {
+        return;
+    }
+
+    const step = event.shiftKey ? KEYBOARD_NUDGE_FAST_STEP : KEYBOARD_NUDGE_STEP;
+    let moved = false;
+
+    switch (event.key) {
+        case 'ArrowUp':
+            asset.y -= step;
+            moved = true;
+            break;
+        case 'ArrowDown':
+            asset.y += step;
+            moved = true;
+            break;
+        case 'ArrowLeft':
+            asset.x -= step;
+            moved = true;
+            break;
+        case 'ArrowRight':
+            asset.x += step;
+            moved = true;
+            break;
+        default:
+            break;
+    }
+
+    if (moved) {
+        event.preventDefault();
+        updateRenderState(asset);
+        schedulePersistTransform(asset);
+        drawAndList();
+    }
+});
 function connect() {
     const socket = new SockJS('/ws');
     stompClient = Stomp.over(socket);

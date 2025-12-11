@@ -27,6 +27,8 @@ spring:
     driver-class-name: org.sqlite.JDBC
     hikari:
       connection-init-sql: "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
+      maximum-pool-size: 1
+      minimum-idle: 1
   jpa:
     hibernate:
       ddl-auto: update

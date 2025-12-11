@@ -1247,7 +1247,6 @@ body {
 
 .asset-item.pending {
     cursor: default;
-    border-style: dashed;
     opacity: 0.92;
 }
 
@@ -1682,7 +1681,7 @@ body {
 
 .toast-container {
     position: fixed;
-    top: 16px;
+    bottom: 16px;
     right: 16px;
     display: flex;
     flex-direction: column;
