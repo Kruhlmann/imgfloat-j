@@ -247,7 +247,7 @@ public class ChannelApiController {
 
         if (authorized) {
             LOG.debug("Serving asset {} for broadcaster {} to authenticated user {}", assetId, broadcaster, authentication.getName());
-            return channelDirectoryService.getAssetContent(broadcaster, assetId)
+            return channelDirectoryService.getAssetContent(assetId)
                     .map(content -> ResponseEntity.ok()
                             .header("X-Content-Type-Options", "nosniff")
                             .header(HttpHeaders.CONTENT_DISPOSITION, contentDispositionFor(content.mediaType()))
@@ -256,7 +256,7 @@ public class ChannelApiController {
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
         }
 
-        return channelDirectoryService.getVisibleAssetContent(broadcaster, assetId)
+        return channelDirectoryService.getVisibleAssetContent(assetId)
                 .map(content -> ResponseEntity.ok()
                         .header("X-Content-Type-Options", "nosniff")
                         .header(HttpHeaders.CONTENT_DISPOSITION, contentDispositionFor(content.mediaType()))
@@ -278,7 +278,7 @@ public class ChannelApiController {
 
         if (authorized) {
             LOG.debug("Serving preview for asset {} for broadcaster {}", assetId, broadcaster);
-            return channelDirectoryService.getAssetPreview(broadcaster, assetId, true)
+            return channelDirectoryService.getAssetPreview(assetId, true)
                     .map(content -> ResponseEntity.ok()
                             .header("X-Content-Type-Options", "nosniff")
                             .contentType(MediaType.parseMediaType(content.mediaType()))
@@ -286,7 +286,7 @@ public class ChannelApiController {
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Preview not found"));
         }
 
-        return channelDirectoryService.getAssetPreview(broadcaster, assetId, false)
+        return channelDirectoryService.getAssetPreview(assetId, false)
                 .map(content -> ResponseEntity.ok()
                         .header("X-Content-Type-Options", "nosniff")
                         .contentType(MediaType.parseMediaType(content.mediaType()))
@@ -307,7 +307,7 @@ public class ChannelApiController {
                                     OAuth2AuthenticationToken authentication) {
         String login = TwitchUser.from(authentication).login();
         ensureAuthorized(broadcaster, login);
-        boolean removed = channelDirectoryService.deleteAsset(broadcaster, assetId);
+        boolean removed = channelDirectoryService.deleteAsset(assetId);
         if (!removed) {
             LOG.warn("Attempt to delete missing asset {} on {} by {}", assetId, broadcaster, login);
             throw new ResponseStatusException(NOT_FOUND, "Asset not found");

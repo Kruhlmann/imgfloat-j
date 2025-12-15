@@ -1,5 +1,7 @@
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    max-swallow-size: 0
   ssl:
     enabled: ${SSL_ENABLED:false}
     key-store: ${SSL_KEYSTORE_PATH:classpath:keystore.p12}
@@ -19,13 +21,14 @@ spring:
   thymeleaf:
     cache: false
   datasource:
-    url: jdbc:sqlite:${IMGFLOAT_DB_PATH:imgfloat.db}?busy_timeout=5000&journal_mode=WAL
+    url: jdbc:sqlite:${IMGFLOAT_DB_PATH}?busy_timeout=5000&journal_mode=WAL
     driver-class-name: org.sqlite.JDBC
     hikari:
       connection-init-sql: "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
       maximum-pool-size: 1
       minimum-idle: 1
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
     database-platform: org.hibernate.community.dialect.SQLiteDialect

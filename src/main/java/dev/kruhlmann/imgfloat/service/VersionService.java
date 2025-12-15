@@ -36,6 +36,20 @@ public class VersionService {
     }
 
     private String getGitVersionString() {
+        try {
+            Process check = new ProcessBuilder("git", "--version")
+                    .redirectErrorStream(true)
+                    .start();
+
+            if (check.waitFor() != 0) {
+                LOG.info("git not found on PATH, skipping git version detection");
+                return null;
+            }
+        } catch (Exception e) {
+            LOG.info("git not found on PATH, skipping git version detection");
+            return null;
+        }
+
         Process process = null;
         try {
             process = new ProcessBuilder("git", "describe", "--tags", "--always")

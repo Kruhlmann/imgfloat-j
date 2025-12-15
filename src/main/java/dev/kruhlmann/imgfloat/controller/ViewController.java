@@ -4,9 +4,11 @@ import dev.kruhlmann.imgfloat.service.ChannelDirectoryService;
 import dev.kruhlmann.imgfloat.service.VersionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.FORBIDDEN;
@@ -16,6 +18,9 @@ public class ViewController {
     private static final Logger LOG = LoggerFactory.getLogger(ViewController.class);
     private final ChannelDirectoryService channelDirectoryService;
     private final VersionService versionService;
+
+    @Autowired
+    private long uploadLimitBytes;
 
     public ViewController(ChannelDirectoryService channelDirectoryService, VersionService versionService) {
         this.channelDirectoryService = channelDirectoryService;
@@ -55,6 +60,8 @@ public class ViewController {
         LOG.info("Rendering admin console for {} (requested by {})", broadcaster, login);
         model.addAttribute("broadcaster", broadcaster.toLowerCase());
         model.addAttribute("username", login);
+        model.addAttribute("uploadLimitBytes", uploadLimitBytes);
+
         return "admin";
     }
 

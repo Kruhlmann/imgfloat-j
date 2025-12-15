@@ -47,109 +47,93 @@ public class AssetStorageService {
         this.previewRoot = Paths.get(previewRoot).normalize().toAbsolutePath();
     }
 
-    public String storeAsset(String broadcaster, String assetId, byte[] assetBytes, String mediaType)
+    public void storeAsset(String broadcaster, String assetId, byte[] assetBytes, String mediaType)
             throws IOException {
 
         if (assetBytes == null || assetBytes.length == 0) {
             throw new IOException("Asset content is empty");
         }
 
-        String safeUser = sanitizeUserSegment(broadcaster);
-        Path directory = safeJoin(assetRoot, safeUser);
-        Files.createDirectories(directory);
-
-        String extension = resolveExtension(mediaType);
-        Path file = directory.resolve(assetId + extension);
+        Path file = assetPath(broadcaster, assetId, mediaType);
+        Files.createDirectories(file.getParent());
 
         Files.write(file, assetBytes,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING,
                 StandardOpenOption.WRITE);
-
-        return assetRoot.relativize(file).toString();
+        logger.info("Wrote asset to {}", file.toString());
     }
 
-    public String storePreview(String broadcaster, String assetId, byte[] previewBytes)
+    public void storePreview(String broadcaster, String assetId, byte[] previewBytes)
             throws IOException {
 
-        if (previewBytes == null || previewBytes.length == 0) {
-            return null;
-        }
+        if (previewBytes == null || previewBytes.length == 0) return;
 
-        String safeUser = sanitizeUserSegment(broadcaster);
-        Path directory = safeJoin(previewRoot, safeUser);
-        Files.createDirectories(directory);
-
-        Path file = directory.resolve(assetId + ".png");
+        Path file = previewPath(broadcaster, assetId);
+        Files.createDirectories(file.getParent());
 
         Files.write(file, previewBytes,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING,
                 StandardOpenOption.WRITE);
-
-        return previewRoot.relativize(file).toString();
+        logger.info("Wrote asset to {}", file.toString());
     }
 
-    public Optional<AssetContent> loadAssetFile(String relativePath, String mediaType) {
-        if (relativePath == null || relativePath.isBlank()) return Optional.empty();
-
+    public Optional<AssetContent> loadAssetFile(Asset asset) {
         try {
-            Path file = safeJoin(assetRoot, relativePath);
+            Path file = assetPath(
+                    asset.getBroadcaster(),
+                    asset.getId(),
+                    asset.getMediaType()
+            );
 
             if (!Files.exists(file)) return Optional.empty();
 
-            String resolved = mediaType;
-            if (resolved == null || resolved.isBlank()) {
-                resolved = Files.probeContentType(file);
-            }
-            if (resolved == null || resolved.isBlank()) {
-                resolved = "application/octet-stream";
-            }
-
             byte[] bytes = Files.readAllBytes(file);
-            return Optional.of(new AssetContent(bytes, resolved));
-
+            return Optional.of(new AssetContent(bytes, asset.getMediaType()));
         } catch (Exception e) {
-            logger.warn("Failed to load asset {}", relativePath, e);
+            logger.warn("Failed to load asset {}", asset.getId(), e);
             return Optional.empty();
         }
     }
 
-    public Optional<AssetContent> loadPreview(String relativePath) {
-        if (relativePath == null || relativePath.isBlank()) return Optional.empty();
-
+    public Optional<AssetContent> loadPreview(Asset asset) {
         try {
-            Path file = safeJoin(previewRoot, relativePath);
-
+            Path file = previewPath(asset.getBroadcaster(), asset.getId());
             if (!Files.exists(file)) return Optional.empty();
 
             byte[] bytes = Files.readAllBytes(file);
             return Optional.of(new AssetContent(bytes, "image/png"));
-
         } catch (Exception e) {
-            logger.warn("Failed to load preview {}", relativePath, e);
+            logger.warn("Failed to load preview {}", asset.getId(), e);
             return Optional.empty();
         }
     }
 
     public Optional<AssetContent> loadAssetFileSafely(Asset asset) {
-        if (asset.getUrl() == null) return Optional.empty();
-        return loadAssetFile(asset.getUrl(), asset.getMediaType());
+        if (asset.getUrl() == null) {
+            return Optional.empty();
+        }
+        return loadAssetFile(asset);
     }
 
     public Optional<AssetContent> loadPreviewSafely(Asset asset) {
-        if (asset.getPreview() == null) return Optional.empty();
-        return loadPreview(asset.getPreview());
+        if (asset.getPreview() == null) {
+            return Optional.empty();
+        }
+        return loadPreview(asset);
     }
 
-    public void deleteAssetFile(String relativePath) {
-        if (relativePath == null || relativePath.isBlank()) return;
-
+    public void deleteAsset(Asset asset) {
         try {
-            Path file = safeJoin(assetRoot, relativePath);
-            Files.deleteIfExists(file);
+            Files.deleteIfExists(
+                assetPath(asset.getBroadcaster(), asset.getId(), asset.getMediaType())
+            );
+            Files.deleteIfExists(
+                previewPath(asset.getBroadcaster(), asset.getId())
+            );
         } catch (Exception e) {
-            logger.warn("Failed to delete asset {}", relativePath, e);
+            logger.warn("Failed to delete asset {}", asset.getId(), e);
         }
     }
 
@@ -177,6 +161,17 @@ public class AssetStorageService {
             throw new IOException("Unsupported media type: " + mediaType);
         }
         return EXTENSIONS.get(mediaType);
+    }
+
+    private Path assetPath(String broadcaster, String assetId, String mediaType) throws IOException {
+        String safeUser = sanitizeUserSegment(broadcaster);
+        String extension = resolveExtension(mediaType);
+        return safeJoin(assetRoot, safeUser).resolve(assetId + extension);
+    }
+
+    private Path previewPath(String broadcaster, String assetId) throws IOException {
+        String safeUser = sanitizeUserSegment(broadcaster);
+        return safeJoin(previewRoot, safeUser).resolve(assetId + ".png");
     }
 
     /**

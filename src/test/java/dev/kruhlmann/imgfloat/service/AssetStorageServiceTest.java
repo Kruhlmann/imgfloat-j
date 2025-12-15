@@ -20,7 +20,7 @@ class AssetStorageServiceTest {
     void setUp() throws IOException {
         assets = Files.createTempDirectory("asset-storage-service");
         previews = Files.createTempDirectory("preview-storage-service");
-        service = new AssetStorageService(assets.toString(), previews.toString(), 26214400L);
+        service = new AssetStorageService(assets.toString(), previews.toString());
     }
 
     @Test

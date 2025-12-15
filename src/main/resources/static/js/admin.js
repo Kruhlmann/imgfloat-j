@@ -418,9 +418,7 @@ function connect() {
         fetchAssets();
     }, (error) => {
         console.warn('WebSocket connection issue', error);
-        if (typeof showToast === 'function') {
-            setTimeout(() => showToast('Live updates connection interrupted. Retrying may be necessary.', 'warning'), 1000);
-        }
+        setTimeout(() => showToast('Live updates connection interrupted. Retrying may be necessary.', 'warning'), 1000);
     });
 }
 
@@ -433,11 +431,7 @@ function fetchAssets() {
             return r.json();
         })
         .then(renderAssets)
-        .catch(() => {
-            if (typeof showToast === 'function') {
-                showToast('Unable to load assets. Please refresh.', 'error');
-            }
-        });
+        .catch(() => showToast('Unable to load assets. Please refresh.', 'error'));
 }
 
 function fetchCanvasSettings() {
@@ -454,9 +448,7 @@ function fetchCanvasSettings() {
         })
         .catch(() => {
             resizeCanvas();
-            if (typeof showToast === 'function') {
-                showToast('Using default canvas size. Unable to load saved settings.', 'warning');
-            }
+            showToast('Using default canvas size. Unable to load saved settings.', 'warning');
         });
 }
 
@@ -1968,24 +1960,15 @@ function updateVisibility(asset, hidden) {
         if (updated.hidden) {
             loopPlaybackState.set(updated.id, false);
             stopAudio(updated.id);
-            if (typeof showToast === 'function') {
-                showToast('Asset hidden from broadcast.', 'info');
-            }
+            showToast('Asset hidden from broadcast.', 'info');
         } else if (isAudioAsset(updated)) {
             playAudioFromCanvas(updated, true);
-            if (typeof showToast === 'function') {
-                showToast('Asset is now visible and active.', 'success');
-            }
-        } else if (typeof showToast === 'function') {
-            showToast('Asset is now visible.', 'success');
+            showToast('Asset is now visible and active.', 'success');
         }
+        showToast('Asset is now visible.', 'success');
         updateRenderState(updated);
         drawAndList();
-    }).catch(() => {
-        if (typeof showToast === 'function') {
-            showToast('Unable to change visibility right now.', 'error');
-        }
-    });
+    }).catch(() => showToast('Unable to change visibility right now.', 'error'));
 }
 
 function triggerAudioPlayback(asset, shouldPlay = true) {
@@ -2016,15 +1999,9 @@ function deleteAsset(asset) {
                 selectedAssetId = null;
             }
             drawAndList();
-            if (typeof showToast === 'function') {
-                showToast('Asset deleted.', 'info');
-            }
+            showToast('Asset deleted.', 'info');
         })
-        .catch(() => {
-            if (typeof showToast === 'function') {
-                showToast('Unable to delete asset. Please try again.', 'error');
-            }
-        });
+        .catch(() => showToast('Unable to delete asset. Please try again.', 'error'));
 }
 
 function handleFileSelection(input) {
@@ -2043,9 +2020,11 @@ function uploadAsset(file = null) {
     const fileInput = document.getElementById('asset-file');
     const selectedFile = file || (fileInput?.files && fileInput.files.length ? fileInput.files[0] : null);
     if (!selectedFile) {
-        if (typeof showToast === 'function') {
-            showToast('Choose an image, GIF, video, or audio file to upload.', 'info');
-        }
+        showToast('Choose an image, GIF, video, or audio file to upload.', 'info');
+        return;
+    }
+    if (selectedFile.size > upload_limit_bytes) {
+        showToast(`File is too large. Maximum upload size is ${upload_limit_bytes / 1024 / 1024} MB.`, 'error');
         return;
     }
 
@@ -2066,18 +2045,14 @@ function uploadAsset(file = null) {
             fileInput.value = '';
             handleFileSelection(fileInput);
         }
-        if (typeof showToast === 'function') {
-            showToast('Upload received. Processing asset...', 'success');
-        }
+        showToast('Upload received. Processing asset...', 'success');
         updatePendingUpload(pendingId, { status: 'processing' });
     }).catch(() => {
         if (fileNameLabel) {
             fileNameLabel.textContent = 'Upload failed';
         }
         removePendingUpload(pendingId);
-        if (typeof showToast === 'function') {
-            showToast('Upload failed. Please try again with a supported file.', 'error');
-        }
+        showToast('Upload failed. Please try again with a supported file.', 'error');
     });
 }
 
@@ -2142,7 +2117,7 @@ function persistTransform(asset, silent = false) {
             drawAndList();
         }
     }).catch(() => {
-        if (!silent && typeof showToast === 'function') {
+        if (!silent) {
             showToast('Unable to save changes. Please retry.', 'error');
         }
     });

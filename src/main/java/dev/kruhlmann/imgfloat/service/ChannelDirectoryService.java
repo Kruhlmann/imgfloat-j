@@ -18,6 +18,7 @@ import dev.kruhlmann.imgfloat.service.media.OptimizedAsset;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,9 @@ public class ChannelDirectoryService {
     private final AssetStorageService assetStorageService;
     private final MediaDetectionService mediaDetectionService;
     private final MediaOptimizationService mediaOptimizationService;
+
+    @Autowired
+    private long uploadLimitBytes;
 
     public ChannelDirectoryService(
             ChannelRepository channelRepository,
@@ -130,13 +134,20 @@ public class ChannelDirectoryService {
     }
 
     public Optional<AssetView> createAsset(String broadcaster, MultipartFile file) throws IOException {
-
+        long fileSize = file.getSize();
+        long maxSize = uploadLimitBytes;
+        if (fileSize > maxSize) {
+            throw new ResponseStatusException(
+                    PAYLOAD_TOO_LARGE,
+                    String.format(
+                            "Uploaded file is too large (%d bytes). Maximum allowed is %d bytes.",
+                            fileSize,
+                            maxSize
+                    )
+            );
+        }
         Channel channel = getOrCreateChannel(broadcaster);
-
-        long reported = file.getSize();
-
         byte[] bytes = file.getBytes();
-
         String mediaType = mediaDetectionService.detectAllowedMediaType(file, bytes)
                 .orElseThrow(() -> new ResponseStatusException(
                         BAD_REQUEST, "Unsupported media type"));
@@ -161,18 +172,18 @@ public class ChannelDirectoryService {
         asset.setOriginalMediaType(mediaType);
         asset.setMediaType(optimized.mediaType());
 
-        asset.setUrl(assetStorageService.storeAsset(
+        assetStorageService.storeAsset(
                 channel.getBroadcaster(),
                 asset.getId(),
                 optimized.bytes(),
                 optimized.mediaType()
-        ));
+        );
 
-        asset.setPreview(assetStorageService.storePreview(
+        assetStorageService.storePreview(
                 channel.getBroadcaster(),
                 asset.getId(),
                 optimized.previewBytes()
-        ));
+        );
 
         asset.setSpeed(1.0);
         asset.setMuted(optimized.mediaType().startsWith("video/"));
@@ -274,39 +285,30 @@ public class ChannelDirectoryService {
                 });
     }
 
-    public boolean deleteAsset(String broadcaster, String assetId) {
-        String normalized = normalize(broadcaster);
+    public boolean deleteAsset(String assetId) {
         return assetRepository.findById(assetId)
-                .filter(a -> normalized.equals(a.getBroadcaster()))
                 .map(asset -> {
-                    assetStorageService.deleteAssetFile(asset.getUrl());
-                    assetStorageService.deletePreviewFile(asset.getPreview());
                     assetRepository.delete(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster),
-                            AssetEvent.deleted(broadcaster, assetId));
+                    assetStorageService.deleteAsset(asset);
+                    messagingTemplate.convertAndSend(topicFor(asset.getBroadcaster()),
+                            AssetEvent.deleted(asset.getBroadcaster(), assetId));
                     return true;
                 })
                 .orElse(false);
     }
 
-    public Optional<AssetContent> getAssetContent(String broadcaster, String assetId) {
-        String normalized = normalize(broadcaster);
+    public Optional<AssetContent> getAssetContent(String assetId) {
+        return assetRepository.findById(assetId).flatMap(assetStorageService::loadAssetFileSafely);
+    }
+
+    public Optional<AssetContent> getVisibleAssetContent(String assetId) {
         return assetRepository.findById(assetId)
-                .filter(a -> normalized.equals(a.getBroadcaster()))
+                .filter(a -> !a.isHidden())
                 .flatMap(assetStorageService::loadAssetFileSafely);
     }
 
-    public Optional<AssetContent> getVisibleAssetContent(String broadcaster, String assetId) {
-        String normalized = normalize(broadcaster);
+    public Optional<AssetContent> getAssetPreview(String assetId, boolean includeHidden) {
         return assetRepository.findById(assetId)
-                .filter(a -> normalized.equals(a.getBroadcaster()) && !a.isHidden())
-                .flatMap(assetStorageService::loadAssetFileSafely);
-    }
-
-    public Optional<AssetContent> getAssetPreview(String broadcaster, String assetId, boolean includeHidden) {
-        String normalized = normalize(broadcaster);
-        return assetRepository.findById(assetId)
-                .filter(a -> normalized.equals(a.getBroadcaster()))
                 .filter(a -> includeHidden || !a.isHidden())
                 .flatMap(assetStorageService::loadPreviewSafely);
     }

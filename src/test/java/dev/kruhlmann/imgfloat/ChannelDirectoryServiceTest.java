@@ -56,12 +56,12 @@ class ChannelDirectoryServiceTest {
         setupInMemoryPersistence();
         Path assetRoot = Files.createTempDirectory("imgfloat-assets-test");
         Path previewRoot = Files.createTempDirectory("imgfloat-previews-test");
-        AssetStorageService assetStorageService = new AssetStorageService(assetRoot.toString(), previewRoot.toString(), 26214400L);
+        AssetStorageService assetStorageService = new AssetStorageService(assetRoot.toString(), previewRoot.toString());
         MediaPreviewService mediaPreviewService = new MediaPreviewService();
         MediaOptimizationService mediaOptimizationService = new MediaOptimizationService(mediaPreviewService);
         MediaDetectionService mediaDetectionService = new MediaDetectionService();
         service = new ChannelDirectoryService(channelRepository, assetRepository, messagingTemplate,
-                assetStorageService, mediaDetectionService, mediaOptimizationService, 26214400L);
+                assetStorageService, mediaDetectionService, mediaOptimizationService);
     }
 
     @Test
