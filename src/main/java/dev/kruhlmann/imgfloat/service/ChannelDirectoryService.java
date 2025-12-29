@@ -290,11 +290,18 @@ public class ChannelDirectoryService {
         return assetRepository.findById(assetId)
                 .filter(a -> normalized.equals(a.getBroadcaster()))
                 .map(asset -> {
-                    asset.setHidden(request.isHidden());
+                    boolean wasHidden = asset.isHidden();
+                    boolean hidden = request.isHidden();
+                    if (wasHidden == hidden) {
+                        return AssetView.from(normalized, asset);
+                    }
+
+                    asset.setHidden(hidden);
                     assetRepository.save(asset);
                     AssetView view = AssetView.from(normalized, asset);
                     AssetPatch patch = AssetPatch.fromVisibility(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, patch, view));
+                    AssetView payload = hidden ? null : view;
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, patch, payload));
                     return view;
                 });
     }

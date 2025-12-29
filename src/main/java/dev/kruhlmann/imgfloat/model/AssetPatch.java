@@ -1,9 +1,12 @@
 package dev.kruhlmann.imgfloat.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Represents a partial update for an {@link Asset}. Only the fields that changed
  * for a given operation are populated to reduce payload sizes sent over WebSocket.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record AssetPatch(
         String id,
         Double x,
