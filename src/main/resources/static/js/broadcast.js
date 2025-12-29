@@ -136,6 +136,10 @@ function resizeCanvas() {
 
 function handleEvent(event) {
     const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
+    if (event.type === 'VISIBILITY') {
+        handleVisibilityEvent(event);
+        return;
+    }
     if (event.type === 'DELETED') {
         assets.delete(assetId);
         layerOrder = layerOrder.filter((id) => id !== assetId);
@@ -143,6 +147,21 @@ function handleEvent(event) {
         renderStates.delete(assetId);
     } else if (event.patch) {
         applyPatch(assetId, event.patch);
+        if (event.payload) {
+            const payload = normalizePayload(event.payload);
+            if (payload.hidden) {
+                assets.delete(payload.id);
+                layerOrder = layerOrder.filter((id) => id !== payload.id);
+                clearMedia(payload.id);
+                renderStates.delete(payload.id);
+            } else if (!assets.has(payload.id)) {
+                storeAsset(payload, 'append');
+                ensureMedia(payload);
+                if (isAudioAsset(payload)) {
+                    playAudioImmediately(payload);
+                }
+            }
+        }
     } else if (event.type === 'PLAY' && event.payload) {
         const payload = normalizePayload(event.payload);
         storeAsset(payload);
@@ -169,17 +188,50 @@ function normalizePayload(payload) {
     return { ...payload };
 }
 
+function handleVisibilityEvent(event) {
+    const payload = event.payload ? normalizePayload(event.payload) : null;
+    const patch = event.patch;
+    const id = payload?.id || patch?.id || event.assetId;
+
+    if (payload?.hidden || patch?.hidden) {
+        assets.delete(id);
+        layerOrder = layerOrder.filter((assetId) => assetId !== id);
+        clearMedia(id);
+        renderStates.delete(id);
+        draw();
+        return;
+    }
+
+    if (payload) {
+        const placement = assets.has(payload.id) ? 'keep' : 'append';
+        storeAsset(payload, placement);
+        ensureMedia(payload);
+        if (isAudioAsset(payload)) {
+            playAudioImmediately(payload);
+        }
+    }
+
+    if (patch && id) {
+        applyPatch(id, patch);
+    }
+
+    draw();
+}
+
 function applyPatch(assetId, patch) {
     if (!assetId || !patch) {
         return;
     }
+    const sanitizedPatch = Object.fromEntries(
+        Object.entries(patch).filter(([, value]) => value !== null && value !== undefined)
+    );
     const existing = assets.get(assetId);
     if (!existing) {
         return;
     }
-    const merged = normalizePayload({ ...existing, ...patch });
+    const merged = normalizePayload({ ...existing, ...sanitizedPatch });
     const isAudio = isAudioAsset(merged);
-    if (patch.hidden) {
+    if (sanitizedPatch.hidden) {
         assets.delete(assetId);
         layerOrder = layerOrder.filter((id) => id !== assetId);
         clearMedia(assetId);

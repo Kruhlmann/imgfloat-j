@@ -1955,15 +1955,20 @@ function updateVisibility(asset, hidden) {
         return r.json();
     }).then((updated) => {
         storeAsset(updated);
+        let visibilityMessage = null;
         if (updated.hidden) {
             loopPlaybackState.set(updated.id, false);
             stopAudio(updated.id);
             showToast('Asset hidden from broadcast.', 'info');
         } else if (isAudioAsset(updated)) {
             playAudioFromCanvas(updated, true);
-            showToast('Asset is now visible and active.', 'success');
+            visibilityMessage = 'Asset is now visible and active.';
+        } else {
+            visibilityMessage = 'Asset is now visible.';
         }
-        showToast('Asset is now visible.', 'success');
+        if (visibilityMessage) {
+            showToast(visibilityMessage, 'success');
+        }
         updateRenderState(updated);
         drawAndList();
     }).catch(() => showToast('Unable to change visibility right now.', 'error'));
