@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+    <head>
+        <meta charset="UTF-8">
+        <title>Imgfloat Admin</title>
+        <link rel="stylesheet" href="/css/styles.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    </head>
+    <body class="settings-body">
+        <div class="settings-shell">
+            <header class="settings-header">
+                <div class="brand">
+                    <div class="brand-mark">IF</div>
+                    <div>
+                        <div class="brand-title">Imgfloat</div>
+                        <div class="brand-subtitle">Twitch overlay manager</div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="settings-main">
+                <section class="settings-card">
+                    <p class="eyebrow subtle">System administrator settings</p>
+                    <form novalidate id="settings-form" class="settings-form">
+                        <label for="canvas-fps">Canvas FPS</label>
+                        <input
+                            id="canvas-fps"
+                            name="canvas-fps"
+                            class="text-input"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="^[1-9]\d*$"
+                        />
+
+                        <label for="canvas-size">Canvas max side length (pixels)</label>
+                        <input
+                            id="canvas-size"
+                            name="canvas-size"
+                            class="text-input"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="^[1-9]\d*$"
+                        />
+
+                        <label for="min-playback-speed">Min playback speed</label>
+                        <input
+                            id="min-playback-speed"
+                            name="min-playback-speed"
+                            class="text-input"
+                            type="text"
+                            inputmode="decimal"
+                            pattern="^(0(\.\d+)?|1(\.0+)?)$"
+                        />
+
+                        <label for="max-playback-speed">Max playback speed</label>
+                        <input
+                            id="max-playback-speed"
+                            name="max-playback-speed"
+                            class="text-input"
+                            type="text"
+                            inputmode="decimal"
+                            pattern="^(0(\.\d+)?|1(\.0+)?)$"
+                        />
+
+                        <label for="min-audio-pitch">Min audio pitch</label>
+                        <input
+                            id="min-audio-pitch"
+                            name="min-audio-pitch"
+                            class="text-input"
+                            type="text"
+                            inputmode="decimal"
+                            pattern="^(0(\.\d+)?|1(\.0+)?)$"
+                        />
+
+                        <label for="max-audio-pitch">Max audio pitch</label>
+                        <input
+                            id="max-audio-pitch"
+                            name="max-audio-pitch"
+                            class="text-input"
+                            type="text"
+                            inputmode="decimal"
+                            pattern="^(0(\.\d+)?|1(\.0+)?)$"
+                        />
+
+                        <label for="min-volume">Min volume</label>
+                        <input
+                            id="min-volume"
+                            name="min-volume"
+                            class="text-input"
+                            type="text"
+                            inputmode="decimal"
+                            pattern="^(0(\.\d+)?|1(\.0+)?)$"
+                        />
+
+                        <label for="max-volume">Max volume</label>
+                        <input
+                            id="max-volume"
+                            name="max-volume"
+                            class="text-input"
+                            type="text"
+                            inputmode="decimal"
+                            pattern="^(0(\.\d+)?|1(\.0+)?)$"
+                        />
+
+                        <button id="settings-submit-button" type="submit" class="button block" disabled>Save settings</button>
+                    </form>
+                </section>
+            </main>
+        </div>
+        <script th:inline="javascript">
+            const serverRenderedSettings = /*[[${settingsJson}]]*/;
+        </script>
+        <script src="/js/settings.js"></script>
+        <script src="/js/toast.js"></script>
+    </body>
+</html>

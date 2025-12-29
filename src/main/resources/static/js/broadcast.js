@@ -87,11 +87,7 @@ function connect() {
                 return r.json();
             })
             .then(renderAssets)
-            .catch(() => {
-                if (typeof showToast === 'function') {
-                    showToast('Unable to load overlay assets. Retrying may help.', 'error');
-                }
-            });
+            .catch(() => showToast('Unable to load overlay assets. Retrying may help.', 'error'));
     });
 }
 
@@ -108,7 +104,7 @@ function storeAsset(asset, placement = 'keep') {
 }
 
 function fetchCanvasSettings() {
-    return fetch(`/api/channels/${broadcaster}/canvas`)
+    return fetch(`/api/channels/${encodeURIComponent(broadcaster)}/canvas`)
         .then((r) => {
             if (!r.ok) {
                 throw new Error('Failed to load canvas');
@@ -121,9 +117,7 @@ function fetchCanvasSettings() {
         })
         .catch(() => {
             resizeCanvas();
-            if (typeof showToast === 'function') {
-                showToast('Using default canvas size. Unable to load saved settings.', 'warning');
-            }
+            showToast('Using default canvas size. Unable to load saved settings.', 'warning');
         });
 }
 
@@ -676,7 +670,7 @@ function setVideoSource(element, asset) {
             return;
         }
         applyVideoSource(element, next.objectUrl, asset);
-    }).catch(() => {});
+    }).catch(() => { });
 }
 
 function applyVideoSource(element, objectUrl, asset) {

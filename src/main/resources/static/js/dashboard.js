@@ -119,26 +119,22 @@ function fetchAdmins() {
         .then(renderAdmins)
         .catch(() => {
             renderAdmins([]);
-            if (typeof showToast === 'function') {
-                showToast('Unable to load admins right now. Please try again.', 'error');
-            }
+            showToast('Unable to load admins right now. Please try again.', 'error');
         });
 }
 
 function removeAdmin(username) {
     if (!username) return;
-    fetch(`/api/channels/${broadcaster}/admins/${encodeURIComponent(username)}`, {
+    fetch(`/api/channels/${encodeURIComponent(broadcaster)}/admins/${encodeURIComponent(username)}`, {
         method: 'DELETE'
     }).then((response) => {
-        if (!response.ok && typeof showToast === 'function') {
-            showToast('Failed to remove admin. Please retry.', 'error');
+        if (!response.ok) {
+            throw new Error();
         }
         fetchAdmins();
         fetchSuggestedAdmins();
     }).catch(() => {
-        if (typeof showToast === 'function') {
-            showToast('Failed to remove admin. Please retry.', 'error');
-        }
+        showToast('Failed to remove admin. Please retry.', 'error');
     });
 }
 
@@ -146,9 +142,7 @@ function addAdmin(usernameFromAction) {
     const input = document.getElementById('new-admin');
     const username = (usernameFromAction || input?.value || '').trim();
     if (!username) {
-        if (typeof showToast === 'function') {
-            showToast('Enter a Twitch username to add as an admin.', 'info');
-        }
+        showToast('Enter a Twitch username to add as an admin.', 'info');
         return;
     }
 
@@ -164,17 +158,11 @@ function addAdmin(usernameFromAction) {
             if (input) {
                 input.value = '';
             }
-            if (typeof showToast === 'function') {
-                showToast(`Added @${username} as an admin.`, 'success');
-            }
+            showToast(`Added @${username} as an admin.`, 'success');
             fetchAdmins();
             fetchSuggestedAdmins();
         })
-        .catch(() => {
-            if (typeof showToast === 'function') {
-                showToast('Unable to add admin right now. Please try again.', 'error');
-            }
-        });
+        .catch(() => showToast('Unable to add admin right now. Please try again.', 'error'));
 }
 
 function renderCanvasSettings(settings) {
@@ -195,9 +183,7 @@ function fetchCanvasSettings() {
         .then(renderCanvasSettings)
         .catch(() => {
             renderCanvasSettings({ width: 1920, height: 1080 });
-            if (typeof showToast === 'function') {
-                showToast('Using default canvas size. Unable to load saved settings.', 'warning');
-            }
+            showToast('Using default canvas size. Unable to load saved settings.', 'warning');
         });
 }
 
@@ -208,9 +194,7 @@ function saveCanvasSettings() {
     const width = parseFloat(widthInput?.value) || 0;
     const height = parseFloat(heightInput?.value) || 0;
     if (width <= 0 || height <= 0) {
-        if (typeof showToast === 'function') {
-            showToast('Please enter a valid width and height.', 'info');
-        }
+        showToast('Please enter a valid width and height.', 'info');
         return;
     }
     if (status) status.textContent = 'Saving...';
@@ -228,18 +212,14 @@ function saveCanvasSettings() {
         .then((settings) => {
             renderCanvasSettings(settings);
             if (status) status.textContent = 'Saved.';
-            if (typeof showToast === 'function') {
-                showToast('Canvas size saved successfully.', 'success');
-            }
+            showToast('Canvas size saved successfully.', 'success');
             setTimeout(() => {
                 if (status) status.textContent = '';
             }, 2000);
         })
         .catch(() => {
             if (status) status.textContent = 'Unable to save right now.';
-            if (typeof showToast === 'function') {
-                showToast('Unable to save canvas size. Please retry.', 'error');
-            }
+            showToast('Unable to save canvas size. Please retry.', 'error');
         });
 }
 

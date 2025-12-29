@@ -44,12 +44,13 @@ public class AssetEvent {
         return event;
     }
 
-    public static AssetEvent visibility(String channel, AssetPatch patch) {
+    public static AssetEvent visibility(String channel, AssetPatch patch, AssetView asset) {
         AssetEvent event = new AssetEvent();
         event.type = Type.VISIBILITY;
         event.channel = channel;
         event.patch = patch;
         event.assetId = patch.id();
+        event.payload = asset;
         return event;
     }
 

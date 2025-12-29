@@ -16,15 +16,16 @@ import java.util.UUID;
 public class Asset {
     @Id
     private String id;
-
     @Column(nullable = false)
     private String broadcaster;
-
     @Column(nullable = false)
     private String name;
-
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String url;
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String preview;
+    @Column(nullable = false)
+    private Instant createdAt;
     private double x;
     private double y;
     private double width;
@@ -34,8 +35,6 @@ public class Asset {
     private Boolean muted;
     private String mediaType;
     private String originalMediaType;
-    @Column(columnDefinition = "TEXT")
-    private String preview;
     private Integer zIndex;
     private Boolean audioLoop;
     private Integer audioDelayMillis;
@@ -43,7 +42,6 @@ public class Asset {
     private Double audioPitch;
     private Double audioVolume;
     private boolean hidden;
-    private Instant createdAt;
 
     public Asset() {
     }
@@ -61,7 +59,7 @@ public class Asset {
         this.speed = 1.0;
         this.muted = false;
         this.zIndex = 1;
-        this.hidden = false;
+        this.hidden = true;
         this.createdAt = Instant.now();
     }
 

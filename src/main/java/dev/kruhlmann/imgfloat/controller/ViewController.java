@@ -68,6 +68,21 @@ public class ViewController {
         return "channels";
     }
 
+    @org.springframework.web.bind.annotation.GetMapping("/settings")
+    public String settingsView(OAuth2AuthenticationToken oauthToken, Model model) {
+        String sessionUsername = OauthSessionUser.from(oauthToken).login();
+        authorizationService.userIsSystemAdministratorOrThrowHttpError(sessionUsername);
+        LOG.info("Rendering settings for {}", sessionUsername);
+        Settings settings = settingsService.get();
+        try {
+            model.addAttribute("settingsJson", objectMapper.writeValueAsString(settings));
+        } catch (JsonProcessingException e) {
+            LOG.error("Failed to serialize settings for settings view", e);
+            throw new ResponseStatusException(INTERNAL_SERVER_ERROR, "Failed to serialize settings");
+        }
+        return "settings";
+    }
+
     @org.springframework.web.bind.annotation.GetMapping("/view/{broadcaster}/admin")
     public String adminView(@org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
                             OAuth2AuthenticationToken oauthToken,

@@ -41,10 +41,11 @@ final class TwitchAuthorizationCodeGrantRequestEntityConverter implements
         }
 
         return new RequestEntity<>(
-                body,
-                entity.getHeaders(),
-                entity.getMethod() == null ? HttpMethod.POST : entity.getMethod(),
-                entity.getUrl() == null ? URI.create(registration.getProviderDetails().getTokenUri()) : entity.getUrl());
+            body,
+            entity.getHeaders(),
+            entity.getMethod() == null ? HttpMethod.POST : entity.getMethod(),
+            entity.getUrl() == null ? URI.create(registration.getProviderDetails().getTokenUri()) : entity.getUrl()
+        );
     }
 
     private MultiValueMap<String, String> cloneBody(MultiValueMap<?, ?> existingBody) {

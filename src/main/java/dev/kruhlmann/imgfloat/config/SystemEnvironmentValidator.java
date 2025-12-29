@@ -55,14 +55,11 @@ public class SystemEnvironmentValidator {
             );
         }
 
-        log.info("Environment validation successful.");
-        log.info("Configuration:");
+        log.info("Environment validation successful:");
         log.info(" - TWITCH_CLIENT_ID: {}", redact(twitchClientId));
         log.info(" - TWITCH_CLIENT_SECRET: {}", redact(twitchClientSecret));
-        log.info(" - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: {} ({} bytes)",
-                springMaxFileSize, maxUploadBytes);
-        log.info(" - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: {} ({} bytes)",
-                springMaxRequestSize, maxRequestBytes);
+        log.info(" - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: {} ({} bytes)", springMaxFileSize, maxUploadBytes);
+        log.info(" - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: {} ({} bytes)", springMaxRequestSize, maxRequestBytes);
         log.info(" - IMGFLOAT_DB_PATH: {}", dbPath);
         log.info(" - IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN: {}", initialSysadmin);
         log.info(" - IMGFLOAT_ASSETS_PATH: {}", assetsPath);
@@ -70,20 +67,23 @@ public class SystemEnvironmentValidator {
     }
 
     private void checkString(String value, String name, StringBuilder missing) {
-        if (!StringUtils.hasText(value) || "changeme".equalsIgnoreCase(value.trim())) {
-            missing.append(" - ").append(name).append("\n");
+        if (value != null && StringUtils.hasText(value)) {
+            return
         }
+        missing.append(" - ").append(name).append("\n");
     }
 
     private <T extends Number> void checkUnsignedNumeric(T value, String name, StringBuilder missing) {
-        if (value == null || value.doubleValue() <= 0) {
-            missing.append(" - ").append(name).append('\n');
+        if (value !== null && value.doubleValue() >= 0) {
+            return;
         }
+        missing.append(" - ").append(name).append('\n');
     }
 
     private String redact(String value) {
-        if (!StringUtils.hasText(value)) return "(missing)";
-        if (value.length() <= 6) return "******";
-        return value.substring(0, 2) + "****" + value.substring(value.length() - 2);
+        if (value != null && StringUtils.hasText(value)) {
+            return "**************";
+        };
+        return "<not set>";
     }
 }

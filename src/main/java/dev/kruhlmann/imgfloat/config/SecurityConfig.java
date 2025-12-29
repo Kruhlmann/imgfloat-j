@@ -20,32 +20,31 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/",
-                                "/css/**",
-                                "/js/**",
-                                "/webjars/**",
-                                "/actuator/health",
-                                "/v3/api-docs/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/channels"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/view/*/broadcast").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/channels").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/visible").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/channels/*/canvas").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/*/content").permitAll()
-                        .requestMatchers("/ws/**").permitAll()
-                        .anyRequest().authenticated()
-                )
-                .oauth2Login(oauth -> oauth
-                        .tokenEndpoint(token -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
-                        .userInfoEndpoint(user -> user.userService(twitchOAuth2UserService()))
-                )
-                .logout(logout -> logout.logoutSuccessUrl("/").permitAll())
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                        "/",
+                        "/css/**",
+                        "/js/**",
+                        "/webjars/**",
+                        "/actuator/health",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**",
+                        "/channels"
+                ).permitAll()
+                .requestMatchers(HttpMethod.GET, "/view/*/broadcast").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/channels").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/visible").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/channels/*/canvas").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/*/content").permitAll()
+                .requestMatchers("/ws/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth -> oauth
+                .tokenEndpoint(token -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
+                .userInfoEndpoint(user -> user.userService(twitchOAuth2UserService())))
+            .logout(logout -> logout.logoutSuccessUrl("/").permitAll())
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
         return http.build();
     }
 

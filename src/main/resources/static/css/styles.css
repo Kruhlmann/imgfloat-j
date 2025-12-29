@@ -59,7 +59,7 @@ body {
     font-size: 13px;
 }
 
-.channels-body {
+.channels-body, .settings-body {
     min-height: 100vh;
     background: radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.16), transparent 30%),
                 radial-gradient(circle at 85% 10%, rgba(59, 130, 246, 0.18), transparent 28%),
@@ -70,14 +70,14 @@ body {
     padding: clamp(24px, 4vw, 48px);
 }
 
-.channels-shell {
+.channels-shell, .settings-shell {
     width: min(760px, 100%);
     display: flex;
     flex-direction: column;
     gap: 20px;
 }
 
-.channels-header {
+.channels-header, .settings-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -86,6 +86,23 @@ body {
 
 .cta-row.compact {
     margin: 0;
+}
+
+.settings-main {
+    display: flex;
+    justify-content: center;
+}
+
+.settings-card {
+    width: 100%;
+    background: rgba(11, 18, 32, 0.95);
+    border: 1px solid #1f2937;
+    border-radius: 16px;
+    padding: clamp(20px, 3vw, 32px);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .channels-main {
@@ -110,6 +127,13 @@ body {
 }
 
 .channel-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 6px;
+}
+
+.settings-form {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -252,6 +276,19 @@ body {
     box-shadow: 0 10px 30px rgba(124, 58, 237, 0.25);
 }
 
+.button:disabled, button:disabled, .button[aria-disabled="true"] {
+    background: #a78bfa;
+    color: #e5e7eb;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.7;
+}
+
+.button:disabled:hover,
+button:disabled:hover {
+    transform: none;
+}
+
 .button.block {
     width: 100%;
 }
@@ -331,6 +368,18 @@ body {
     outline: none;
     border-color: #7c3aed;
     box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+}
+
+.text-input:disabled, .text-input[aria-disabled="true"] {
+    background: #020617;
+    border-color: #334155;
+    color: #64748b;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.text-input:disabled::placeholder {
+    color: #475569;
 }
 
 .search-form {

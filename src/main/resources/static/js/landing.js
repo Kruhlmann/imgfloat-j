@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const suggestions = document.getElementById("channel-suggestions");
 
     if (!searchForm || !searchInput || !suggestions) {
+        console.error("Required elements not found in the DOM");
         return;
     }
 
@@ -36,9 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    searchInput.addEventListener("input", (event) => {
-        updateSuggestions(event.target.value || "");
-    });
+    searchInput.addEventListener("input", (event) => updateSuggestions(event.target.value || ""));
 
     searchForm.addEventListener("submit", (event) => {
         event.preventDefault();
