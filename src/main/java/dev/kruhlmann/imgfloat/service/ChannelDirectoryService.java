@@ -289,8 +289,7 @@ public class ChannelDirectoryService {
                     asset.setHidden(request.isHidden());
                     assetRepository.save(asset);
                     AssetPatch patch = AssetPatch.fromVisibility(asset);
-                    messagingTemplate.convertAndSend(topicFor(broadcaster),
-                            AssetEvent.visibility(broadcaster, patch));
+                    messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.visibility(broadcaster, patch));
                     return AssetView.from(normalized, asset);
                 });
     }

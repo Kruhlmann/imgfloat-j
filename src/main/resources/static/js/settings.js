@@ -8,6 +8,12 @@ const minPitchElement = document.getElementById("min-audio-pitch");
 const maxPitchElement = document.getElementById("max-audio-pitch");
 const minVolumeElement = document.getElementById("min-volume");
 const maxVolumeElement = document.getElementById("max-volume");
+const statusElement = document.getElementById("settings-status");
+const statCanvasFpsElement = document.getElementById("stat-canvas-fps");
+const statCanvasSizeElement = document.getElementById("stat-canvas-size");
+const statPlaybackRangeElement = document.getElementById("stat-playback-range");
+const statAudioRangeElement = document.getElementById("stat-audio-range");
+const statVolumeRangeElement = document.getElementById("stat-volume-range");
 
 const currentSettings = JSON.parse(serverRenderedSettings);
 let userSettings = { ...currentSettings };
@@ -44,6 +50,15 @@ function setFormSettings(s) {
     maxVolumeElement.value = s.maxAssetVolumeFraction;
 }
 
+function updateStatCards(settings) {
+    if (!settings) return;
+    statCanvasFpsElement.textContent = `${settings.canvasFramesPerSecond ?? "--"} fps`;
+    statCanvasSizeElement.textContent = `${settings.maxCanvasSideLengthPixels ?? "--"} px`;
+    statPlaybackRangeElement.textContent = `${settings.minAssetPlaybackSpeedFraction ?? "--"} – ${settings.maxAssetPlaybackSpeedFraction ?? "--"}x`;
+    statAudioRangeElement.textContent = `${settings.minAssetAudioPitchFraction ?? "--"} – ${settings.maxAssetAudioPitchFraction ?? "--"}x`;
+    statVolumeRangeElement.textContent = `${settings.minAssetVolumeFraction ?? "--"} – ${settings.maxAssetVolumeFraction ?? "--"}x`;
+}
+
 function readInt(input) {
     return input.checkValidity() ? Number(input.value) : null;
 }
@@ -66,13 +81,20 @@ function loadUserSettingsFromDom() {
 function updateSubmitButtonDisabledState() {
     if (jsonEquals(currentSettings, userSettings)) {
         submitButtonElement.disabled = "disabled";
+        statusElement.textContent = "No changes yet.";
+        statusElement.classList.remove("status-success", "status-warning");
         return;
     }
     if (!formElement.checkValidity()) {
         submitButtonElement.disabled = "disabled";
+        statusElement.textContent = "Fix highlighted fields.";
+        statusElement.classList.add("status-warning");
+        statusElement.classList.remove("status-success");
         return;
     }
     submitButtonElement.disabled = null;
+    statusElement.textContent = "Ready to save.";
+    statusElement.classList.remove("status-warning");
 }
 
 function submitSettingsForm() {
@@ -81,7 +103,9 @@ function submitSettingsForm() {
         showToast("Settings not valid", "warning");
         return;
     }
-    fetch("/api/settings/set", { method: "PUT", headers: { 'Content-Type': 'application/json' }, body: userSettings }).then((r) => {
+    statusElement.textContent = "Saving…";
+    statusElement.classList.remove("status-success", "status-warning");
+    fetch("/api/settings/set", { method: "PUT", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(userSettings) }).then((r) => {
         if (!r.ok) {
             throw new Error('Failed to load canvas');
         }
@@ -91,10 +115,17 @@ function submitSettingsForm() {
         .then((newSettings) => {
             currentSettings = { ...newSettings };
             userSettings = { ...newSettings };
+            updateStatCards(newSettings);
+            showToast("Settings saved", "success");
+            statusElement.textContent = "Saved.";
+            statusElement.classList.add("status-success");
+            updateSubmitButtonDisabledState();
         })
         .catch((error) => {
             showToast('Unable to save settings', 'error')
             console.error(error);
+            statusElement.textContent = "Save failed. Try again.";
+            statusElement.classList.add("status-warning");
         });
 }
 
@@ -105,4 +136,11 @@ formElement.querySelectorAll("input").forEach((input) => {
     });
 });
 
+formElement.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitSettingsForm();
+});
+
 setFormSettings(currentSettings);
+updateStatCards(currentSettings);
+updateSubmitButtonDisabledState();

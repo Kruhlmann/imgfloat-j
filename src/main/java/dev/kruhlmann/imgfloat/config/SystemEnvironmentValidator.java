@@ -68,13 +68,13 @@ public class SystemEnvironmentValidator {
 
     private void checkString(String value, String name, StringBuilder missing) {
         if (value != null && StringUtils.hasText(value)) {
-            return
+            return;
         }
         missing.append(" - ").append(name).append("\n");
     }
 
     private <T extends Number> void checkUnsignedNumeric(T value, String name, StringBuilder missing) {
-        if (value !== null && value.doubleValue() >= 0) {
+        if (value != null && value.doubleValue() >= 0) {
             return;
         }
         missing.append(" - ").append(name).append('\n');
