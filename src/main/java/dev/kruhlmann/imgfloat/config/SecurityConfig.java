@@ -10,7 +10,10 @@ import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationC
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpStatus;
 
 @Configuration
 @EnableWebSecurity
@@ -44,6 +47,11 @@ public class SecurityConfig {
                 .tokenEndpoint(token -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
                 .userInfoEndpoint(user -> user.userService(twitchOAuth2UserService())))
             .logout(logout -> logout.logoutSuccessUrl("/").permitAll())
+            .exceptionHandling(exceptions -> exceptions
+                .defaultAuthenticationEntryPointFor(
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                    new AntPathRequestMatcher("/api/**")
+                ))
             .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
         return http.build();
     }
