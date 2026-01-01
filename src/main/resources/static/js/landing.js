@@ -8,13 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    function keepInputFocused() {
-        if (document.activeElement !== searchInput) {
-            searchInput.focus({ preventScroll: true });
-            searchInput.select();
-        }
-    }
-
     let channels = [];
 
     function updateSuggestions(term) {
@@ -44,10 +37,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    searchInput.focus({ preventScroll: true });
+    searchInput.select();
+
     searchInput.addEventListener("input", (event) => updateSuggestions(event.target.value || ""));
-    searchInput.addEventListener("blur", () => {
-        requestAnimationFrame(keepInputFocused);
-    });
 
     searchForm.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -59,7 +52,5 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = `/view/${encodeURIComponent(broadcaster)}/broadcast`;
     });
 
-    keepInputFocused();
-    window.addEventListener("focus", keepInputFocused);
     loadChannels();
 });
