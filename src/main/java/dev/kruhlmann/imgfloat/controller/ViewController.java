@@ -56,9 +56,10 @@ public class ViewController {
             model.addAttribute("username", sessionUsername);
             model.addAttribute("channel", sessionUsername);
             model.addAttribute("adminChannels", channelDirectoryService.adminChannelsFor(sessionUsername));
+            addVersionAttributes(model);
             return "dashboard";
         }
-        model.addAttribute("version", versionService.getVersion());
+        addVersionAttributes(model);
         return "index";
     }
 
@@ -110,5 +111,10 @@ public class ViewController {
         LOG.debug("Rendering broadcast overlay for {}", broadcaster);
         model.addAttribute("broadcaster", broadcaster.toLowerCase());
         return "broadcast";
+    }
+
+    private void addVersionAttributes(Model model) {
+        model.addAttribute("version", versionService.getVersion());
+        model.addAttribute("releaseVersion", versionService.getReleaseVersion());
     }
 }
