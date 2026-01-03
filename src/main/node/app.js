@@ -9,7 +9,7 @@ function createWindow() {
         width: width,
         height: height,
         transparent: true,
-        frame: false,
+        frame: true,
         backgroundColor: '#00000000',
         alwaysOnTop: false,
         webPreferences: {
@@ -79,44 +79,7 @@ function createWindow() {
     win.loadURL(url);
 
     win.webContents.on('did-finish-load', () => {
-        win.webContents.insertCSS(`
-            html, body {
-                -webkit-app-region: drag;
-                user-select: none;
-            }
-
-            body {
-                transition: opacity 120ms ease;
-            }
-
-            a, button, input, select, textarea, option, [role="button"], [role="textbox"] {
-                -webkit-app-region: no-drag;
-                user-select: auto;
-            }
-        `);
-
-        win.webContents.executeJavaScript(`(() => {
-            const body = document.body;
-            if (!body) {
-                return;
-            }
-            const defaultOpacity = getComputedStyle(body).opacity || '1';
-            let timeout;
-
-            window.__imgfloatShowDragOverlay = () => {
-                body.style.opacity = '0.9';
-                clearTimeout(timeout);
-                timeout = setTimeout(() => {
-                    body.style.opacity = defaultOpacity;
-                }, 150);
-            };
-        })();`);
-
         handleNavigation(win.webContents.getURL());
-    });
-
-    win.on('move', () => {
-        win.webContents.executeJavaScript('window.__imgfloatShowDragOverlay && window.__imgfloatShowDragOverlay();');
     });
 
     win.webContents.on('did-navigate', (_event, navigationUrl) => handleNavigation(navigationUrl));
