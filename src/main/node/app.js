@@ -16,6 +16,7 @@ function createWindow() {
             backgroundThrottling: false
         }
     });
+    win.setMenu(null);
 
     let canvasSizeInterval;
 
