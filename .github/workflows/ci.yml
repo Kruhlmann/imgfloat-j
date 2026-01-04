@@ -25,13 +25,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            build-command: npx electron-builder --linux AppImage
+            build-command: npx electron-builder --linux AppImage --publish never
             artifact-name: electron-linux
           - os: windows-latest
-            build-command: npx electron-builder --win nsis
+            build-command: npx electron-builder --win nsis --publish never
             artifact-name: electron-windows
           - os: macos-latest
-            build-command: npx electron-builder --mac
+            build-command: npx electron-builder --mac --publish never
             artifact-name: electron-macos
     steps:
       - uses: actions/checkout@v4
