@@ -11,4 +11,5 @@ local/
 previews/
 node_modules/
 src/main/node/dist/
-assets
+/assets
+!src/main/resources/assets/
