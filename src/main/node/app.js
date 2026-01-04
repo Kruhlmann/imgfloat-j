@@ -1,24 +1,22 @@
 const { app, BrowserWindow } = require('electron');
+const path = require('path');
 
 function createWindow() {
-    const url = process.env.ELECTRON_START_URL || "https://imgfloat.kruhlmann.dev/channels";
-    const width = Number.parseInt(process.env.ELECTRON_WINDOW_WIDTH, 10) || 960;
-    const height = Number.parseInt(process.env.ELECTRON_WINDOW_HEIGHT, 10) || 640;
-
-    const win = new BrowserWindow({
-        width: width,
-        height: height,
+    const url = "https://imgfloat.kruhlmann.dev/channels";
+    const initialWindowWidthPx = 960;
+    const initialWindowHeightPx = 640;
+    const applicationWindow = new BrowserWindow({
+        width: initialWindowWidthPx,
+        height: initialWindowHeightPx,
         transparent: true,
         frame: true,
         backgroundColor: '#00000000',
         alwaysOnTop: false,
-        webPreferences: {
-            backgroundThrottling: false
-        }
+        icon: path.join(__dirname, "../resources/assets/icon/appicon.ico"),
+        webPreferences: { backgroundThrottling: false },
     });
 
     let canvasSizeInterval;
-
     const clearCanvasSizeInterval = () => {
         if (canvasSizeInterval) {
             clearInterval(canvasSizeInterval);
@@ -27,11 +25,11 @@ function createWindow() {
     };
 
     const lockWindowToCanvas = async () => {
-        if (win.isDestroyed()) {
+        if (applicationWindow.isDestroyed()) {
             return false;
         }
         try {
-            const size = await win.webContents.executeJavaScript(`(() => {
+            const size = await applicationWindow.webContents.executeJavaScript(`(() => {
                 const canvas = document.getElementById('broadcast-canvas');
                 if (!canvas || !canvas.width || !canvas.height) {
                     return null;
@@ -40,13 +38,13 @@ function createWindow() {
             })();`);
 
             if (size?.width && size?.height) {
-                const [currentWidth, currentHeight] = win.getSize();
+                const [currentWidth, currentHeight] = applicationWindow.getSize();
                 if (currentWidth !== size.width || currentHeight !== size.height) {
-                    win.setSize(size.width, size.height, false);
+                    applicationWindow.setSize(size.width, size.height, false);
                 }
-                win.setMinimumSize(size.width, size.height);
-                win.setMaximumSize(size.width, size.height);
-                win.setResizable(false);
+                applicationWindow.setMinimumSize(size.width, size.height);
+                applicationWindow.setMaximumSize(size.width, size.height);
+                applicationWindow.setResizable(false);
                 return true;
             }
         } catch (error) {
@@ -66,27 +64,25 @@ function createWindow() {
                 lockWindowToCanvas();
             } else {
                 clearCanvasSizeInterval();
-                win.setResizable(true);
-                win.setMinimumSize(320, 240);
-                win.setMaximumSize(10000, 10000);
-                win.setSize(width, height, false);
+                applicationWindow.setResizable(true);
+                applicationWindow.setMinimumSize(320, 240);
+                applicationWindow.setMaximumSize(10000, 10000);
+                applicationWindow.setSize(initialWindowWidthPx, initialWindowHeightPx, false);
             }
         } catch {
             // Ignore malformed URLs while navigating.
         }
     };
 
-    win.loadURL(url);
+    applicationWindow.loadURL(url);
 
-    win.webContents.on('did-finish-load', () => {
-        handleNavigation(win.webContents.getURL());
+    applicationWindow.webContents.on('did-finish-load', () => {
+        handleNavigation(applicationWindow.webContents.getURL());
     });
 
-    win.webContents.on('did-navigate', (_event, navigationUrl) => handleNavigation(navigationUrl));
-    win.webContents.on('did-navigate-in-page', (_event, navigationUrl) => handleNavigation(navigationUrl));
-    win.on('closed', clearCanvasSizeInterval);
+    applicationWindow.webContents.on('did-navigate', (_event, navigationUrl) => handleNavigation(navigationUrl));
+    applicationWindow.webContents.on('did-navigate-in-page', (_event, navigationUrl) => handleNavigation(navigationUrl));
+    applicationWindow.on('closed', clearCanvasSizeInterval);
 }
 
-app.whenReady().then(() => {
-    createWindow();
-});
+app.whenReady().then(createWindow);

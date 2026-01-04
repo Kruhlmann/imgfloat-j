@@ -6,26 +6,21 @@
   "build": {
     "appId": "dev.kruhlmann.imgfloat.overlay",
     "productName": "Imgfloat",
-    "files": [
-      "app.js"
-    ],
+    "files": [ "src/main/node/app.js" ],
     "asar": false,
-    "directories": {
-      "output": "dist"
-    },
+    "directories": { "output": "dist" },
     "linux": {
-      "target": [
-        "AppImage"
-      ],
+      "target": ["AppImage"],
       "category": "Utility"
+      "icon": "assets/icon/raw_icon.png"
     },
     "win": {
-      "target": [
-        "nsis"
-      ]
+      "target": ["nsis"]
+      "icon": "assets/icon/appicon.ico"
     },
     "mac": {
       "category": "public.app-category.productivity"
+      "icon": "assets/icon/macos.icns"
     }
   },
   "devDependencies": {
