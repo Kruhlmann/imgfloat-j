@@ -1,6 +1,7 @@
 /target
 /.idea
 /.vscode
+/dist
 *.iml
 local/
 *.log

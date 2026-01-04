@@ -42,16 +42,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
       - name: Install dependencies
-        working-directory: src/main/node
         run: npm ci
       - name: Build Electron bundles
-        working-directory: src/main/node
         run: ${{ matrix.build-command }}
       - name: Upload Electron artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: src/main/node/dist/**
+          path: dist/**
 
   docker:
     runs-on: ubuntu-latest
