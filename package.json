@@ -2,7 +2,7 @@
   "name": "imgfloat-electron",
   "version": "0.0.1",
   "description": "Electron wrapper for the Imgfloat overlay",
-  "main": "app.js",
+  "main": "src/main/node/app.js",
   "build": {
     "appId": "dev.kruhlmann.imgfloat",
     "productName": "Imgfloat",
@@ -12,11 +12,11 @@
     "linux": {
       "target": ["AppImage"],
       "category": "Utility",
-      "icon": "assets/icon/raw_icon.png"
+      "icon": "src/main/resources/assets/icon/raw_icon.png"
     },
     "win": {
       "target": ["nsis"],
-      "icon": "assets/icon/appicon.ico"
+      "icon": "src/main/resources/assets/icon/appicon.ico"
     },
     "nsis": {
       "oneClick": true,
@@ -29,7 +29,7 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "assets/icon/macos.icns"
+      "icon": "src/main/resources/assets/icon/macos.icns"
     }
   },
   "devDependencies": {
