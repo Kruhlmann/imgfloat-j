@@ -11,11 +11,11 @@
     "directories": { "output": "dist" },
     "linux": {
       "target": ["AppImage"],
-      "category": "Utility"
+      "category": "Utility",
       "icon": "assets/icon/raw_icon.png"
     },
     "win": {
-      "target": ["nsis"]
+      "target": ["nsis"],
       "icon": "assets/icon/appicon.ico"
     },
     "nsis": {
@@ -28,7 +28,7 @@
       "shortcutName": "Imgfloat"
     },
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
       "icon": "assets/icon/macos.icns"
     }
   },
