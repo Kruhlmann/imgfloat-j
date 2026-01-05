@@ -43,12 +43,6 @@ package:
 runx:
 	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels ./src/main/shell/run-electron-app-in-xorg
 
-.PHONY: ssl
-ssl:
-	mkdir -p local
-	keytool -genkeypair -alias imgfloat -keyalg RSA -keystore local/keystore.p12 -storetype PKCS12 -storepass changeit -keypass changeit -dname "CN=localhost" -validity 365
-	echo "Use SSL_ENABLED=true SSL_KEYSTORE_PATH=file:$$PWD/local/keystore.p12"
-
 .PHONY: fix
 fix: node_modules
 	./node_modules/.bin/prettier --write src

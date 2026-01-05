@@ -77,10 +77,10 @@ public class ChannelApiController {
     ) {
         String sessionUsername = OauthSessionUser.from(oauthToken).login();
         authorizationService.userMatchesSessionUsernameOrThrowHttpError(broadcaster, sessionUsername);
-        LOG.info("User {} adding admin {} to {}", sessionUsername, request.getUsername(), broadcaster);
+        LOG.info("User {} adding admin {} to {}", sessionUsername, request.getUsername(), broadcaster.replaceAll("[\n\r]", "_"));
         boolean added = channelDirectoryService.addAdmin(broadcaster, request.getUsername());
         if (!added) {
-            LOG.info("User {} already admin for {} or could not be added", request.getUsername(), broadcaster);
+            LOG.info("User {} already admin for {} or could not be added", request.getUsername(), broadcaster.replaceAll("[\n\r]", "_"));
         }
         return ResponseEntity.ok().body(added);
     }
