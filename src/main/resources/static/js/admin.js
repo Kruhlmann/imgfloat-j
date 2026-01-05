@@ -438,6 +438,7 @@ function connect() {
         },
         (error) => {
             console.warn("WebSocket connection issue", error);
+            fetchAssets();
             setTimeout(
                 () => showToast("Live updates connection interrupted. Retrying may be necessary.", "warning"),
                 1000,
@@ -2086,7 +2087,7 @@ function uploadAsset(file = null) {
         return;
     }
     if (selectedFile.size > UPLOAD_LIMIT_BYTES) {
-        showToast(`File is too large. Maximum upload size is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB.`, "error");
+        showToast(`File is too large. Maximum upload size is ${UPLOAD_LIMIT_BYTES / 1024 / 1024} MB.`, "error");
         return;
     }
 

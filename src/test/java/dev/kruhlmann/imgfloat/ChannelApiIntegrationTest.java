@@ -1,6 +1,7 @@
 package dev.kruhlmann.imgfloat;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -48,6 +49,7 @@ class ChannelApiIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"username\":\"helper\"}")
                     .with(oauth2Login().attributes((attrs) -> attrs.put("preferred_username", broadcaster)))
+                    .with(csrf())
             )
             .andExpect(status().isOk());
 
@@ -70,6 +72,7 @@ class ChannelApiIntegrationTest {
                         multipart("/api/channels/{broadcaster}/assets", broadcaster)
                             .file(file)
                             .with(oauth2Login().attributes((attrs) -> attrs.put("preferred_username", broadcaster)))
+                            .with(csrf())
                     )
                     .andExpect(status().isOk())
                     .andReturn()
@@ -96,6 +99,7 @@ class ChannelApiIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(visibilityRequest))
                     .with(oauth2Login().attributes((attrs) -> attrs.put("preferred_username", broadcaster)))
+                    .with(csrf())
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.hidden").value(false));
@@ -113,7 +117,7 @@ class ChannelApiIntegrationTest {
             .perform(
                 delete("/api/channels/{broadcaster}/assets/{id}", broadcaster, assetId).with(
                     oauth2Login().attributes((attrs) -> attrs.put("preferred_username", broadcaster))
-                )
+                ).with(csrf())
             )
             .andExpect(status().isOk());
     }
@@ -126,6 +130,7 @@ class ChannelApiIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"username\":\"helper\"}")
                     .with(oauth2Login().attributes((attrs) -> attrs.put("preferred_username", "intruder")))
+                    .with(csrf())
             )
             .andExpect(status().isForbidden());
     }

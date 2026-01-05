@@ -18,6 +18,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -41,6 +42,9 @@ public class SecurityConfig {
         HttpSecurity http,
         OAuth2AuthorizedClientRepository authorizedClientRepository
     ) throws Exception {
+        CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
+        csrfRequestHandler.setCsrfRequestAttributeName("_csrf");
+
         http
             .authorizeHttpRequests((auth) ->
                 auth
@@ -89,6 +93,7 @@ public class SecurityConfig {
             .csrf((csrf) ->
                 csrf
                     .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRequestHandler(csrfRequestHandler)
                     .ignoringRequestMatchers("/ws/**")
             )
             .addFilterAfter(csrfTokenCookieFilter(), CsrfFilter.class);
@@ -140,7 +145,10 @@ public class SecurityConfig {
                 HttpServletResponse response,
                 FilterChain filterChain
             ) throws java.io.IOException, jakarta.servlet.ServletException {
-                CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+                CsrfToken csrfToken = (CsrfToken) request.getAttribute("_csrf");
+                if (csrfToken == null) {
+                    csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+                }
                 if (csrfToken != null) {
                     String token = csrfToken.getToken();
                     Cookie existingCookie = WebUtils.getCookie(request, "XSRF-TOKEN");
