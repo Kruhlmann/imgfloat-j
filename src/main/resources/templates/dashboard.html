@@ -106,52 +106,7 @@
         </ul>
       </section>
 
-      <section class="card download-card-block">
-        <div class="download-header">
-          <div>
-            <p class="eyebrow">Desktop app</p>
-            <h3>Download Imgfloat</h3>
-          </div>
-        </div>
-        <div class="download-grid">
-          <div class="download-card" data-platform="mac">
-            <div class="download-card-header">
-              <p class="eyebrow">macOS</p>
-              <span class="badge soft recommended-badge hidden">Recommended</span>
-            </div>
-            <p class="muted">Apple Silicon build (ARM64)</p>
-            <a
-              class="button block"
-              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '-arm64.dmg'"
-              >Download DMG</a
-            >
-          </div>
-          <div class="download-card" data-platform="windows">
-            <div class="download-card-header">
-              <p class="eyebrow">Windows</p>
-              <span class="badge soft recommended-badge hidden">Recommended</span>
-            </div>
-            <p class="muted">Installer for Windows 10 and 11</p>
-            <a
-              class="button block"
-              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat.Setup.' + ${releaseVersion} + '.exe'"
-              >Download EXE</a
-            >
-          </div>
-          <div class="download-card" data-platform="linux">
-            <div class="download-card-header">
-              <p class="eyebrow">Linux</p>
-              <span class="badge soft recommended-badge hidden">Recommended</span>
-            </div>
-            <p class="muted">AppImage for most distributions</p>
-            <a
-              class="button block"
-              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '.AppImage'"
-              >Download AppImage</a
-            >
-          </div>
-        </div>
-      </section>
+      <section class="card download-card-block" th:insert="fragments/downloads :: downloads"></section>
     </div>
     <script src="/js/cookie-consent.js"></script>
     <script src="/js/toast.js"></script>
