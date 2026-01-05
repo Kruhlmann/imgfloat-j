@@ -944,6 +944,10 @@ function isGifAsset(asset) {
     return asset?.mediaType?.toLowerCase() === "image/gif";
 }
 
+function getCachedSource(element) {
+    return element?.dataset?.sourceUrl || element?.src || null;
+}
+
 function isDrawable(element) {
     if (!element) {
         return false;
@@ -1070,10 +1074,11 @@ function autoStartAudio(asset) {
 
 function ensureMedia(asset) {
     const cached = mediaCache.get(asset.id);
-    if (cached && cached.src !== asset.url) {
+    const cachedSource = getCachedSource(cached);
+    if (cached && cachedSource !== asset.url) {
         clearMedia(asset.id);
     }
-    if (cached && cached.src === asset.url) {
+    if (cached && cachedSource === asset.url) {
         applyMediaSettings(cached, asset);
         return cached;
     }
@@ -1097,6 +1102,7 @@ function ensureMedia(asset) {
     }
 
     const element = isVideoAsset(asset) ? document.createElement("video") : new Image();
+    element.dataset.sourceUrl = asset.url;
     element.crossOrigin = "anonymous";
     if (isVideoElement(element)) {
         element.loop = true;
