@@ -1,12 +1,8 @@
 server:
     port: ${SERVER_PORT:8080}
+    forward-headers-strategy: framework
     tomcat:
         max-swallow-size: 0
-    ssl:
-        enabled: ${SSL_ENABLED:false}
-        key-store: ${SSL_KEYSTORE_PATH:classpath:keystore.p12}
-        key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
-        key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
     error:
         include-message: never
         include-stacktrace: never
