@@ -270,8 +270,8 @@ function applyPatch(assetId, patch) {
     const targetLayer = Number.isFinite(patch.layer)
         ? patch.layer
         : Number.isFinite(patch.zIndex)
-            ? patch.zIndex
-            : null;
+          ? patch.zIndex
+          : null;
     if (!isAudio && Number.isFinite(targetLayer)) {
         const currentOrder = getLayerOrder().filter((id) => id !== assetId);
         const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
@@ -764,7 +764,7 @@ function setVideoSource(element, asset) {
             }
             applyVideoSource(element, next.objectUrl, asset);
         })
-        .catch(() => { });
+        .catch(() => {});
 }
 
 function applyVideoSource(element, objectUrl, asset) {

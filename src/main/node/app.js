@@ -2,6 +2,36 @@ const { app, BrowserWindow } = require("electron");
 const path = require("path");
 let broadcastRect = { width: 0, height: 0 };
 
+async function autoResizeWindow(window, lastSize) {
+    if (window.isDestroyed()) {
+        return lastSize;
+    }
+    const newSize = await window.webContents.executeJavaScript(`(() => {
+        const canvas = document.getElementById('broadcast-canvas');
+        if (!canvas) {
+            return null;
+        }
+        const rect = canvas.getBoundingClientRect();
+        return {
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+        };
+    })();`);
+
+    if (!newSize?.width || !newSize?.height) {
+        return lastSize;
+    }
+    if (lastSize.width === newSize.width && lastSize.height === newSize.height) {
+        return lastSize;
+    }
+    console.log(
+        `Window size did not match canvas old: ${lastSize.width}x${lastSize.height} new: ${newSize.width}x${newSize.height}. Resizing.`,
+    );
+    window.setContentSize(newSize.width, newSize.height, false);
+    window.setResizable(false);
+    return newSize;
+}
+
 function createWindow() {
     const url = process.env["IMGFLOAT_CHANNELS_URL"] || "https://imgfloat.kruhlmann.dev/channels";
     const initialWindowWidthPx = 960;
@@ -26,34 +56,6 @@ function createWindow() {
         }
     };
 
-    const lockWindowToCanvas = async () => {
-        if (applicationWindow.isDestroyed()) {
-            return;
-        }
-        const size = await applicationWindow.webContents.executeJavaScript(`(() => {
-            const canvas = document.getElementById('broadcast-canvas');
-            if (!canvas) {
-                return null;
-            }
-            const rect = canvas.getBoundingClientRect();
-            return {
-                width: Math.round(rect.width),
-                height: Math.round(rect.height),
-            };
-        })();`);
-
-        if (size?.width && size?.height) {
-            if (broadcastRect.width !== size.width || broadcastRect.height !== size.height) {
-                console.log(
-                    `Window size did not match canvas old: ${broadcastRect.width}x${broadcastRect.height} new: ${size.width}x${size.height}. Resizing.`,
-                );
-                applicationWindow.setContentSize(size.width, size.height, false);
-                applicationWindow.setResizable(false);
-                broadcastRect = { ...size };
-            }
-        }
-    };
-
     const handleNavigation = (navigationUrl) => {
         try {
             const { pathname } = new URL(navigationUrl);
@@ -61,8 +63,14 @@ function createWindow() {
 
             if (isBroadcast) {
                 clearCanvasSizeInterval();
-                canvasSizeInterval = setInterval(lockWindowToCanvas, 750);
-                lockWindowToCanvas();
+                canvasSizeInterval = setInterval(() => {
+                    autoResizeWindow(applicationWindow, broadcastRect).then((newSize) => {
+                        broadcastRect = newSize;
+                    });
+                }, 750);
+                autoResizeWindow(applicationWindow, broadcastRect).then((newSize) => {
+                    broadcastRect = newSize;
+                });
             } else {
                 clearCanvasSizeInterval();
                 applicationWindow.setSize(initialWindowWidthPx, initialWindowHeightPx, false);
