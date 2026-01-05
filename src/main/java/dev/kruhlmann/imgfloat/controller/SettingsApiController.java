@@ -36,8 +36,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/settings")
 @SecurityRequirement(name = "administrator")
 public class SettingsApiController {
-
-    private static final Logger LOG = LoggerFactory.getLogger(ChannelApiController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SettingsApiController.class);
 
     private final SettingsService settingsService;
     private final AuthorizationService authorizationService;

@@ -238,7 +238,7 @@ public class ChannelApiController {
             .map(ResponseEntity::ok)
             .orElseThrow(() -> {
                 LOG.warn("Transform request for missing asset {} on {} by {}", assetId, broadcaster, sessionUsername);
-                return new ResponseStatusException(NOT_FOUND, "Asset not found");
+                return createAsset404();
             });
     }
 
@@ -290,7 +290,7 @@ public class ChannelApiController {
                     broadcaster.replaceAll("[\n\r]", "_"),
                     sessionUsername
                 );
-                return new ResponseStatusException(NOT_FOUND, "Asset not found");
+                return createAsset404();
             });
     }
 
@@ -309,7 +309,7 @@ public class ChannelApiController {
                     .contentType(MediaType.parseMediaType(content.mediaType()))
                     .body(content.bytes())
             )
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
+            .orElseThrow(() -> createAsset404());
     }
 
     @GetMapping("/assets/{assetId}/preview")
@@ -326,7 +326,7 @@ public class ChannelApiController {
                     .contentType(MediaType.parseMediaType(content.mediaType()))
                     .body(content.bytes())
             )
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Preview not found"));
+            .orElseThrow(() -> createAsset404());
     }
 
     private String contentDispositionFor(String mediaType) {
@@ -353,10 +353,14 @@ public class ChannelApiController {
         boolean removed = channelDirectoryService.deleteAsset(assetId);
         if (!removed) {
             LOG.warn("Attempt to delete missing asset {} on {} by {}", assetId, broadcaster, sessionUsername);
-            throw new ResponseStatusException(NOT_FOUND, "Asset not found");
+            throw createAsset404();
         }
         LOG.info("Asset {} deleted on {} by {}", assetId, broadcaster, sessionUsername);
         return ResponseEntity.ok().build();
+    }
+
+    private ResponseStatusException createAsset404() {
+        return new ResponseStatusException(NOT_FOUND, "Asset not found");
     }
 
     private OAuth2AuthorizedClient resolveAuthorizedClient(
