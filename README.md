@@ -22,3 +22,13 @@ Optional:
 | Variable | Description | Example Value |
 |----------|-------------|---------------|
 | TWITCH_REDIRECT_URI | Override default redirect URI | http://localhost:8080/login/oauth2/code/twitch |
+
+During development environment variables can be placed in the `.env` file at the project root to automatically load them. Be aware that these are only loaded when using the [Makefile](./Makefile) command `make run`.
+
+If you want to use the default development setup your `.env` file should look like this:
+
+```sh
+TWITCH_CLIENT_ID=...
+TWITCH_CLIENT_SECRET=...
+IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN=...
+```
