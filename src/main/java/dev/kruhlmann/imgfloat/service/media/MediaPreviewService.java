@@ -1,5 +1,10 @@
 package dev.kruhlmann.imgfloat.service.media;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import javax.imageio.ImageIO;
 import org.jcodec.api.FrameGrab;
 import org.jcodec.api.JCodecException;
 import org.jcodec.common.io.ByteBufferSeekableByteChannel;
@@ -9,14 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-
 @Service
 public class MediaPreviewService {
+
     private static final Logger logger = LoggerFactory.getLogger(MediaPreviewService.class);
 
     public byte[] encodePreview(BufferedImage image) {

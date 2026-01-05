@@ -1,18 +1,18 @@
 package dev.kruhlmann.imgfloat.service;
 
-import dev.kruhlmann.imgfloat.service.media.AssetContent;
-import dev.kruhlmann.imgfloat.model.Asset;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.kruhlmann.imgfloat.model.Asset;
+import dev.kruhlmann.imgfloat.service.media.AssetContent;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 class AssetStorageServiceTest {
+
     private AssetStorageService service;
     private Path assets;
     private Path previews;
@@ -27,13 +27,13 @@ class AssetStorageServiceTest {
     @Test
     void refusesToStoreEmptyAsset() {
         assertThatThrownBy(() -> service.storeAsset("caster", "id", new byte[0], "image/png"))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("empty");
+            .isInstanceOf(IOException.class)
+            .hasMessageContaining("empty");
     }
 
     @Test
     void storesAndLoadsAssets() throws IOException {
-        byte[] bytes = new byte[]{1, 2, 3};
+        byte[] bytes = new byte[] { 1, 2, 3 };
         Asset asset = new Asset("caster", "asset", "http://example.com", 10, 10);
         asset.setMediaType("image/png");
 
@@ -53,7 +53,7 @@ class AssetStorageServiceTest {
 
     @Test
     void storesAndLoadsPreviews() throws IOException {
-        byte[] preview = new byte[]{9, 8, 7};
+        byte[] preview = new byte[] { 9, 8, 7 };
         Asset asset = new Asset("caster", "asset", "http://example.com", 10, 10);
         asset.setMediaType("image/png");
 

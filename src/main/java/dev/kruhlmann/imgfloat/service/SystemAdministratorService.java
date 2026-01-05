@@ -3,29 +3,26 @@ package dev.kruhlmann.imgfloat.service;
 import dev.kruhlmann.imgfloat.model.SystemAdministrator;
 import dev.kruhlmann.imgfloat.repository.SystemAdministratorRepository;
 import jakarta.annotation.PostConstruct;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 import org.springframework.core.env.Environment;
-
-import java.util.Locale;
+import org.springframework.stereotype.Service;
 
 @Service
 public class SystemAdministratorService {
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(SystemAdministratorService.class);
+    private static final Logger logger = LoggerFactory.getLogger(SystemAdministratorService.class);
 
     private final SystemAdministratorRepository repo;
     private final String initialSysadmin;
     private final Environment environment;
 
     public SystemAdministratorService(
-            SystemAdministratorRepository repo,
-            @Value("${IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN:#{null}}")
-            String initialSysadmin,
-            Environment environment
+        SystemAdministratorRepository repo,
+        @Value("${IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN:#{null}}") String initialSysadmin,
+        Environment environment
     ) {
         this.repo = repo;
         this.initialSysadmin = initialSysadmin;
@@ -38,7 +35,11 @@ public class SystemAdministratorService {
             return;
         }
 
-        if (Boolean.parseBoolean(environment.getProperty("org.springframework.boot.test.context.SpringBootTestContextBootstrapper"))) {
+        if (
+            Boolean.parseBoolean(
+                environment.getProperty("org.springframework.boot.test.context.SpringBootTestContextBootstrapper")
+            )
+        ) {
             logger.info("Skipping system administrator bootstrap in test context");
             return;
         }
@@ -65,17 +66,13 @@ public class SystemAdministratorService {
 
     public void removeSysadmin(String twitchUsername) {
         if (repo.count() <= 1) {
-            throw new IllegalStateException(
-                "Cannot remove the last system administrator"
-            );
+            throw new IllegalStateException("Cannot remove the last system administrator");
         }
 
         long deleted = repo.deleteByTwitchUsername(normalize(twitchUsername));
 
         if (deleted == 0) {
-            throw new IllegalArgumentException(
-                "System administrator does not exist"
-            );
+            throw new IllegalArgumentException("System administrator does not exist");
         }
     }
 

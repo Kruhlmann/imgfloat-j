@@ -3,6 +3,7 @@ package dev.kruhlmann.imgfloat.model;
 import jakarta.validation.constraints.NotBlank;
 
 public class AdminRequest {
+
     @NotBlank
     private String username;
 

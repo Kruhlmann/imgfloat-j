@@ -3,7 +3,6 @@ package dev.kruhlmann.imgfloat.config;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.RequestEntity;
@@ -19,11 +18,11 @@ import org.springframework.util.MultiValueMap;
  * request body. Twitch ignores HTTP Basic authentication and responds with "missing client id" if
  * those parameters are absent.
  */
-final class TwitchAuthorizationCodeGrantRequestEntityConverter implements
-        Converter<OAuth2AuthorizationCodeGrantRequest, RequestEntity<?>> {
+final class TwitchAuthorizationCodeGrantRequestEntityConverter
+    implements Converter<OAuth2AuthorizationCodeGrantRequest, RequestEntity<?>> {
 
     private final Converter<OAuth2AuthorizationCodeGrantRequest, RequestEntity<?>> delegate =
-            new OAuth2AuthorizationCodeGrantRequestEntityConverter();
+        new OAuth2AuthorizationCodeGrantRequestEntityConverter();
 
     @Override
     public RequestEntity<?> convert(OAuth2AuthorizationCodeGrantRequest request) {
@@ -50,8 +49,7 @@ final class TwitchAuthorizationCodeGrantRequestEntityConverter implements
 
     private MultiValueMap<String, String> cloneBody(MultiValueMap<?, ?> existingBody) {
         MultiValueMap<String, String> copy = new LinkedMultiValueMap<>();
-        existingBody.forEach((key, value) ->
-                copy.put(String.valueOf(key), new ArrayList<>((List<String>) value)));
+        existingBody.forEach((key, value) -> copy.put(String.valueOf(key), new ArrayList<>((List<String>) value)));
         return copy;
     }
 }

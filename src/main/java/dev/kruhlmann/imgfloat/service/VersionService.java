@@ -1,17 +1,17 @@
 package dev.kruhlmann.imgfloat.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 @Component
 public class VersionService {
+
     private static final Logger LOG = LoggerFactory.getLogger(VersionService.class);
     private final String version;
     private final String releaseVersion;
@@ -58,7 +58,9 @@ public class VersionService {
     }
 
     private String getPomVersion() {
-        try (var inputStream = getClass().getResourceAsStream("/META-INF/maven/dev.kruhlmann/imgfloat/pom.properties")) {
+        try (
+            var inputStream = getClass().getResourceAsStream("/META-INF/maven/dev.kruhlmann/imgfloat/pom.properties")
+        ) {
             if (inputStream == null) {
                 return null;
             }

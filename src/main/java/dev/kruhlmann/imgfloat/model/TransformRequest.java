@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 public class TransformRequest {
+
     private double x;
     private double y;
 
@@ -25,6 +26,7 @@ public class TransformRequest {
 
     @Positive(message = "zIndex must be at least 1")
     private Integer zIndex;
+
     private Boolean audioLoop;
 
     @PositiveOrZero(message = "Audio delay must be zero or greater")

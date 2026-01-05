@@ -3,6 +3,7 @@ package dev.kruhlmann.imgfloat.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -14,7 +15,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.http.HttpStatus;
 
 @Configuration
 @EnableWebSecurity
@@ -22,11 +22,14 @@ import org.springframework.http.HttpStatus;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                            OAuth2AuthorizedClientRepository authorizedClientRepository) throws Exception {
+    SecurityFilterChain securityFilterChain(
+        HttpSecurity http,
+        OAuth2AuthorizedClientRepository authorizedClientRepository
+    ) throws Exception {
         http
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
+            .authorizeHttpRequests((auth) ->
+                auth
+                    .requestMatchers(
                         "/",
                         "/favicon.ico",
                         "/img/**",
@@ -38,26 +41,37 @@ public class SecurityConfig {
                         "/swagger-ui.html",
                         "/swagger-ui/**",
                         "/channels"
-                ).permitAll()
-                .requestMatchers(HttpMethod.GET, "/view/*/broadcast").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/channels").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/visible").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/channels/*/canvas").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/*/content").permitAll()
-                .requestMatchers("/ws/**").permitAll()
-                .anyRequest().authenticated()
+                    )
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/view/*/broadcast")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/channels")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/visible")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/channels/*/canvas")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/channels/*/assets/*/content")
+                    .permitAll()
+                    .requestMatchers("/ws/**")
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated()
             )
-            .oauth2Login(oauth -> oauth
-                .authorizedClientRepository(authorizedClientRepository)
-                .tokenEndpoint(token -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
-                .userInfoEndpoint(user -> user.userService(twitchOAuth2UserService())))
-            .logout(logout -> logout.logoutSuccessUrl("/").permitAll())
-            .exceptionHandling(exceptions -> exceptions
-                .defaultAuthenticationEntryPointFor(
+            .oauth2Login((oauth) ->
+                oauth
+                    .authorizedClientRepository(authorizedClientRepository)
+                    .tokenEndpoint((token) -> token.accessTokenResponseClient(twitchAccessTokenResponseClient()))
+                    .userInfoEndpoint((user) -> user.userService(twitchOAuth2UserService()))
+            )
+            .logout((logout) -> logout.logoutSuccessUrl("/").permitAll())
+            .exceptionHandling((exceptions) ->
+                exceptions.defaultAuthenticationEntryPointFor(
                     new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                     new AntPathRequestMatcher("/api/**")
-                ))
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
+                )
+            )
+            .csrf((csrf) -> csrf.ignoringRequestMatchers("/ws/**", "/api/**"));
         return http.build();
     }
 

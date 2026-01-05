@@ -1,20 +1,5 @@
 package dev.kruhlmann.imgfloat.service.media;
 
-import org.jcodec.api.FrameGrab;
-import org.jcodec.api.JCodecException;
-import org.jcodec.common.io.ByteBufferSeekableByteChannel;
-import org.jcodec.common.model.Picture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.stream.ImageInputStream;
-import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -24,9 +9,24 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.ImageOutputStream;
+import org.jcodec.api.FrameGrab;
+import org.jcodec.api.JCodecException;
+import org.jcodec.common.io.ByteBufferSeekableByteChannel;
+import org.jcodec.common.model.Picture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 @Service
 public class MediaOptimizationService {
+
     private static final int MIN_GIF_DELAY_MS = 20;
     private static final Logger logger = LoggerFactory.getLogger(MediaOptimizationService.class);
     private final MediaPreviewService previewService;
@@ -86,10 +86,11 @@ public class MediaOptimizationService {
             if (frames.isEmpty()) {
                 return null;
             }
-            int baseDelay = frames.stream()
-                    .mapToInt(frame -> normalizeDelay(frame.delayMs()))
-                    .reduce(this::greatestCommonDivisor)
-                    .orElse(100);
+            int baseDelay = frames
+                .stream()
+                .mapToInt((frame) -> normalizeDelay(frame.delayMs()))
+                .reduce(this::greatestCommonDivisor)
+                .orElse(100);
             int fps = Math.max(1, (int) Math.round(1000.0 / baseDelay));
             File temp = File.createTempFile("gif-convert", ".mp4");
             temp.deleteOnExit();
@@ -104,7 +105,13 @@ public class MediaOptimizationService {
                 encoder.finish();
                 BufferedImage cover = frames.get(0).image();
                 byte[] video = Files.readAllBytes(temp.toPath());
-                return new OptimizedAsset(video, "video/mp4", cover.getWidth(), cover.getHeight(), previewService.encodePreview(cover));
+                return new OptimizedAsset(
+                    video,
+                    "video/mp4",
+                    cover.getWidth(),
+                    cover.getHeight(),
+                    previewService.encodePreview(cover)
+                );
             } finally {
                 Files.deleteIfExists(temp.toPath());
             }
@@ -183,8 +190,10 @@ public class MediaOptimizationService {
             }
         }
         ImageWriter writer = writers.next();
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             ImageOutputStream ios = ImageIO.createImageOutputStream(baos)) {
+        try (
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageOutputStream ios = ImageIO.createImageOutputStream(baos)
+        ) {
             writer.setOutput(ios);
             ImageWriteParam param = writer.getDefaultWriteParam();
             if (param.canWriteCompressed()) {
@@ -211,7 +220,7 @@ public class MediaOptimizationService {
         return new Dimension(640, 360);
     }
 
-    private record GifFrame(BufferedImage image, int delayMs) { }
+    private record GifFrame(BufferedImage image, int delayMs) {}
 
-    private record Dimension(int width, int height) { }
+    private record Dimension(int width, int height) {}
 }

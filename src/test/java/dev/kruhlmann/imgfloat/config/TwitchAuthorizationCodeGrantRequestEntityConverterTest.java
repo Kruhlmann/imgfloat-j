@@ -1,5 +1,7 @@
 package dev.kruhlmann.imgfloat.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.http.RequestEntity;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
@@ -12,39 +14,43 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationResp
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.util.MultiValueMap;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 class TwitchAuthorizationCodeGrantRequestEntityConverterTest {
 
     @Test
     void addsClientIdAndSecretToTokenRequestBody() {
         ClientRegistration registration = ClientRegistration.withRegistrationId("twitch")
-                .clientId("twitch-id")
-                .clientSecret("twitch-secret")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("https://example.com/redirect")
-                .scope("user:read:email")
-                .authorizationUri("https://id.twitch.tv/oauth2/authorize")
-                .tokenUri("https://id.twitch.tv/oauth2/token")
-                .userInfoUri("https://api.twitch.tv/helix/users")
-                .userNameAttributeName("preferred_username")
-                .build();
+            .clientId("twitch-id")
+            .clientSecret("twitch-secret")
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+            .redirectUri("https://example.com/redirect")
+            .scope("user:read:email")
+            .authorizationUri("https://id.twitch.tv/oauth2/authorize")
+            .tokenUri("https://id.twitch.tv/oauth2/token")
+            .userInfoUri("https://api.twitch.tv/helix/users")
+            .userNameAttributeName("preferred_username")
+            .build();
 
         OAuth2AuthorizationRequest authorizationRequest = OAuth2AuthorizationRequest.authorizationCode()
-                .authorizationUri(registration.getProviderDetails().getAuthorizationUri())
-                .clientId(registration.getClientId())
-                .redirectUri(registration.getRedirectUri())
-                .state("state")
-                .build();
+            .authorizationUri(registration.getProviderDetails().getAuthorizationUri())
+            .clientId(registration.getClientId())
+            .redirectUri(registration.getRedirectUri())
+            .state("state")
+            .build();
 
         OAuth2AuthorizationResponse authorizationResponse = OAuth2AuthorizationResponse.success("code")
-                .redirectUri(registration.getRedirectUri())
-                .state("state")
-                .build();
+            .redirectUri(registration.getRedirectUri())
+            .state("state")
+            .build();
 
-        OAuth2AuthorizationExchange exchange = new OAuth2AuthorizationExchange(authorizationRequest, authorizationResponse);
-        OAuth2AuthorizationCodeGrantRequest grantRequest = new OAuth2AuthorizationCodeGrantRequest(registration, exchange);
+        OAuth2AuthorizationExchange exchange = new OAuth2AuthorizationExchange(
+            authorizationRequest,
+            authorizationResponse
+        );
+        OAuth2AuthorizationCodeGrantRequest grantRequest = new OAuth2AuthorizationCodeGrantRequest(
+            registration,
+            exchange
+        );
 
         var converter = new TwitchAuthorizationCodeGrantRequestEntityConverter();
         RequestEntity<?> requestEntity = converter.convert(grantRequest);

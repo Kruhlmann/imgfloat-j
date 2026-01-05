@@ -1,48 +1,50 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Imgfloat - Twitch overlay</title>
-    <link rel="icon" href="/favicon.ico" />
-    <link rel="stylesheet" href="/css/styles.css" />
-  </head>
-  <body class="landing-body">
-    <div class="landing">
-      <header class="landing-header">
-        <div class="brand">
-          <img class="brand-mark" src="/img/brand.png"/>
-          <div>
-            <div class="brand-title">Imgfloat</div>
-            <div class="brand-subtitle">Twitch overlay manager</div>
-          </div>
-        </div>
-      </header>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Imgfloat - Twitch overlay</title>
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="/css/styles.css" />
+    </head>
+    <body class="landing-body">
+        <div class="landing">
+            <header class="landing-header">
+                <div class="brand">
+                    <img class="brand-mark" src="/img/brand.png" />
+                    <div>
+                        <div class="brand-title">Imgfloat</div>
+                        <div class="brand-subtitle">Twitch overlay manager</div>
+                    </div>
+                </div>
+            </header>
 
-      <main class="hero hero-compact">
-        <div class="hero-text">
-          <p class="eyebrow">Overlay toolkit</p>
-          <h1>Collaborative real-time Twitch overlay</h1>
-          <p class="lead">Customize your Twitch stream with audio, video and images updated by your mods in real-time</p>
-          <div class="cta-row">
-            <a class="button" href="/oauth2/authorization/twitch">Login with Twitch</a>
-          </div>
-        </div>
-      </main>
+            <main class="hero hero-compact">
+                <div class="hero-text">
+                    <p class="eyebrow">Overlay toolkit</p>
+                    <h1>Collaborative real-time Twitch overlay</h1>
+                    <p class="lead">
+                        Customize your Twitch stream with audio, video and images updated by your mods in real-time
+                    </p>
+                    <div class="cta-row">
+                        <a class="button" href="/oauth2/authorization/twitch">Login with Twitch</a>
+                    </div>
+                </div>
+            </main>
 
-      <section class="download-section" th:insert="fragments/downloads :: downloads"></section>
+            <section class="download-section" th:insert="fragments/downloads :: downloads"></section>
 
-      <footer class="landing-meta">
-        <div class="build-chip">
-          <span class="muted">License</span>
-          <span class="version-badge">MIT</span>
+            <footer class="landing-meta">
+                <div class="build-chip">
+                    <span class="muted">License</span>
+                    <span class="version-badge">MIT</span>
+                </div>
+                <div class="build-chip">
+                    <span class="muted">Build</span>
+                    <span class="version-badge" th:text="${version}">unknown</span>
+                </div>
+            </footer>
         </div>
-        <div class="build-chip">
-          <span class="muted">Build</span>
-          <span class="version-badge" th:text="${version}">unknown</span>
-        </div>
-      </footer>
-    </div>
-    <script src="/js/cookie-consent.js"></script>
-    <script src="/js/downloads.js"></script>
-  </body>
+        <script src="/js/cookie-consent.js"></script>
+        <script src="/js/downloads.js"></script>
+    </body>
 </html>

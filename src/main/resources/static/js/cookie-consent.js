@@ -12,7 +12,7 @@
     const persistDismissal = () => {
         try {
             window.localStorage.setItem(CONSENT_STORAGE_KEY, "true");
-        } catch { }
+        } catch {}
         document.cookie = `${CONSENT_STORAGE_KEY}=true; max-age=${COOKIE_MAX_AGE_SECONDS}; path=/; SameSite=Lax`;
     };
 
@@ -21,7 +21,7 @@
             if (window.localStorage.getItem(CONSENT_STORAGE_KEY) === "true") {
                 return true;
             }
-        } catch { }
+        } catch {}
         return readConsentCookie() === "true";
     };
 

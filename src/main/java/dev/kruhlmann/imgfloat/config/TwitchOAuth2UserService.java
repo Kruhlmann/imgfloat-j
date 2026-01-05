@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -46,18 +45,19 @@ class TwitchOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OA
 
     private OAuth2UserRequest twitchUserRequest(OAuth2UserRequest userRequest) {
         return new OAuth2UserRequest(
-                twitchUserRegistration(userRequest),
-                userRequest.getAccessToken(),
-                userRequest.getAdditionalParameters());
+            twitchUserRegistration(userRequest),
+            userRequest.getAccessToken(),
+            userRequest.getAdditionalParameters()
+        );
     }
 
     private ClientRegistration twitchUserRegistration(OAuth2UserRequest userRequest) {
         ClientRegistration registration = userRequest.getClientRegistration();
         return ClientRegistration.withClientRegistration(registration)
-                // The Twitch response nests user details under a "data" array, so accept that
-                // shape for the initial parsing step.
-                .userNameAttributeName("data")
-                .build();
+            // The Twitch response nests user details under a "data" array, so accept that
+            // shape for the initial parsing step.
+            .userNameAttributeName("data")
+            .build();
     }
 
     @SuppressWarnings("unchecked")

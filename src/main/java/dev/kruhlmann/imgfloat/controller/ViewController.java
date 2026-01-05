@@ -1,14 +1,16 @@
 package dev.kruhlmann.imgfloat.controller;
 
-import dev.kruhlmann.imgfloat.service.ChannelDirectoryService;
-import dev.kruhlmann.imgfloat.service.VersionService;
-import dev.kruhlmann.imgfloat.service.SettingsService;
-import dev.kruhlmann.imgfloat.service.AuthorizationService;
-import dev.kruhlmann.imgfloat.model.Settings;
-import dev.kruhlmann.imgfloat.model.OauthSessionUser;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.kruhlmann.imgfloat.model.OauthSessionUser;
+import dev.kruhlmann.imgfloat.model.Settings;
+import dev.kruhlmann.imgfloat.service.AuthorizationService;
+import dev.kruhlmann.imgfloat.service.ChannelDirectoryService;
+import dev.kruhlmann.imgfloat.service.SettingsService;
+import dev.kruhlmann.imgfloat.service.VersionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +21,9 @@ import org.springframework.ui.Model;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.server.ResponseStatusException;
 
-import static org.springframework.http.HttpStatus.FORBIDDEN;
-import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
-
 @Controller
 public class ViewController {
+
     private static final Logger LOG = LoggerFactory.getLogger(ViewController.class);
     private final ChannelDirectoryService channelDirectoryService;
     private final VersionService versionService;
@@ -85,11 +85,16 @@ public class ViewController {
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/view/{broadcaster}/admin")
-    public String adminView(@org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
-                            OAuth2AuthenticationToken oauthToken,
-                            Model model) {
+    public String adminView(
+        @org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
+        OAuth2AuthenticationToken oauthToken,
+        Model model
+    ) {
         String sessionUsername = OauthSessionUser.from(oauthToken).login();
-        authorizationService.userIsBroadcasterOrChannelAdminForBroadcasterOrThrowHttpError(broadcaster, sessionUsername);
+        authorizationService.userIsBroadcasterOrChannelAdminForBroadcasterOrThrowHttpError(
+            broadcaster,
+            sessionUsername
+        );
         LOG.info("Rendering admin console for {} (requested by {})", broadcaster, sessionUsername);
         Settings settings = settingsService.get();
         model.addAttribute("broadcaster", broadcaster.toLowerCase());
@@ -106,8 +111,10 @@ public class ViewController {
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/view/{broadcaster}/broadcast")
-    public String broadcastView(@org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
-                                 Model model) {
+    public String broadcastView(
+        @org.springframework.web.bind.annotation.PathVariable("broadcaster") String broadcaster,
+        Model model
+    ) {
         LOG.debug("Rendering broadcast overlay for {}", broadcaster);
         model.addAttribute("broadcaster", broadcaster.toLowerCase());
         return "broadcast";

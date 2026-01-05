@@ -1,10 +1,9 @@
 package dev.kruhlmann.imgfloat.service;
 
-import dev.kruhlmann.imgfloat.model.Settings;
-import dev.kruhlmann.imgfloat.repository.SettingsRepository;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.kruhlmann.imgfloat.model.Settings;
+import dev.kruhlmann.imgfloat.repository.SettingsRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class SettingsService {
+
     private static final Logger logger = LoggerFactory.getLogger(SettingsService.class);
 
     private final SettingsRepository repo;
@@ -44,12 +44,7 @@ public class SettingsService {
 
     public void logSettings(String msg, Settings settings) {
         try {
-            logger.info("{}:\n{}",
-                msg,
-                objectMapper
-                    .writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(settings)
-            );
+            logger.info("{}:\n{}", msg, objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(settings));
         } catch (JsonProcessingException e) {
             logger.error("Failed to serialize settings", e);
         }

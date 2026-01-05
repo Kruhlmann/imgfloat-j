@@ -1,5 +1,10 @@
 package dev.kruhlmann.imgfloat;
 
+import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import dev.kruhlmann.imgfloat.model.Channel;
 import dev.kruhlmann.imgfloat.repository.ChannelRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,15 +14,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@SpringBootTest(properties = {
+@SpringBootTest(
+    properties = {
         "spring.security.oauth2.client.registration.twitch.client-id=test-client-id",
-        "spring.security.oauth2.client.registration.twitch.client-secret=test-client-secret"
-})
+        "spring.security.oauth2.client.registration.twitch.client-secret=test-client-secret",
+    }
+)
 @AutoConfigureMockMvc
 class ChannelDirectoryApiIntegrationTest {
 
@@ -38,10 +40,11 @@ class ChannelDirectoryApiIntegrationTest {
         channelRepository.save(new Channel("alpha"));
         channelRepository.save(new Channel("ALPINE"));
 
-        mockMvc.perform(get("/api/channels").param("q", "Al"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0]").value("alpha"))
-                .andExpect(jsonPath("$[1]").value("alpine"));
+        mockMvc
+            .perform(get("/api/channels").param("q", "Al"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(2)))
+            .andExpect(jsonPath("$[0]").value("alpha"))
+            .andExpect(jsonPath("$[1]").value("alpine"));
     }
 }

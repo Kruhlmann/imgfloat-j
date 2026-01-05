@@ -1,6 +1,7 @@
 package dev.kruhlmann.imgfloat.model;
 
 public class PlaybackRequest {
+
     private Boolean play;
 
     public Boolean getPlay() {

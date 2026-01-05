@@ -35,6 +35,8 @@ public class UploadLimitsConfig {
     }
 
     private boolean isTestContext() {
-        return Boolean.parseBoolean(environment.getProperty("org.springframework.boot.test.context.SpringBootTestContextBootstrapper"));
+        return Boolean.parseBoolean(
+            environment.getProperty("org.springframework.boot.test.context.SpringBootTestContextBootstrapper")
+        );
     }
 }

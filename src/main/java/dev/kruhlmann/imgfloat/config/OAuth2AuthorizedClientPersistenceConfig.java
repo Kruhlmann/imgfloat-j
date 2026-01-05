@@ -12,8 +12,10 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepo
 public class OAuth2AuthorizedClientPersistenceConfig {
 
     @Bean
-    OAuth2AuthorizedClientService oauth2AuthorizedClientService(JdbcOperations jdbcOperations,
-                                                                ClientRegistrationRepository clientRegistrationRepository) {
+    OAuth2AuthorizedClientService oauth2AuthorizedClientService(
+        JdbcOperations jdbcOperations,
+        ClientRegistrationRepository clientRegistrationRepository
+    ) {
         return new SQLiteOAuth2AuthorizedClientService(jdbcOperations, clientRegistrationRepository);
     }
 

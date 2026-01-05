@@ -1,65 +1,65 @@
 server:
-  port: ${SERVER_PORT:8080}
-  tomcat:
-    max-swallow-size: 0
-  ssl:
-    enabled: ${SSL_ENABLED:false}
-    key-store: ${SSL_KEYSTORE_PATH:classpath:keystore.p12}
-    key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
-    key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
-  error:
-    include-message: never
-    include-stacktrace: never
+    port: ${SERVER_PORT:8080}
+    tomcat:
+        max-swallow-size: 0
+    ssl:
+        enabled: ${SSL_ENABLED:false}
+        key-store: ${SSL_KEYSTORE_PATH:classpath:keystore.p12}
+        key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
+        key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
+    error:
+        include-message: never
+        include-stacktrace: never
 
 spring:
-  config:
-    import: optional:file:.env[.properties]
-  application:
-    name: imgfloat
-  devtools:
-    restart:
-      enabled: true
-    livereload:
-      enabled: true
-  thymeleaf:
-    cache: false
-  datasource:
-    url: jdbc:sqlite:${IMGFLOAT_DB_PATH}?busy_timeout=5000&journal_mode=WAL
-    driver-class-name: org.sqlite.JDBC
-    hikari:
-      connection-init-sql: "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
-      maximum-pool-size: 1
-      minimum-idle: 1
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: update
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
-  session:
-    store-type: jdbc
-    jdbc:
-      initialize-schema: always
-      platform: sqlite
-  security:
-    oauth2:
-      client:
-        registration:
-          twitch:
-            client-id: ${TWITCH_CLIENT_ID}
-            client-secret: ${TWITCH_CLIENT_SECRET}
-            client-authentication-method: client_secret_post
-            redirect-uri: "${TWITCH_REDIRECT_URI:{baseUrl}/login/oauth2/code/twitch}"
-            authorization-grant-type: authorization_code
-            scope: ["user:read:email", "moderation:read"]
-        provider:
-          twitch:
-            authorization-uri: https://id.twitch.tv/oauth2/authorize
-            token-uri: https://id.twitch.tv/oauth2/token
-            user-info-uri: https://api.twitch.tv/helix/users
-            user-name-attribute: login
+    config:
+        import: optional:file:.env[.properties]
+    application:
+        name: imgfloat
+    devtools:
+        restart:
+            enabled: true
+        livereload:
+            enabled: true
+    thymeleaf:
+        cache: false
+    datasource:
+        url: jdbc:sqlite:${IMGFLOAT_DB_PATH}?busy_timeout=5000&journal_mode=WAL
+        driver-class-name: org.sqlite.JDBC
+        hikari:
+            connection-init-sql: "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
+            maximum-pool-size: 1
+            minimum-idle: 1
+    jpa:
+        open-in-view: false
+        hibernate:
+            ddl-auto: update
+        database-platform: org.hibernate.community.dialect.SQLiteDialect
+    session:
+        store-type: jdbc
+        jdbc:
+            initialize-schema: always
+            platform: sqlite
+    security:
+        oauth2:
+            client:
+                registration:
+                    twitch:
+                        client-id: ${TWITCH_CLIENT_ID}
+                        client-secret: ${TWITCH_CLIENT_SECRET}
+                        client-authentication-method: client_secret_post
+                        redirect-uri: "${TWITCH_REDIRECT_URI:{baseUrl}/login/oauth2/code/twitch}"
+                        authorization-grant-type: authorization_code
+                        scope: ["user:read:email", "moderation:read"]
+                provider:
+                    twitch:
+                        authorization-uri: https://id.twitch.tv/oauth2/authorize
+                        token-uri: https://id.twitch.tv/oauth2/token
+                        user-info-uri: https://api.twitch.tv/helix/users
+                        user-name-attribute: login
 
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
+    endpoints:
+        web:
+            exposure:
+                include: health,info

@@ -3,7 +3,6 @@ package dev.kruhlmann.imgfloat.config;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientProperties;
@@ -24,6 +23,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 @Configuration
 @EnableConfigurationProperties(OAuth2ClientProperties.class)
 class TwitchClientRegistrationConfig {
+
     private static final Logger LOG = LoggerFactory.getLogger(TwitchClientRegistrationConfig.class);
 
     @Bean
@@ -37,7 +37,8 @@ class TwitchClientRegistrationConfig {
             OAuth2ClientProperties.Provider provider = properties.getProvider().get(providerId);
             if (provider == null) {
                 throw new IllegalStateException(
-                        "Missing OAuth2 provider configuration for registration '" + registrationId + "'.");
+                    "Missing OAuth2 provider configuration for registration '" + registrationId + "'."
+                );
             }
             if (!"twitch".equals(registrationId)) {
                 LOG.warn("Unexpected OAuth2 registration '{}' found; only Twitch is supported.", registrationId);
@@ -49,24 +50,25 @@ class TwitchClientRegistrationConfig {
     }
 
     private ClientRegistration buildTwitchRegistration(
-            String registrationId,
-            OAuth2ClientProperties.Registration registration,
-            OAuth2ClientProperties.Provider provider) {
+        String registrationId,
+        OAuth2ClientProperties.Registration registration,
+        OAuth2ClientProperties.Provider provider
+    ) {
         String clientId = sanitize(registration.getClientId(), "TWITCH_CLIENT_ID");
         String clientSecret = sanitize(registration.getClientSecret(), "TWITCH_CLIENT_SECRET");
         return ClientRegistration.withRegistrationId(registrationId)
-                .clientName(registration.getClientName())
-                .clientId(clientId)
-                .clientSecret(clientSecret)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .authorizationGrantType(new AuthorizationGrantType(registration.getAuthorizationGrantType()))
-                .redirectUri(registration.getRedirectUri())
-                .scope(registration.getScope())
-                .authorizationUri(provider.getAuthorizationUri())
-                .tokenUri(provider.getTokenUri())
-                .userInfoUri(provider.getUserInfoUri())
-                .userNameAttributeName(provider.getUserNameAttribute())
-                .build();
+            .clientName(registration.getClientName())
+            .clientId(clientId)
+            .clientSecret(clientSecret)
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+            .authorizationGrantType(new AuthorizationGrantType(registration.getAuthorizationGrantType()))
+            .redirectUri(registration.getRedirectUri())
+            .scope(registration.getScope())
+            .authorizationUri(provider.getAuthorizationUri())
+            .tokenUri(provider.getTokenUri())
+            .userInfoUri(provider.getUserInfoUri())
+            .userNameAttributeName(provider.getUserNameAttribute())
+            .build();
     }
 
     private String sanitize(String value, String name) {
@@ -74,7 +76,9 @@ class TwitchClientRegistrationConfig {
             return null;
         }
         String trimmed = value.trim();
-        if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        if (
+            (trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+        ) {
             String unquoted = trimmed.substring(1, trimmed.length() - 1).trim();
             LOG.info("Sanitizing {} by stripping surrounding quotes.", name);
             return unquoted;

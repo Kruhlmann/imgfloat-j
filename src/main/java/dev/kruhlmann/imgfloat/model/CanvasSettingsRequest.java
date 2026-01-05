@@ -3,14 +3,14 @@ package dev.kruhlmann.imgfloat.model;
 import jakarta.validation.constraints.Positive;
 
 public class CanvasSettingsRequest {
+
     @Positive
     private double width;
 
     @Positive
     private double height;
 
-    public CanvasSettingsRequest() {
-    }
+    public CanvasSettingsRequest() {}
 
     public CanvasSettingsRequest(double width, double height) {
         this.width = width;

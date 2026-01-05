@@ -1,16 +1,16 @@
 package dev.kruhlmann.imgfloat.service.media;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import javax.imageio.ImageIO;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class MediaOptimizationServiceTest {
+
     private MediaOptimizationService service;
 
     @BeforeEach
@@ -38,7 +38,7 @@ class MediaOptimizationServiceTest {
 
     @Test
     void returnsNullForUnsupportedBytes() throws IOException {
-        OptimizedAsset optimized = service.optimizeAsset(new byte[]{1, 2, 3}, "application/octet-stream");
+        OptimizedAsset optimized = service.optimizeAsset(new byte[] { 1, 2, 3 }, "application/octet-stream");
 
         assertThat(optimized).isNull();
     }

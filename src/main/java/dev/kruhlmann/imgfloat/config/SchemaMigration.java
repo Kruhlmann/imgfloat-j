@@ -1,5 +1,6 @@
 package dev.kruhlmann.imgfloat.config;
 
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -7,8 +8,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 @Component
 public class SchemaMigration implements ApplicationRunner {
@@ -32,7 +31,8 @@ public class SchemaMigration implements ApplicationRunner {
 
     private void ensureSessionAttributeUpsertTrigger() {
         try {
-            jdbcTemplate.execute("""
+            jdbcTemplate.execute(
+                """
                 CREATE TRIGGER IF NOT EXISTS SPRING_SESSION_ATTRIBUTES_UPSERT
                 BEFORE INSERT ON SPRING_SESSION_ATTRIBUTES
                 FOR EACH ROW
@@ -41,7 +41,8 @@ public class SchemaMigration implements ApplicationRunner {
                     WHERE SESSION_PRIMARY_ID = NEW.SESSION_PRIMARY_ID
                       AND ATTRIBUTE_NAME = NEW.ATTRIBUTE_NAME;
                 END;
-                """);
+                """
+            );
             logger.info("Ensured SPRING_SESSION_ATTRIBUTES upsert trigger exists");
         } catch (DataAccessException ex) {
             logger.warn("Unable to ensure SPRING_SESSION_ATTRIBUTES upsert trigger", ex);
@@ -91,14 +92,32 @@ public class SchemaMigration implements ApplicationRunner {
         addColumnIfMissing(table, columns, "preview", "TEXT", "NULL");
     }
 
-    private void addColumnIfMissing(String tableName, List<String> existingColumns, String columnName, String dataType, String defaultValue) {
+    private void addColumnIfMissing(
+        String tableName,
+        List<String> existingColumns,
+        String columnName,
+        String dataType,
+        String defaultValue
+    ) {
         if (existingColumns.contains(columnName)) {
             return;
         }
 
         try {
-            jdbcTemplate.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + dataType + " DEFAULT " + defaultValue);
-            jdbcTemplate.execute("UPDATE " + tableName + " SET " + columnName + " = " + defaultValue + " WHERE " + columnName + " IS NULL");
+            jdbcTemplate.execute(
+                "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + dataType + " DEFAULT " + defaultValue
+            );
+            jdbcTemplate.execute(
+                "UPDATE " +
+                    tableName +
+                    " SET " +
+                    columnName +
+                    " = " +
+                    defaultValue +
+                    " WHERE " +
+                    columnName +
+                    " IS NULL"
+            );
             logger.info("Added missing column '{}' to {} table", columnName, tableName);
         } catch (DataAccessException ex) {
             logger.warn("Failed to add column '{}' to {} table", columnName, tableName, ex);
@@ -107,7 +126,8 @@ public class SchemaMigration implements ApplicationRunner {
 
     private void ensureAuthorizedClientTable() {
         try {
-            jdbcTemplate.execute("""
+            jdbcTemplate.execute(
+                """
                 CREATE TABLE IF NOT EXISTS oauth2_authorized_client (
                     client_registration_id VARCHAR(100) NOT NULL,
                     principal_name VARCHAR(200) NOT NULL,
@@ -120,7 +140,8 @@ public class SchemaMigration implements ApplicationRunner {
                     refresh_token_issued_at INTEGER,
                     PRIMARY KEY (client_registration_id, principal_name)
                 )
-                """);
+                """
+            );
             logger.info("Ensured oauth2_authorized_client table exists");
         } catch (DataAccessException ex) {
             logger.warn("Unable to ensure oauth2_authorized_client table", ex);
@@ -136,13 +157,34 @@ public class SchemaMigration implements ApplicationRunner {
     private void normalizeTimestampColumn(String column) {
         try {
             int updated = jdbcTemplate.update(
-                    "UPDATE oauth2_authorized_client " +
-                            "SET " + column + " = CASE " +
-                            "WHEN " + column + " LIKE '%-%' THEN CAST(strftime('%s', " + column + ") AS INTEGER) * 1000 " +
-                            "WHEN typeof(" + column + ") = 'text' AND " + column + " GLOB '[0-9]*' THEN CAST(" + column + " AS INTEGER) " +
-                            "WHEN typeof(" + column + ") = 'integer' THEN " + column + " " +
-                            "ELSE " + column + " END " +
-                            "WHERE " + column + " IS NOT NULL");
+                "UPDATE oauth2_authorized_client " +
+                    "SET " +
+                    column +
+                    " = CASE " +
+                    "WHEN " +
+                    column +
+                    " LIKE '%-%' THEN CAST(strftime('%s', " +
+                    column +
+                    ") AS INTEGER) * 1000 " +
+                    "WHEN typeof(" +
+                    column +
+                    ") = 'text' AND " +
+                    column +
+                    " GLOB '[0-9]*' THEN CAST(" +
+                    column +
+                    " AS INTEGER) " +
+                    "WHEN typeof(" +
+                    column +
+                    ") = 'integer' THEN " +
+                    column +
+                    " " +
+                    "ELSE " +
+                    column +
+                    " END " +
+                    "WHERE " +
+                    column +
+                    " IS NOT NULL"
+            );
             if (updated > 0) {
                 logger.info("Normalized {} rows in oauth2_authorized_client.{}", updated, column);
             }

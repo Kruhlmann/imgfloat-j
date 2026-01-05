@@ -67,280 +67,283 @@ let lastSizeInputChanged = null;
 let stompClient;
 
 audioUnlockEvents.forEach((eventName) => {
-  window.addEventListener(eventName, () => {
-    if (!pendingAudioUnlock.size) return;
-    pendingAudioUnlock.forEach((controller) => {
-      safePlay(controller);
+    window.addEventListener(eventName, () => {
+        if (!pendingAudioUnlock.size) return;
+        pendingAudioUnlock.forEach((controller) => {
+            safePlay(controller);
+        });
+        pendingAudioUnlock.clear();
     });
-    pendingAudioUnlock.clear();
-  });
 });
 
 function debounce(fn, wait = 150) {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), wait);
-  };
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), wait);
+    };
 }
 
 function isFormInputElement(element) {
-  if (!element) return false;
-  if (element.isContentEditable) return true;
-  const tag = element.tagName ? element.tagName.toLowerCase() : "";
-  return ["input", "textarea", "select", "button", "option"].includes(tag);
+    if (!element) return false;
+    if (element.isContentEditable) return true;
+    const tag = element.tagName ? element.tagName.toLowerCase() : "";
+    return ["input", "textarea", "select", "button", "option"].includes(tag);
 }
 
 function schedulePersistTransform(asset, silent = false, delay = 200) {
-  if (!asset?.id) return;
-  cancelPendingTransform(asset.id);
-  const timeout = setTimeout(() => {
-    pendingTransformSaves.delete(asset.id);
-    persistTransform(asset, silent);
-  }, delay);
-  pendingTransformSaves.set(asset.id, timeout);
+    if (!asset?.id) return;
+    cancelPendingTransform(asset.id);
+    const timeout = setTimeout(() => {
+        pendingTransformSaves.delete(asset.id);
+        persistTransform(asset, silent);
+    }, delay);
+    pendingTransformSaves.set(asset.id, timeout);
 }
 
 function cancelPendingTransform(assetId) {
-  const pending = pendingTransformSaves.get(assetId);
-  if (pending) {
-    clearTimeout(pending);
-    pendingTransformSaves.delete(assetId);
-  }
+    const pending = pendingTransformSaves.get(assetId);
+    if (pending) {
+        clearTimeout(pending);
+        pendingTransformSaves.delete(assetId);
+    }
 }
 
 function ensureLayerPosition(assetId, placement = "keep") {
-  const asset = assets.get(assetId);
-  if (asset && isAudioAsset(asset)) {
-    return;
-  }
-  const existingIndex = layerOrder.indexOf(assetId);
-  if (existingIndex !== -1 && placement === "keep") {
-    return;
-  }
-  if (existingIndex !== -1) {
-    layerOrder.splice(existingIndex, 1);
-  }
-  if (placement === "append") {
-    layerOrder.push(assetId);
-  } else {
-    layerOrder.unshift(assetId);
-  }
-  layerOrder = layerOrder.filter((id) => assets.has(id));
+    const asset = assets.get(assetId);
+    if (asset && isAudioAsset(asset)) {
+        return;
+    }
+    const existingIndex = layerOrder.indexOf(assetId);
+    if (existingIndex !== -1 && placement === "keep") {
+        return;
+    }
+    if (existingIndex !== -1) {
+        layerOrder.splice(existingIndex, 1);
+    }
+    if (placement === "append") {
+        layerOrder.push(assetId);
+    } else {
+        layerOrder.unshift(assetId);
+    }
+    layerOrder = layerOrder.filter((id) => assets.has(id));
 }
 
 function getLayerOrder() {
-  layerOrder = layerOrder.filter((id) => {
-    const asset = assets.get(id);
-    return asset && !isAudioAsset(asset);
-  });
-  assets.forEach((asset, id) => {
-    if (isAudioAsset(asset)) {
-      return;
-    }
-    if (!layerOrder.includes(id)) {
-      layerOrder.unshift(id);
-    }
-  });
-  return layerOrder;
+    layerOrder = layerOrder.filter((id) => {
+        const asset = assets.get(id);
+        return asset && !isAudioAsset(asset);
+    });
+    assets.forEach((asset, id) => {
+        if (isAudioAsset(asset)) {
+            return;
+        }
+        if (!layerOrder.includes(id)) {
+            layerOrder.unshift(id);
+        }
+    });
+    return layerOrder;
 }
 
 function getAssetsByLayer() {
-  return getLayerOrder()
-    .map((id) => assets.get(id))
-    .filter(Boolean);
+    return getLayerOrder()
+        .map((id) => assets.get(id))
+        .filter(Boolean);
 }
 
 function getAudioAssets() {
-  return Array.from(assets.values())
-    .filter((asset) => isAudioAsset(asset))
-    .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    return Array.from(assets.values())
+        .filter((asset) => isAudioAsset(asset))
+        .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
 }
 
 function getRenderOrder() {
-  return [...getLayerOrder()]
-    .reverse()
-    .map((id) => assets.get(id))
-    .filter(Boolean);
+    return [...getLayerOrder()]
+        .reverse()
+        .map((id) => assets.get(id))
+        .filter(Boolean);
 }
 
 function getLayerValue(assetId) {
-  const asset = assets.get(assetId);
-  if (asset && isAudioAsset(asset)) {
-    return 0;
-  }
-  const order = getLayerOrder();
-  const index = order.indexOf(assetId);
-  if (index === -1) return 1;
-  return order.length - index;
+    const asset = assets.get(assetId);
+    if (asset && isAudioAsset(asset)) {
+        return 0;
+    }
+    const order = getLayerOrder();
+    const index = order.indexOf(assetId);
+    if (index === -1) return 1;
+    return order.length - index;
 }
 
 function addPendingUpload(name) {
-  const pending = {
-    id: `pending-${Date.now()}-${Math.round(Math.random() * 100000)}`,
-    name,
-    status: "uploading",
-    createdAtMs: Date.now(),
-  };
-  pendingUploads.push(pending);
-  renderAssetList();
-  return pending.id;
+    const pending = {
+        id: `pending-${Date.now()}-${Math.round(Math.random() * 100000)}`,
+        name,
+        status: "uploading",
+        createdAtMs: Date.now(),
+    };
+    pendingUploads.push(pending);
+    renderAssetList();
+    return pending.id;
 }
 
 function updatePendingUpload(id, updates = {}) {
-  const pending = pendingUploads.find((item) => item.id === id);
-  if (!pending) return;
-  Object.assign(pending, updates);
-  renderAssetList();
+    const pending = pendingUploads.find((item) => item.id === id);
+    if (!pending) return;
+    Object.assign(pending, updates);
+    renderAssetList();
 }
 
 function removePendingUpload(id) {
-  const index = pendingUploads.findIndex((item) => item.id === id);
-  if (index === -1) return;
-  pendingUploads.splice(index, 1);
-  renderAssetList();
+    const index = pendingUploads.findIndex((item) => item.id === id);
+    if (index === -1) return;
+    pendingUploads.splice(index, 1);
+    renderAssetList();
 }
 
 function resolvePendingUploadByName(name) {
-  if (!name) return;
-  const index = pendingUploads.findIndex((item) => item.name === name);
-  if (index === -1) return;
-  pendingUploads.splice(index, 1);
-  renderAssetList();
+    if (!name) return;
+    const index = pendingUploads.findIndex((item) => item.name === name);
+    if (index === -1) return;
+    pendingUploads.splice(index, 1);
+    renderAssetList();
 }
 
 function formatDurationLabel(durationMs) {
-  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
-  const seconds = totalSeconds % 60;
-  const minutes = Math.floor(totalSeconds / 60) % 60;
-  const hours = Math.floor(totalSeconds / 3600);
-  const parts = [];
-  if (hours > 0) {
-    parts.push(`${hours}h`);
-  }
-  if (minutes > 0 || hours > 0) {
-    parts.push(`${minutes}m`);
-  }
-  if (seconds > 0 || parts.length === 0) {
-    parts.push(`${seconds}s`);
-  }
-  return parts.join(" ");
+    const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+    const parts = [];
+    if (hours > 0) {
+        parts.push(`${hours}h`);
+    }
+    if (minutes > 0 || hours > 0) {
+        parts.push(`${minutes}m`);
+    }
+    if (seconds > 0 || parts.length === 0) {
+        parts.push(`${seconds}s`);
+    }
+    return parts.join(" ");
 }
 
 function recordDuration(assetId, seconds) {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return;
-  }
-  const asset = assets.get(assetId);
-  if (!asset) {
-    return;
-  }
-  const nextMs = Math.round(seconds * 1000);
-  if (asset.durationMs === nextMs) {
-    return;
-  }
-  asset.durationMs = nextMs;
-  if (asset.id === selectedAssetId) {
-    updateSelectedAssetSummary(asset);
-  }
-  drawAndList();
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        return;
+    }
+    const asset = assets.get(assetId);
+    if (!asset) {
+        return;
+    }
+    const nextMs = Math.round(seconds * 1000);
+    if (asset.durationMs === nextMs) {
+        return;
+    }
+    asset.durationMs = nextMs;
+    if (asset.id === selectedAssetId) {
+        updateSelectedAssetSummary(asset);
+    }
+    drawAndList();
 }
 
 function hasDuration(asset) {
-  return (
-    asset && Number.isFinite(asset.durationMs) && asset.durationMs > 0 && (isAudioAsset(asset) || isVideoAsset(asset))
-  );
+    return (
+        asset &&
+        Number.isFinite(asset.durationMs) &&
+        asset.durationMs > 0 &&
+        (isAudioAsset(asset) || isVideoAsset(asset))
+    );
 }
 
 function getDurationBadge(asset) {
-  if (!hasDuration(asset)) {
-    return null;
-  }
-  return formatDurationLabel(asset.durationMs);
+    if (!hasDuration(asset)) {
+        return null;
+    }
+    return formatDurationLabel(asset.durationMs);
 }
 
 function setSpeedLabel(percent) {
-  if (!speedLabel) return;
-  speedLabel.textContent = `${Math.round(percent)}%`;
+    if (!speedLabel) return;
+    speedLabel.textContent = `${Math.round(percent)}%`;
 }
 
 function setAudioSpeedLabel(percentValue) {
-  if (!audioSpeedLabel) return;
-  const multiplier = Math.max(0, percentValue) / 100;
-  const formatted = multiplier >= 10 ? multiplier.toFixed(0) : multiplier.toFixed(2);
-  audioSpeedLabel.textContent = `${formatted}x`;
+    if (!audioSpeedLabel) return;
+    const multiplier = Math.max(0, percentValue) / 100;
+    const formatted = multiplier >= 10 ? multiplier.toFixed(0) : multiplier.toFixed(2);
+    audioSpeedLabel.textContent = `${formatted}x`;
 }
 
 function formatDelayLabel(ms) {
-  const numeric = Math.max(0, parseInt(ms, 10) || 0);
-  if (numeric >= 1000) {
-    const seconds = numeric / 1000;
-    const decimals = Number.isInteger(seconds) ? 0 : 1;
-    return `${seconds.toFixed(decimals)}s`;
-  }
-  return `${numeric}ms`;
+    const numeric = Math.max(0, parseInt(ms, 10) || 0);
+    if (numeric >= 1000) {
+        const seconds = numeric / 1000;
+        const decimals = Number.isInteger(seconds) ? 0 : 1;
+        return `${seconds.toFixed(decimals)}s`;
+    }
+    return `${numeric}ms`;
 }
 
 function setAudioDelayLabel(value) {
-  if (!audioDelayLabel) return;
-  audioDelayLabel.textContent = formatDelayLabel(value);
+    if (!audioDelayLabel) return;
+    audioDelayLabel.textContent = formatDelayLabel(value);
 }
 
 function setAudioPitchLabel(percentValue) {
-  if (!audioPitchLabel) return;
-  const numeric = Math.round(Math.max(0, percentValue));
-  audioPitchLabel.textContent = `${numeric}%`;
+    if (!audioPitchLabel) return;
+    const numeric = Math.round(Math.max(0, percentValue));
+    audioPitchLabel.textContent = `${numeric}%`;
 }
 
 function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+    return Math.min(max, Math.max(min, value));
 }
 
 function sliderToVolume(sliderValue) {
-  const normalized = clamp(sliderValue, 0, VOLUME_SLIDER_MAX) / VOLUME_SLIDER_MAX;
-  const curved = normalized + VOLUME_CURVE_STRENGTH * normalized * (1 - normalized) * (1 - 2 * normalized);
-  return clamp(
-    curved * SETTINGS.maxAssetVolumeFraction,
-    SETTINGS.minAssetVolumeFraction,
-    SETTINGS.maxAssetVolumeFraction,
-  );
+    const normalized = clamp(sliderValue, 0, VOLUME_SLIDER_MAX) / VOLUME_SLIDER_MAX;
+    const curved = normalized + VOLUME_CURVE_STRENGTH * normalized * (1 - normalized) * (1 - 2 * normalized);
+    return clamp(
+        curved * SETTINGS.maxAssetVolumeFraction,
+        SETTINGS.minAssetVolumeFraction,
+        SETTINGS.maxAssetVolumeFraction,
+    );
 }
 
 function volumeToSlider(volumeValue) {
-  const target =
-    clamp(volumeValue ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction) /
-    SETTINGS.maxAssetVolumeFraction;
-  let low = 0;
-  let high = VOLUME_SLIDER_MAX;
-  for (let i = 0; i < 24; i += 1) {
-    const mid = (low + high) / 2;
-    const midNormalized = sliderToVolume(mid) / SETTINGS.maxAssetVolumeFraction;
-    if (midNormalized < target) {
-      low = mid;
-    } else {
-      high = mid;
+    const target =
+        clamp(volumeValue ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction) /
+        SETTINGS.maxAssetVolumeFraction;
+    let low = 0;
+    let high = VOLUME_SLIDER_MAX;
+    for (let i = 0; i < 24; i += 1) {
+        const mid = (low + high) / 2;
+        const midNormalized = sliderToVolume(mid) / SETTINGS.maxAssetVolumeFraction;
+        if (midNormalized < target) {
+            low = mid;
+        } else {
+            high = mid;
+        }
     }
-  }
-  return Math.round(high);
+    return Math.round(high);
 }
 
 function setVolumeLabel(sliderValue) {
-  if (!volumeLabel) return;
-  const volumePercent = Math.round(sliderToVolume(sliderValue) * 100);
-  volumeLabel.textContent = `${volumePercent}%`;
+    if (!volumeLabel) return;
+    const volumePercent = Math.round(sliderToVolume(sliderValue) * 100);
+    volumeLabel.textContent = `${volumePercent}%`;
 }
 
 function queueAudioForUnlock(controller) {
-  if (!controller) return;
-  pendingAudioUnlock.add(controller);
+    if (!controller) return;
+    pendingAudioUnlock.add(controller);
 }
 
 function safePlay(controller) {
-  if (!controller?.element) return;
-  const playPromise = controller.element.play();
-  if (playPromise?.catch) {
-    playPromise.catch(() => queueAudioForUnlock(controller));
-  }
+    if (!controller?.element) return;
+    const playPromise = controller.element.play();
+    if (playPromise?.catch) {
+        playPromise.catch(() => queueAudioForUnlock(controller));
+    }
 }
 
 if (widthInput) widthInput.addEventListener("input", () => handleSizeInputChange("width"));
@@ -351,1916 +354,1925 @@ if (speedInput) speedInput.addEventListener("input", updatePlaybackFromInputs);
 if (volumeInput) volumeInput.addEventListener("input", updateVolumeFromInput);
 if (audioLoopInput) audioLoopInput.addEventListener("change", updateAudioSettingsFromInputs);
 if (audioDelayInput)
-  audioDelayInput.addEventListener("input", () => {
-    setAudioDelayLabel(audioDelayInput.value);
-    updateAudioSettingsFromInputs();
-  });
+    audioDelayInput.addEventListener("input", () => {
+        setAudioDelayLabel(audioDelayInput.value);
+        updateAudioSettingsFromInputs();
+    });
 if (audioSpeedInput)
-  audioSpeedInput.addEventListener("input", () => {
-    setAudioSpeedLabel(audioSpeedInput.value);
-    updateAudioSettingsFromInputs();
-  });
+    audioSpeedInput.addEventListener("input", () => {
+        setAudioSpeedLabel(audioSpeedInput.value);
+        updateAudioSettingsFromInputs();
+    });
 if (audioPitchInput)
-  audioPitchInput.addEventListener("input", () => {
-    setAudioPitchLabel(audioPitchInput.value);
-    updateAudioSettingsFromInputs();
-  });
+    audioPitchInput.addEventListener("input", () => {
+        setAudioPitchLabel(audioPitchInput.value);
+        updateAudioSettingsFromInputs();
+    });
 if (selectedDeleteBtn) {
-  selectedDeleteBtn.addEventListener("click", () => {
-    const asset = getSelectedAsset();
-    if (!asset) return;
-    deleteAsset(asset);
-  });
+    selectedDeleteBtn.addEventListener("click", () => {
+        const asset = getSelectedAsset();
+        if (!asset) return;
+        deleteAsset(asset);
+    });
 }
 
 window.addEventListener("keydown", (event) => {
-  if (isFormInputElement(event.target)) {
-    return;
-  }
+    if (isFormInputElement(event.target)) {
+        return;
+    }
 
-  const asset = getSelectedAsset();
+    const asset = getSelectedAsset();
 
-  if ((event.key === "Delete" || event.key === "Backspace") && asset) {
-    event.preventDefault();
-    deleteAsset(asset);
-    return;
-  }
+    if ((event.key === "Delete" || event.key === "Backspace") && asset) {
+        event.preventDefault();
+        deleteAsset(asset);
+        return;
+    }
 
-  if (!asset || isAudioAsset(asset)) {
-    return;
-  }
+    if (!asset || isAudioAsset(asset)) {
+        return;
+    }
 
-  const step = event.shiftKey ? KEYBOARD_NUDGE_FAST_STEP : KEYBOARD_NUDGE_STEP;
-  let moved = false;
+    const step = event.shiftKey ? KEYBOARD_NUDGE_FAST_STEP : KEYBOARD_NUDGE_STEP;
+    let moved = false;
 
-  switch (event.key) {
-    case "ArrowUp":
-      asset.y -= step;
-      moved = true;
-      break;
-    case "ArrowDown":
-      asset.y += step;
-      moved = true;
-      break;
-    case "ArrowLeft":
-      asset.x -= step;
-      moved = true;
-      break;
-    case "ArrowRight":
-      asset.x += step;
-      moved = true;
-      break;
-    default:
-      break;
-  }
+    switch (event.key) {
+        case "ArrowUp":
+            asset.y -= step;
+            moved = true;
+            break;
+        case "ArrowDown":
+            asset.y += step;
+            moved = true;
+            break;
+        case "ArrowLeft":
+            asset.x -= step;
+            moved = true;
+            break;
+        case "ArrowRight":
+            asset.x += step;
+            moved = true;
+            break;
+        default:
+            break;
+    }
 
-  if (moved) {
-    event.preventDefault();
-    updateRenderState(asset);
-    schedulePersistTransform(asset);
-    drawAndList();
-  }
+    if (moved) {
+        event.preventDefault();
+        updateRenderState(asset);
+        schedulePersistTransform(asset);
+        drawAndList();
+    }
 });
 function connect() {
-  const socket = new SockJS("/ws");
-  stompClient = Stomp.over(socket);
-  stompClient.connect(
-    {},
-    () => {
-      stompClient.subscribe(`/topic/channel/${broadcaster}`, (payload) => {
-        const body = JSON.parse(payload.body);
-        handleEvent(body);
-      });
-      fetchAssets();
-    },
-    (error) => {
-      console.warn("WebSocket connection issue", error);
-      setTimeout(() => showToast("Live updates connection interrupted. Retrying may be necessary.", "warning"), 1000);
-    },
-  );
+    const socket = new SockJS("/ws");
+    stompClient = Stomp.over(socket);
+    stompClient.connect(
+        {},
+        () => {
+            stompClient.subscribe(`/topic/channel/${broadcaster}`, (payload) => {
+                const body = JSON.parse(payload.body);
+                handleEvent(body);
+            });
+            fetchAssets();
+        },
+        (error) => {
+            console.warn("WebSocket connection issue", error);
+            setTimeout(
+                () => showToast("Live updates connection interrupted. Retrying may be necessary.", "warning"),
+                1000,
+            );
+        },
+    );
 }
 
 function fetchAssets() {
-  fetch(`/api/channels/${broadcaster}/assets`)
-    .then((r) => {
-      if (!r.ok) {
-        throw new Error("Failed to load assets");
-      }
-      return r.json();
-    })
-    .then(renderAssets)
-    .catch(() => showToast("Unable to load assets. Please refresh.", "error"));
+    fetch(`/api/channels/${broadcaster}/assets`)
+        .then((r) => {
+            if (!r.ok) {
+                throw new Error("Failed to load assets");
+            }
+            return r.json();
+        })
+        .then(renderAssets)
+        .catch(() => showToast("Unable to load assets. Please refresh.", "error"));
 }
 
 function fetchCanvasSettings() {
-  return fetch(`/api/channels/${broadcaster}/canvas`)
-    .then((r) => {
-      if (!r.ok) {
-        throw new Error("Failed to load canvas");
-      }
-      return r.json();
-    })
-    .then((settings) => {
-      canvasSettings = settings;
-      resizeCanvas();
-    })
-    .catch(() => {
-      resizeCanvas();
-      showToast("Using default canvas size. Unable to load saved settings.", "warning");
-    });
+    return fetch(`/api/channels/${broadcaster}/canvas`)
+        .then((r) => {
+            if (!r.ok) {
+                throw new Error("Failed to load canvas");
+            }
+            return r.json();
+        })
+        .then((settings) => {
+            canvasSettings = settings;
+            resizeCanvas();
+        })
+        .catch(() => {
+            resizeCanvas();
+            showToast("Using default canvas size. Unable to load saved settings.", "warning");
+        });
 }
 
 function resizeCanvas() {
-  if (!overlay) {
-    return;
-  }
-  const bounds = overlay.getBoundingClientRect();
-  const scale = Math.min(bounds.width / canvasSettings.width, bounds.height / canvasSettings.height);
-  const displayWidth = canvasSettings.width * scale;
-  const displayHeight = canvasSettings.height * scale;
-  canvas.width = canvasSettings.width;
-  canvas.height = canvasSettings.height;
-  canvas.style.width = `${displayWidth}px`;
-  canvas.style.height = `${displayHeight}px`;
-  canvas.style.left = `${(bounds.width - displayWidth) / 2}px`;
-  canvas.style.top = `${(bounds.height - displayHeight) / 2}px`;
-  if (canvasResolutionLabel) {
-    canvasResolutionLabel.textContent = `${canvasSettings.width} x ${canvasSettings.height}`;
-  }
-  if (canvasScaleLabel) {
-    canvasScaleLabel.textContent = `${Math.round(scale * 100)}%`;
-  }
-  requestDraw();
+    if (!overlay) {
+        return;
+    }
+    const bounds = overlay.getBoundingClientRect();
+    const scale = Math.min(bounds.width / canvasSettings.width, bounds.height / canvasSettings.height);
+    const displayWidth = canvasSettings.width * scale;
+    const displayHeight = canvasSettings.height * scale;
+    canvas.width = canvasSettings.width;
+    canvas.height = canvasSettings.height;
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    canvas.style.left = `${(bounds.width - displayWidth) / 2}px`;
+    canvas.style.top = `${(bounds.height - displayHeight) / 2}px`;
+    if (canvasResolutionLabel) {
+        canvasResolutionLabel.textContent = `${canvasSettings.width} x ${canvasSettings.height}`;
+    }
+    if (canvasScaleLabel) {
+        canvasScaleLabel.textContent = `${Math.round(scale * 100)}%`;
+    }
+    requestDraw();
 }
 
 function renderAssets(list) {
-  layerOrder = [];
-  list.forEach((item) => storeAsset(item, { placement: "append" }));
-  drawAndList();
+    layerOrder = [];
+    list.forEach((item) => storeAsset(item, { placement: "append" }));
+    drawAndList();
 }
 
 function storeAsset(asset, options = {}) {
-  if (!asset) return;
-  const placement = options.placement || "keep";
-  const existing = assets.get(asset.id);
-  const merged = existing ? { ...existing, ...asset } : { ...asset };
-  const mediaChanged = existing && existing.url !== merged.url;
-  const previewChanged = existing && existing.previewUrl !== merged.previewUrl;
-  if (mediaChanged || previewChanged) {
-    clearMedia(asset.id);
-  }
-  const parsedCreatedAt = merged.createdAt ? new Date(merged.createdAt).getTime() : NaN;
-  const hasCreatedAtMs = typeof merged.createdAtMs === "number" && Number.isFinite(merged.createdAtMs);
-  if (!hasCreatedAtMs) {
-    merged.createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
-  }
-  assets.set(asset.id, merged);
-  ensureLayerPosition(asset.id, existing ? "keep" : placement);
-  if (!renderStates.has(asset.id)) {
-    renderStates.set(asset.id, { ...merged });
-  }
-  resolvePendingUploadByName(asset.name);
+    if (!asset) return;
+    const placement = options.placement || "keep";
+    const existing = assets.get(asset.id);
+    const merged = existing ? { ...existing, ...asset } : { ...asset };
+    const mediaChanged = existing && existing.url !== merged.url;
+    const previewChanged = existing && existing.previewUrl !== merged.previewUrl;
+    if (mediaChanged || previewChanged) {
+        clearMedia(asset.id);
+    }
+    const parsedCreatedAt = merged.createdAt ? new Date(merged.createdAt).getTime() : NaN;
+    const hasCreatedAtMs = typeof merged.createdAtMs === "number" && Number.isFinite(merged.createdAtMs);
+    if (!hasCreatedAtMs) {
+        merged.createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
+    }
+    assets.set(asset.id, merged);
+    ensureLayerPosition(asset.id, existing ? "keep" : placement);
+    if (!renderStates.has(asset.id)) {
+        renderStates.set(asset.id, { ...merged });
+    }
+    resolvePendingUploadByName(asset.name);
 }
 
 function updateRenderState(asset) {
-  if (!asset) return;
-  const state = renderStates.get(asset.id) || {};
-  state.x = asset.x;
-  state.y = asset.y;
-  state.width = asset.width;
-  state.height = asset.height;
-  state.rotation = asset.rotation;
-  renderStates.set(asset.id, state);
+    if (!asset) return;
+    const state = renderStates.get(asset.id) || {};
+    state.x = asset.x;
+    state.y = asset.y;
+    state.width = asset.width;
+    state.height = asset.height;
+    state.rotation = asset.rotation;
+    renderStates.set(asset.id, state);
 }
 
 function handleEvent(event) {
-  const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
-  if (event.type === "DELETED") {
-    assets.delete(assetId);
-    layerOrder = layerOrder.filter((id) => id !== assetId);
-    clearMedia(assetId);
-    renderStates.delete(assetId);
-    loopPlaybackState.delete(assetId);
-    cancelPendingTransform(assetId);
-    if (selectedAssetId === assetId) {
-      selectedAssetId = null;
+    const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
+    if (event.type === "DELETED") {
+        assets.delete(assetId);
+        layerOrder = layerOrder.filter((id) => id !== assetId);
+        clearMedia(assetId);
+        renderStates.delete(assetId);
+        loopPlaybackState.delete(assetId);
+        cancelPendingTransform(assetId);
+        if (selectedAssetId === assetId) {
+            selectedAssetId = null;
+        }
+    } else if (event.patch) {
+        applyPatch(assetId, event.patch);
+    } else if (event.payload) {
+        storeAsset(event.payload);
+        if (!event.payload.hidden && !isVideoAsset(event.payload)) {
+            ensureMedia(event.payload);
+            if (isAudioAsset(event.payload) && !loopPlaybackState.has(event.payload.id)) {
+                loopPlaybackState.set(event.payload.id, true);
+            }
+        } else {
+            clearMedia(event.payload.id);
+            loopPlaybackState.delete(event.payload.id);
+        }
     }
-  } else if (event.patch) {
-    applyPatch(assetId, event.patch);
-  } else if (event.payload) {
-    storeAsset(event.payload);
-    if (!event.payload.hidden && !isVideoAsset(event.payload)) {
-      ensureMedia(event.payload);
-      if (isAudioAsset(event.payload) && !loopPlaybackState.has(event.payload.id)) {
-        loopPlaybackState.set(event.payload.id, true);
-      }
-    } else {
-      clearMedia(event.payload.id);
-      loopPlaybackState.delete(event.payload.id);
-    }
-  }
-  drawAndList();
+    drawAndList();
 }
 
 function applyPatch(assetId, patch) {
-  if (!assetId || !patch) {
-    return;
-  }
-  const existing = assets.get(assetId);
-  if (!existing) {
-    return;
-  }
-  const merged = { ...existing, ...patch };
-  const isAudio = isAudioAsset(merged);
-  if (patch.hidden) {
-    clearMedia(assetId);
-    loopPlaybackState.delete(assetId);
-  }
-  const targetLayer = Number.isFinite(patch.layer) ? patch.layer : Number.isFinite(patch.zIndex) ? patch.zIndex : null;
-  if (!isAudio && Number.isFinite(targetLayer)) {
-    const currentOrder = getLayerOrder().filter((id) => id !== assetId);
-    const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
-    currentOrder.splice(insertIndex, 0, assetId);
-    layerOrder = currentOrder;
-  }
-  storeAsset(merged);
-  if (!isAudio) {
-    updateRenderState(merged);
-  }
+    if (!assetId || !patch) {
+        return;
+    }
+    const existing = assets.get(assetId);
+    if (!existing) {
+        return;
+    }
+    const merged = { ...existing, ...patch };
+    const isAudio = isAudioAsset(merged);
+    if (patch.hidden) {
+        clearMedia(assetId);
+        loopPlaybackState.delete(assetId);
+    }
+    const targetLayer = Number.isFinite(patch.layer)
+        ? patch.layer
+        : Number.isFinite(patch.zIndex)
+          ? patch.zIndex
+          : null;
+    if (!isAudio && Number.isFinite(targetLayer)) {
+        const currentOrder = getLayerOrder().filter((id) => id !== assetId);
+        const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
+        currentOrder.splice(insertIndex, 0, assetId);
+        layerOrder = currentOrder;
+    }
+    storeAsset(merged);
+    if (!isAudio) {
+        updateRenderState(merged);
+    }
 }
 
 function drawAndList() {
-  requestDraw();
-  renderAssetList();
+    requestDraw();
+    renderAssetList();
 }
 
 function requestDraw() {
-  if (drawPending) {
-    return;
-  }
-  drawPending = true;
-  requestAnimationFrame(() => {
-    drawPending = false;
-    draw();
-  });
+    if (drawPending) {
+        return;
+    }
+    drawPending = true;
+    requestAnimationFrame(() => {
+        drawPending = false;
+        draw();
+    });
 }
 
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  getRenderOrder().forEach((asset) => drawAsset(asset));
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    getRenderOrder().forEach((asset) => drawAsset(asset));
 }
 
 function drawAsset(asset) {
-  const renderState = smoothState(asset);
-  const halfWidth = renderState.width / 2;
-  const halfHeight = renderState.height / 2;
-  ctx.save();
-  ctx.translate(renderState.x + halfWidth, renderState.y + halfHeight);
-  ctx.rotate((renderState.rotation * Math.PI) / 180);
+    const renderState = smoothState(asset);
+    const halfWidth = renderState.width / 2;
+    const halfHeight = renderState.height / 2;
+    ctx.save();
+    ctx.translate(renderState.x + halfWidth, renderState.y + halfHeight);
+    ctx.rotate((renderState.rotation * Math.PI) / 180);
 
-  if (isAudioAsset(asset)) {
-    autoStartAudio(asset);
+    if (isAudioAsset(asset)) {
+        autoStartAudio(asset);
+        ctx.restore();
+        return;
+    }
+
+    let drawSource = null;
+    let ready = false;
+    let showPlayOverlay = false;
+    if (isVideoAsset(asset) || isGifAsset(asset)) {
+        drawSource = ensureCanvasPreview(asset);
+        ready = isDrawable(drawSource);
+        showPlayOverlay = true;
+    } else {
+        const media = ensureMedia(asset);
+        drawSource = media?.isAnimated ? media.bitmap : media;
+        ready = isDrawable(media);
+    }
+    if (ready && drawSource) {
+        ctx.globalAlpha = asset.hidden ? 0.35 : 0.9;
+        ctx.drawImage(drawSource, -halfWidth, -halfHeight, renderState.width, renderState.height);
+    } else {
+        ctx.globalAlpha = asset.hidden ? 0.2 : 0.4;
+        ctx.fillStyle = "rgba(124, 58, 237, 0.35)";
+        ctx.fillRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
+    }
+
+    if (asset.hidden) {
+        ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+        ctx.fillRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = asset.id === selectedAssetId ? "rgba(124, 58, 237, 0.9)" : "rgba(255, 255, 255, 0.4)";
+    ctx.lineWidth = asset.id === selectedAssetId ? 2 : 1;
+    ctx.setLineDash(asset.id === selectedAssetId ? [6, 4] : []);
+    ctx.strokeRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
+    if (showPlayOverlay) {
+        drawPlayOverlay(renderState);
+    }
+    if (asset.id === selectedAssetId) {
+        drawSelectionOverlay(renderState);
+    }
     ctx.restore();
-    return;
-  }
-
-  let drawSource = null;
-  let ready = false;
-  let showPlayOverlay = false;
-  if (isVideoAsset(asset) || isGifAsset(asset)) {
-    drawSource = ensureCanvasPreview(asset);
-    ready = isDrawable(drawSource);
-    showPlayOverlay = true;
-  } else {
-    const media = ensureMedia(asset);
-    drawSource = media?.isAnimated ? media.bitmap : media;
-    ready = isDrawable(media);
-  }
-  if (ready && drawSource) {
-    ctx.globalAlpha = asset.hidden ? 0.35 : 0.9;
-    ctx.drawImage(drawSource, -halfWidth, -halfHeight, renderState.width, renderState.height);
-  } else {
-    ctx.globalAlpha = asset.hidden ? 0.2 : 0.4;
-    ctx.fillStyle = "rgba(124, 58, 237, 0.35)";
-    ctx.fillRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
-  }
-
-  if (asset.hidden) {
-    ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
-    ctx.fillRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
-  }
-
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = asset.id === selectedAssetId ? "rgba(124, 58, 237, 0.9)" : "rgba(255, 255, 255, 0.4)";
-  ctx.lineWidth = asset.id === selectedAssetId ? 2 : 1;
-  ctx.setLineDash(asset.id === selectedAssetId ? [6, 4] : []);
-  ctx.strokeRect(-halfWidth, -halfHeight, renderState.width, renderState.height);
-  if (showPlayOverlay) {
-    drawPlayOverlay(renderState);
-  }
-  if (asset.id === selectedAssetId) {
-    drawSelectionOverlay(renderState);
-  }
-  ctx.restore();
 }
 
 function smoothState(asset) {
-  const previous = renderStates.get(asset.id) || { ...asset };
-  const factor = interactionState && interactionState.assetId === asset.id ? 0.45 : 0.18;
-  previous.x = lerp(previous.x, asset.x, factor);
-  previous.y = lerp(previous.y, asset.y, factor);
-  previous.width = lerp(previous.width, asset.width, factor);
-  previous.height = lerp(previous.height, asset.height, factor);
-  previous.rotation = smoothAngle(previous.rotation, asset.rotation, factor);
-  renderStates.set(asset.id, previous);
-  return previous;
+    const previous = renderStates.get(asset.id) || { ...asset };
+    const factor = interactionState && interactionState.assetId === asset.id ? 0.45 : 0.18;
+    previous.x = lerp(previous.x, asset.x, factor);
+    previous.y = lerp(previous.y, asset.y, factor);
+    previous.width = lerp(previous.width, asset.width, factor);
+    previous.height = lerp(previous.height, asset.height, factor);
+    previous.rotation = smoothAngle(previous.rotation, asset.rotation, factor);
+    renderStates.set(asset.id, previous);
+    return previous;
 }
 
 function smoothAngle(current, target, factor) {
-  let delta = ((target - current + 180) % 360) - 180;
-  return current + delta * factor;
+    let delta = ((target - current + 180) % 360) - 180;
+    return current + delta * factor;
 }
 
 function lerp(a, b, t) {
-  return a + (b - a) * t;
+    return a + (b - a) * t;
 }
 
 function drawPlayOverlay(asset) {
-  const size = Math.max(24, Math.min(asset.width, asset.height) * 0.2);
-  ctx.save();
-  ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
-  ctx.beginPath();
-  ctx.arc(0, 0, size * 0.75, 0, Math.PI * 2);
-  ctx.fill();
+    const size = Math.max(24, Math.min(asset.width, asset.height) * 0.2);
+    ctx.save();
+    ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.75, 0, Math.PI * 2);
+    ctx.fill();
 
-  ctx.fillStyle = "#ffffff";
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.3, -size * 0.45);
-  ctx.lineTo(size * 0.55, 0);
-  ctx.lineTo(-size * 0.3, size * 0.45);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.3, -size * 0.45);
+    ctx.lineTo(size * 0.55, 0);
+    ctx.lineTo(-size * 0.3, size * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
 }
 
 function drawSelectionOverlay(asset) {
-  const halfWidth = asset.width / 2;
-  const halfHeight = asset.height / 2;
-  ctx.save();
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = "rgba(124, 58, 237, 0.9)";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(-halfWidth, -halfHeight, asset.width, asset.height);
+    const halfWidth = asset.width / 2;
+    const halfHeight = asset.height / 2;
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "rgba(124, 58, 237, 0.9)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-halfWidth, -halfHeight, asset.width, asset.height);
 
-  const handles = getHandlePositions(asset);
-  handles.forEach((handle) => {
-    drawHandle(handle.x - halfWidth, handle.y - halfHeight, false);
-  });
+    const handles = getHandlePositions(asset);
+    handles.forEach((handle) => {
+        drawHandle(handle.x - halfWidth, handle.y - halfHeight, false);
+    });
 
-  drawHandle(0, -halfHeight - ROTATE_HANDLE_OFFSET, true);
-  ctx.restore();
+    drawHandle(0, -halfHeight - ROTATE_HANDLE_OFFSET, true);
+    ctx.restore();
 }
 
 function drawHandle(x, y, isRotation) {
-  ctx.save();
-  ctx.setLineDash([]);
-  ctx.fillStyle = isRotation ? "rgba(96, 165, 250, 0.9)" : "rgba(124, 58, 237, 0.9)";
-  ctx.strokeStyle = "#0f172a";
-  ctx.lineWidth = 1;
-  if (isRotation) {
-    ctx.beginPath();
-    ctx.arc(x, y, HANDLE_SIZE * 0.65, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  } else {
-    ctx.fillRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-    ctx.strokeRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-  }
-  ctx.restore();
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.fillStyle = isRotation ? "rgba(96, 165, 250, 0.9)" : "rgba(124, 58, 237, 0.9)";
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 1;
+    if (isRotation) {
+        ctx.beginPath();
+        ctx.arc(x, y, HANDLE_SIZE * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    } else {
+        ctx.fillRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    }
+    ctx.restore();
 }
 
 function getHandlePositions(asset) {
-  return [
-    { x: 0, y: 0, type: "nw" },
-    { x: asset.width / 2, y: 0, type: "n" },
-    { x: asset.width, y: 0, type: "ne" },
-    { x: asset.width, y: asset.height / 2, type: "e" },
-    { x: asset.width, y: asset.height, type: "se" },
-    { x: asset.width / 2, y: asset.height, type: "s" },
-    { x: 0, y: asset.height, type: "sw" },
-    { x: 0, y: asset.height / 2, type: "w" },
-  ];
+    return [
+        { x: 0, y: 0, type: "nw" },
+        { x: asset.width / 2, y: 0, type: "n" },
+        { x: asset.width, y: 0, type: "ne" },
+        { x: asset.width, y: asset.height / 2, type: "e" },
+        { x: asset.width, y: asset.height, type: "se" },
+        { x: asset.width / 2, y: asset.height, type: "s" },
+        { x: 0, y: asset.height, type: "sw" },
+        { x: 0, y: asset.height / 2, type: "w" },
+    ];
 }
 
 function rotatePoint(x, y, degrees) {
-  const radians = (degrees * Math.PI) / 180;
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  return {
-    x: x * cos - y * sin,
-    y: x * sin + y * cos,
-  };
+    const radians = (degrees * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    return {
+        x: x * cos - y * sin,
+        y: x * sin + y * cos,
+    };
 }
 
 function pointerToLocal(asset, point) {
-  const centerX = asset.x + asset.width / 2;
-  const centerY = asset.y + asset.height / 2;
-  const dx = point.x - centerX;
-  const dy = point.y - centerY;
-  const rotated = rotatePoint(dx, dy, -asset.rotation);
-  return {
-    x: rotated.x + asset.width / 2,
-    y: rotated.y + asset.height / 2,
-  };
+    const centerX = asset.x + asset.width / 2;
+    const centerY = asset.y + asset.height / 2;
+    const dx = point.x - centerX;
+    const dy = point.y - centerY;
+    const rotated = rotatePoint(dx, dy, -asset.rotation);
+    return {
+        x: rotated.x + asset.width / 2,
+        y: rotated.y + asset.height / 2,
+    };
 }
 
 function angleFromCenter(asset, point) {
-  const centerX = asset.x + asset.width / 2;
-  const centerY = asset.y + asset.height / 2;
-  return (Math.atan2(point.y - centerY, point.x - centerX) * 180) / Math.PI;
+    const centerX = asset.x + asset.width / 2;
+    const centerY = asset.y + asset.height / 2;
+    return (Math.atan2(point.y - centerY, point.x - centerX) * 180) / Math.PI;
 }
 
 function hitHandle(asset, point) {
-  const local = pointerToLocal(asset, point);
-  const tolerance = HANDLE_SIZE * 1.2;
-  const rotationDistance = Math.hypot(local.x - asset.width / 2, local.y + ROTATE_HANDLE_OFFSET);
-  if (Math.abs(local.y + ROTATE_HANDLE_OFFSET) <= tolerance && rotationDistance <= tolerance * 1.5) {
-    return "rotate";
-  }
-  for (const handle of getHandlePositions(asset)) {
-    if (Math.abs(local.x - handle.x) <= tolerance && Math.abs(local.y - handle.y) <= tolerance) {
-      return handle.type;
+    const local = pointerToLocal(asset, point);
+    const tolerance = HANDLE_SIZE * 1.2;
+    const rotationDistance = Math.hypot(local.x - asset.width / 2, local.y + ROTATE_HANDLE_OFFSET);
+    if (Math.abs(local.y + ROTATE_HANDLE_OFFSET) <= tolerance && rotationDistance <= tolerance * 1.5) {
+        return "rotate";
     }
-  }
-  return null;
+    for (const handle of getHandlePositions(asset)) {
+        if (Math.abs(local.x - handle.x) <= tolerance && Math.abs(local.y - handle.y) <= tolerance) {
+            return handle.type;
+        }
+    }
+    return null;
 }
 
 function cursorForHandle(handle) {
-  switch (handle) {
-    case "nw":
-    case "se":
-      return "nwse-resize";
-    case "ne":
-    case "sw":
-      return "nesw-resize";
-    case "n":
-    case "s":
-      return "ns-resize";
-    case "e":
-    case "w":
-      return "ew-resize";
-    case "rotate":
-      return "grab";
-    default:
-      return "default";
-  }
+    switch (handle) {
+        case "nw":
+        case "se":
+            return "nwse-resize";
+        case "ne":
+        case "sw":
+            return "nesw-resize";
+        case "n":
+        case "s":
+            return "ns-resize";
+        case "e":
+        case "w":
+            return "ew-resize";
+        case "rotate":
+            return "grab";
+        default:
+            return "default";
+    }
 }
 
 function resizeFromHandle(state, point) {
-  const asset = assets.get(state.assetId);
-  if (!asset) return;
-  const basis = state.original;
-  const local = pointerToLocal(basis, point);
-  const handle = state.handle;
-  const minSize = 10;
+    const asset = assets.get(state.assetId);
+    if (!asset) return;
+    const basis = state.original;
+    const local = pointerToLocal(basis, point);
+    const handle = state.handle;
+    const minSize = 10;
 
-  let nextWidth = basis.width;
-  let nextHeight = basis.height;
-  let offsetX = 0;
-  let offsetY = 0;
+    let nextWidth = basis.width;
+    let nextHeight = basis.height;
+    let offsetX = 0;
+    let offsetY = 0;
 
-  if (handle.includes("e")) {
-    nextWidth = basis.width + (local.x - state.startLocal.x);
-  }
-  if (handle.includes("s")) {
-    nextHeight = basis.height + (local.y - state.startLocal.y);
-  }
-  if (handle.includes("w")) {
-    nextWidth = basis.width - (local.x - state.startLocal.x);
-  }
-  if (handle.includes("n")) {
-    nextHeight = basis.height - (local.y - state.startLocal.y);
-  }
-
-  const ratio = isAspectLocked(asset.id) ? getAssetAspectRatio(asset) || basis.width / Math.max(basis.height, 1) : null;
-  if (ratio) {
-    const widthChanged = handle.includes("e") || handle.includes("w");
-    const heightChanged = handle.includes("n") || handle.includes("s");
-    if (widthChanged && !heightChanged) {
-      nextHeight = nextWidth / ratio;
-    } else if (!widthChanged && heightChanged) {
-      nextWidth = nextHeight * ratio;
-    } else {
-      if (Math.abs(nextWidth - basis.width) > Math.abs(nextHeight - basis.height)) {
-        nextHeight = nextWidth / ratio;
-      } else {
-        nextWidth = nextHeight * ratio;
-      }
+    if (handle.includes("e")) {
+        nextWidth = basis.width + (local.x - state.startLocal.x);
     }
-  }
+    if (handle.includes("s")) {
+        nextHeight = basis.height + (local.y - state.startLocal.y);
+    }
+    if (handle.includes("w")) {
+        nextWidth = basis.width - (local.x - state.startLocal.x);
+    }
+    if (handle.includes("n")) {
+        nextHeight = basis.height - (local.y - state.startLocal.y);
+    }
 
-  nextWidth = Math.max(minSize, nextWidth);
-  nextHeight = Math.max(minSize, nextHeight);
+    const ratio = isAspectLocked(asset.id)
+        ? getAssetAspectRatio(asset) || basis.width / Math.max(basis.height, 1)
+        : null;
+    if (ratio) {
+        const widthChanged = handle.includes("e") || handle.includes("w");
+        const heightChanged = handle.includes("n") || handle.includes("s");
+        if (widthChanged && !heightChanged) {
+            nextHeight = nextWidth / ratio;
+        } else if (!widthChanged && heightChanged) {
+            nextWidth = nextHeight * ratio;
+        } else {
+            if (Math.abs(nextWidth - basis.width) > Math.abs(nextHeight - basis.height)) {
+                nextHeight = nextWidth / ratio;
+            } else {
+                nextWidth = nextHeight * ratio;
+            }
+        }
+    }
 
-  if (handle.includes("w")) {
-    offsetX = basis.width - nextWidth;
-  }
-  if (handle.includes("n")) {
-    offsetY = basis.height - nextHeight;
-  }
+    nextWidth = Math.max(minSize, nextWidth);
+    nextHeight = Math.max(minSize, nextHeight);
 
-  const shift = rotatePoint(offsetX, offsetY, basis.rotation);
-  asset.x = basis.x + shift.x;
-  asset.y = basis.y + shift.y;
-  asset.width = nextWidth;
-  asset.height = nextHeight;
-  updateRenderState(asset);
-  requestDraw();
+    if (handle.includes("w")) {
+        offsetX = basis.width - nextWidth;
+    }
+    if (handle.includes("n")) {
+        offsetY = basis.height - nextHeight;
+    }
+
+    const shift = rotatePoint(offsetX, offsetY, basis.rotation);
+    asset.x = basis.x + shift.x;
+    asset.y = basis.y + shift.y;
+    asset.width = nextWidth;
+    asset.height = nextHeight;
+    updateRenderState(asset);
+    requestDraw();
 }
 
 function updateHoverCursor(point) {
-  const asset = getSelectedAsset();
-  if (asset) {
-    const handle = hitHandle(asset, point);
-    if (handle) {
-      canvas.style.cursor = cursorForHandle(handle);
-      return;
+    const asset = getSelectedAsset();
+    if (asset) {
+        const handle = hitHandle(asset, point);
+        if (handle) {
+            canvas.style.cursor = cursorForHandle(handle);
+            return;
+        }
     }
-  }
-  const hit = findAssetAtPoint(point.x, point.y);
-  canvas.style.cursor = hit ? "move" : "default";
+    const hit = findAssetAtPoint(point.x, point.y);
+    canvas.style.cursor = hit ? "move" : "default";
 }
 
 function isVideoAsset(asset) {
-  const type = asset?.mediaType || asset?.originalMediaType || "";
-  return type.startsWith("video/");
+    const type = asset?.mediaType || asset?.originalMediaType || "";
+    return type.startsWith("video/");
 }
 
 function isAudioAsset(asset) {
-  const type = asset?.mediaType || asset?.originalMediaType || "";
-  return type.startsWith("audio/");
+    const type = asset?.mediaType || asset?.originalMediaType || "";
+    return type.startsWith("audio/");
 }
 
 function isVideoElement(element) {
-  return element && element.tagName === "VIDEO";
+    return element && element.tagName === "VIDEO";
 }
 
 function getDisplayMediaType(asset) {
-  const raw = asset.originalMediaType || asset.mediaType || "";
-  if (!raw) {
-    return "Unknown";
-  }
-  const parts = raw.split("/");
-  return parts.length > 1 ? parts[1].toUpperCase() : raw.toUpperCase();
+    const raw = asset.originalMediaType || asset.mediaType || "";
+    if (!raw) {
+        return "Unknown";
+    }
+    const parts = raw.split("/");
+    return parts.length > 1 ? parts[1].toUpperCase() : raw.toUpperCase();
 }
 
 function isGifAsset(asset) {
-  return asset?.mediaType?.toLowerCase() === "image/gif";
+    return asset?.mediaType?.toLowerCase() === "image/gif";
 }
 
 function isDrawable(element) {
-  if (!element) {
-    return false;
-  }
-  if (element.isAnimated) {
-    return !!element.bitmap;
-  }
-  if (isVideoElement(element)) {
-    return element.readyState >= 2;
-  }
-  if (typeof ImageBitmap !== "undefined" && element instanceof ImageBitmap) {
-    return true;
-  }
-  return !!element.complete;
+    if (!element) {
+        return false;
+    }
+    if (element.isAnimated) {
+        return !!element.bitmap;
+    }
+    if (isVideoElement(element)) {
+        return element.readyState >= 2;
+    }
+    if (typeof ImageBitmap !== "undefined" && element instanceof ImageBitmap) {
+        return true;
+    }
+    return !!element.complete;
 }
 
 function clearMedia(assetId) {
-  mediaCache.delete(assetId);
-  const cachedPreview = previewCache.get(assetId);
-  if (cachedPreview && cachedPreview.startsWith("blob:")) {
-    URL.revokeObjectURL(cachedPreview);
-  }
-  previewCache.delete(assetId);
-  previewImageCache.delete(assetId);
-  const animated = animatedCache.get(assetId);
-  if (animated) {
-    animated.cancelled = true;
-    clearTimeout(animated.timeout);
-    animated.bitmap?.close?.();
-    animated.decoder?.close?.();
-    animatedCache.delete(assetId);
-  }
-  const audio = audioControllers.get(assetId);
-  if (audio) {
-    if (audio.delayTimeout) {
-      clearTimeout(audio.delayTimeout);
+    mediaCache.delete(assetId);
+    const cachedPreview = previewCache.get(assetId);
+    if (cachedPreview && cachedPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(cachedPreview);
     }
-    audio.element.pause();
-    audio.element.currentTime = 0;
-    audioControllers.delete(assetId);
-  }
+    previewCache.delete(assetId);
+    previewImageCache.delete(assetId);
+    const animated = animatedCache.get(assetId);
+    if (animated) {
+        animated.cancelled = true;
+        clearTimeout(animated.timeout);
+        animated.bitmap?.close?.();
+        animated.decoder?.close?.();
+        animatedCache.delete(assetId);
+    }
+    const audio = audioControllers.get(assetId);
+    if (audio) {
+        if (audio.delayTimeout) {
+            clearTimeout(audio.delayTimeout);
+        }
+        audio.element.pause();
+        audio.element.currentTime = 0;
+        audioControllers.delete(assetId);
+    }
 }
 
 function ensureAudioController(asset) {
-  const cached = audioControllers.get(asset.id);
-  if (cached && cached.src === asset.url) {
-    applyAudioSettings(cached, asset);
-    return cached;
-  }
+    const cached = audioControllers.get(asset.id);
+    if (cached && cached.src === asset.url) {
+        applyAudioSettings(cached, asset);
+        return cached;
+    }
 
-  if (cached) {
-    clearMedia(asset.id);
-  }
+    if (cached) {
+        clearMedia(asset.id);
+    }
 
-  const element = new Audio(asset.url);
-  element.autoplay = true;
-  element.controls = true;
-  element.preload = "auto";
-  element.addEventListener("loadedmetadata", () => recordDuration(asset.id, element.duration));
-  const controller = {
-    id: asset.id,
-    src: asset.url,
-    element,
-    delayTimeout: null,
-    loopEnabled: false,
-    delayMs: 0,
-    baseDelayMs: 0,
-  };
-  element.onended = () => handleAudioEnded(asset.id);
-  audioControllers.set(asset.id, controller);
-  applyAudioSettings(controller, asset, true);
-  return controller;
+    const element = new Audio(asset.url);
+    element.autoplay = true;
+    element.controls = true;
+    element.preload = "auto";
+    element.addEventListener("loadedmetadata", () => recordDuration(asset.id, element.duration));
+    const controller = {
+        id: asset.id,
+        src: asset.url,
+        element,
+        delayTimeout: null,
+        loopEnabled: false,
+        delayMs: 0,
+        baseDelayMs: 0,
+    };
+    element.onended = () => handleAudioEnded(asset.id);
+    audioControllers.set(asset.id, controller);
+    applyAudioSettings(controller, asset, true);
+    return controller;
 }
 
 function applyAudioSettings(controller, asset, resetPosition = false) {
-  controller.loopEnabled = !!asset.audioLoop;
-  controller.baseDelayMs = Math.max(0, asset.audioDelayMillis || 0);
-  controller.delayMs = controller.baseDelayMs;
-  const speed = Math.max(0.25, asset.audioSpeed || 1);
-  const pitch = Math.max(0.5, asset.audioPitch || 1);
-  controller.element.playbackRate = speed * pitch;
-  const volume = clamp(asset.audioVolume ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction);
-  controller.element.volume = volume;
-  if (resetPosition) {
-    controller.element.currentTime = 0;
-    controller.element.pause();
-  }
+    controller.loopEnabled = !!asset.audioLoop;
+    controller.baseDelayMs = Math.max(0, asset.audioDelayMillis || 0);
+    controller.delayMs = controller.baseDelayMs;
+    const speed = Math.max(0.25, asset.audioSpeed || 1);
+    const pitch = Math.max(0.5, asset.audioPitch || 1);
+    controller.element.playbackRate = speed * pitch;
+    const volume = clamp(asset.audioVolume ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction);
+    controller.element.volume = volume;
+    if (resetPosition) {
+        controller.element.currentTime = 0;
+        controller.element.pause();
+    }
 }
 
 function handleAudioEnded(assetId) {
-  const controller = audioControllers.get(assetId);
-  if (!controller) return;
-  controller.element.currentTime = 0;
-  if (controller.delayTimeout) {
-    clearTimeout(controller.delayTimeout);
-  }
-  if (controller.loopEnabled) {
-    controller.delayTimeout = setTimeout(() => {
-      safePlay(controller);
-    }, controller.delayMs);
-  } else {
-    controller.element.pause();
-  }
+    const controller = audioControllers.get(assetId);
+    if (!controller) return;
+    controller.element.currentTime = 0;
+    if (controller.delayTimeout) {
+        clearTimeout(controller.delayTimeout);
+    }
+    if (controller.loopEnabled) {
+        controller.delayTimeout = setTimeout(() => {
+            safePlay(controller);
+        }, controller.delayMs);
+    } else {
+        controller.element.pause();
+    }
 }
 
 function stopAudio(assetId) {
-  const controller = audioControllers.get(assetId);
-  if (!controller) return;
-  if (controller.delayTimeout) {
-    clearTimeout(controller.delayTimeout);
-  }
-  controller.element.pause();
-  controller.element.currentTime = 0;
-  controller.delayTimeout = null;
-  controller.delayMs = controller.baseDelayMs;
+    const controller = audioControllers.get(assetId);
+    if (!controller) return;
+    if (controller.delayTimeout) {
+        clearTimeout(controller.delayTimeout);
+    }
+    controller.element.pause();
+    controller.element.currentTime = 0;
+    controller.delayTimeout = null;
+    controller.delayMs = controller.baseDelayMs;
 }
 
 function autoStartAudio(asset) {
-  if (!isAudioAsset(asset) || asset.hidden) {
-    return;
-  }
-  ensureAudioController(asset);
+    if (!isAudioAsset(asset) || asset.hidden) {
+        return;
+    }
+    ensureAudioController(asset);
 }
 
 function ensureMedia(asset) {
-  const cached = mediaCache.get(asset.id);
-  if (cached && cached.src !== asset.url) {
-    clearMedia(asset.id);
-  }
-  if (cached && cached.src === asset.url) {
-    applyMediaSettings(cached, asset);
-    return cached;
-  }
-
-  if (isAudioAsset(asset)) {
-    ensureAudioController(asset);
-    mediaCache.delete(asset.id);
-    return null;
-  }
-
-  if (isVideoAsset(asset)) {
-    return null;
-  }
-
-  if (isGifAsset(asset) && "ImageDecoder" in window) {
-    const animated = ensureAnimatedImage(asset);
-    if (animated) {
-      mediaCache.set(asset.id, animated);
-      return animated;
+    const cached = mediaCache.get(asset.id);
+    if (cached && cached.src !== asset.url) {
+        clearMedia(asset.id);
     }
-  }
+    if (cached && cached.src === asset.url) {
+        applyMediaSettings(cached, asset);
+        return cached;
+    }
 
-  const element = isVideoAsset(asset) ? document.createElement("video") : new Image();
-  element.crossOrigin = "anonymous";
-  if (isVideoElement(element)) {
-    element.loop = true;
-    const volume = clamp(asset.audioVolume ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction);
-    element.muted = volume === 0;
-    element.volume = Math.min(volume, 1);
-    element.playsInline = true;
-    element.autoplay = false;
-    element.preload = "metadata";
-    element.onloadeddata = requestDraw;
-    element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
-    element.src = asset.url;
-    const playback = asset.speed ?? 1;
-    element.playbackRate = Math.max(playback, 0.01);
-    element.pause();
-  } else {
-    element.onload = requestDraw;
-    element.src = asset.url;
-  }
-  mediaCache.set(asset.id, element);
-  return element;
+    if (isAudioAsset(asset)) {
+        ensureAudioController(asset);
+        mediaCache.delete(asset.id);
+        return null;
+    }
+
+    if (isVideoAsset(asset)) {
+        return null;
+    }
+
+    if (isGifAsset(asset) && "ImageDecoder" in window) {
+        const animated = ensureAnimatedImage(asset);
+        if (animated) {
+            mediaCache.set(asset.id, animated);
+            return animated;
+        }
+    }
+
+    const element = isVideoAsset(asset) ? document.createElement("video") : new Image();
+    element.crossOrigin = "anonymous";
+    if (isVideoElement(element)) {
+        element.loop = true;
+        const volume = clamp(asset.audioVolume ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction);
+        element.muted = volume === 0;
+        element.volume = Math.min(volume, 1);
+        element.playsInline = true;
+        element.autoplay = false;
+        element.preload = "metadata";
+        element.onloadeddata = requestDraw;
+        element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
+        element.src = asset.url;
+        const playback = asset.speed ?? 1;
+        element.playbackRate = Math.max(playback, 0.01);
+        element.pause();
+    } else {
+        element.onload = requestDraw;
+        element.src = asset.url;
+    }
+    mediaCache.set(asset.id, element);
+    return element;
 }
 
 function ensureAnimatedImage(asset) {
-  const cached = animatedCache.get(asset.id);
-  if (cached && cached.url === asset.url) {
-    return cached;
-  }
+    const cached = animatedCache.get(asset.id);
+    if (cached && cached.url === asset.url) {
+        return cached;
+    }
 
-  if (cached) {
-    clearMedia(asset.id);
-  }
+    if (cached) {
+        clearMedia(asset.id);
+    }
 
-  const controller = {
-    id: asset.id,
-    url: asset.url,
-    src: asset.url,
-    decoder: null,
-    bitmap: null,
-    timeout: null,
-    cancelled: false,
-    isAnimated: true,
-  };
+    const controller = {
+        id: asset.id,
+        url: asset.url,
+        src: asset.url,
+        decoder: null,
+        bitmap: null,
+        timeout: null,
+        cancelled: false,
+        isAnimated: true,
+    };
 
-  fetch(asset.url)
-    .then((r) => r.blob())
-    .then((blob) => new ImageDecoder({ data: blob, type: blob.type || "image/gif" }))
-    .then((decoder) => {
-      if (controller.cancelled) {
-        decoder.close?.();
-        return null;
-      }
-      controller.decoder = decoder;
-      scheduleNextFrame(controller);
-      return controller;
-    })
-    .catch(() => {
-      animatedCache.delete(asset.id);
-    });
+    fetch(asset.url)
+        .then((r) => r.blob())
+        .then((blob) => new ImageDecoder({ data: blob, type: blob.type || "image/gif" }))
+        .then((decoder) => {
+            if (controller.cancelled) {
+                decoder.close?.();
+                return null;
+            }
+            controller.decoder = decoder;
+            scheduleNextFrame(controller);
+            return controller;
+        })
+        .catch(() => {
+            animatedCache.delete(asset.id);
+        });
 
-  animatedCache.set(asset.id, controller);
-  return controller;
+    animatedCache.set(asset.id, controller);
+    return controller;
 }
 
 function scheduleNextFrame(controller) {
-  if (controller.cancelled || !controller.decoder) {
-    return;
-  }
-  controller.decoder
-    .decode()
-    .then(({ image, complete }) => {
-      if (controller.cancelled) {
-        image.close?.();
+    if (controller.cancelled || !controller.decoder) {
         return;
-      }
-      controller.bitmap?.close?.();
-      createImageBitmap(image)
-        .then((bitmap) => {
-          controller.bitmap = bitmap;
-          requestDraw();
-        })
-        .finally(() => image.close?.());
+    }
+    controller.decoder
+        .decode()
+        .then(({ image, complete }) => {
+            if (controller.cancelled) {
+                image.close?.();
+                return;
+            }
+            controller.bitmap?.close?.();
+            createImageBitmap(image)
+                .then((bitmap) => {
+                    controller.bitmap = bitmap;
+                    requestDraw();
+                })
+                .finally(() => image.close?.());
 
-      const durationMicros = image.duration || 0;
-      const delay = durationMicros > 0 ? durationMicros / 1000 : 100;
-      const hasMore = !complete;
-      controller.timeout = setTimeout(() => {
-        if (controller.cancelled) {
-          return;
-        }
-        if (hasMore) {
-          scheduleNextFrame(controller);
-        } else {
-          controller.decoder.reset();
-          scheduleNextFrame(controller);
-        }
-      }, delay);
-    })
-    .catch(() => {
-      animatedCache.delete(controller.id);
-    });
+            const durationMicros = image.duration || 0;
+            const delay = durationMicros > 0 ? durationMicros / 1000 : 100;
+            const hasMore = !complete;
+            controller.timeout = setTimeout(() => {
+                if (controller.cancelled) {
+                    return;
+                }
+                if (hasMore) {
+                    scheduleNextFrame(controller);
+                } else {
+                    controller.decoder.reset();
+                    scheduleNextFrame(controller);
+                }
+            }, delay);
+        })
+        .catch(() => {
+            animatedCache.delete(controller.id);
+        });
 }
 
 function applyMediaSettings(element, asset) {
-  if (!isVideoElement(element)) {
-    return;
-  }
-  const nextSpeed = asset.speed ?? 1;
-  const effectiveSpeed = Math.max(nextSpeed, 0.01);
-  if (element.playbackRate !== effectiveSpeed) {
-    element.playbackRate = effectiveSpeed;
-  }
-  const volume = clamp(asset.audioVolume ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction);
-  element.muted = volume === 0;
-  element.volume = Math.min(volume, 1);
-  if (nextSpeed === 0) {
-    element.pause();
-    return;
-  }
-  const playPromise = element.play();
-  if (playPromise?.catch) {
-    playPromise.catch(() => {});
-  }
+    if (!isVideoElement(element)) {
+        return;
+    }
+    const nextSpeed = asset.speed ?? 1;
+    const effectiveSpeed = Math.max(nextSpeed, 0.01);
+    if (element.playbackRate !== effectiveSpeed) {
+        element.playbackRate = effectiveSpeed;
+    }
+    const volume = clamp(asset.audioVolume ?? 1, SETTINGS.minAssetVolumeFraction, SETTINGS.maxAssetVolumeFraction);
+    element.muted = volume === 0;
+    element.volume = Math.min(volume, 1);
+    if (nextSpeed === 0) {
+        element.pause();
+        return;
+    }
+    const playPromise = element.play();
+    if (playPromise?.catch) {
+        playPromise.catch(() => {});
+    }
 }
 
 function renderAssetList() {
-  const list = document.getElementById("asset-list");
-  if (controlsPlaceholder && controlsPanel && controlsPanel.parentElement !== controlsPlaceholder) {
-    controlsPlaceholder.appendChild(controlsPanel);
-  }
-  if (controlsPanel) {
-    controlsPanel.classList.add("hidden");
-  }
-  list.innerHTML = "";
+    const list = document.getElementById("asset-list");
+    if (controlsPlaceholder && controlsPanel && controlsPanel.parentElement !== controlsPlaceholder) {
+        controlsPlaceholder.appendChild(controlsPanel);
+    }
+    if (controlsPanel) {
+        controlsPanel.classList.add("hidden");
+    }
+    list.innerHTML = "";
 
-  const hasAssets = assets.size > 0;
-  const hasPending = pendingUploads.length > 0;
+    const hasAssets = assets.size > 0;
+    const hasPending = pendingUploads.length > 0;
 
-  if (!hasAssets && !hasPending) {
-    selectedAssetId = null;
+    if (!hasAssets && !hasPending) {
+        selectedAssetId = null;
+        if (assetInspector) {
+            assetInspector.classList.add("hidden");
+        }
+        const empty = document.createElement("li");
+        empty.textContent = "";
+        list.appendChild(empty);
+        updateSelectedAssetControls();
+        return;
+    }
+
     if (assetInspector) {
-      assetInspector.classList.add("hidden");
+        assetInspector.classList.toggle("hidden", !hasAssets);
     }
-    const empty = document.createElement("li");
-    empty.textContent = "";
-    list.appendChild(empty);
+
+    const pendingItems = [...pendingUploads].sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+    pendingItems.forEach((pending) => {
+        list.appendChild(createPendingListItem(pending));
+    });
+
+    const audioAssets = getAudioAssets();
+    const sortedAssets = [...audioAssets, ...getAssetsByLayer()];
+    sortedAssets.forEach((asset) => {
+        const li = document.createElement("li");
+        li.className = "asset-item";
+        if (asset.id === selectedAssetId) {
+            li.classList.add("selected");
+        }
+        li.classList.toggle("is-hidden", !!asset.hidden);
+
+        const row = document.createElement("div");
+        row.className = "asset-row";
+
+        const preview = createPreviewElement(asset);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const name = document.createElement("strong");
+        name.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
+        const details = document.createElement("small");
+        details.textContent = `${Math.round(asset.width)}x${Math.round(asset.height)}`;
+        meta.appendChild(name);
+        meta.appendChild(details);
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+
+        if (isAudioAsset(asset)) {
+            const playBtn = document.createElement("button");
+            playBtn.type = "button";
+            playBtn.className = "ghost icon-button";
+            const isLooping = !!asset.audioLoop;
+            const isPlayingLoop = getLoopPlaybackState(asset);
+            updatePlayButtonIcon(playBtn, isLooping, isPlayingLoop);
+            playBtn.title = isLooping ? (isPlayingLoop ? "Pause looping audio" : "Play looping audio") : "Play audio";
+            playBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const nextPlay = isLooping ? !(loopPlaybackState.get(asset.id) ?? getLoopPlaybackState(asset)) : true;
+                if (isLooping) {
+                    loopPlaybackState.set(asset.id, nextPlay);
+                    updatePlayButtonIcon(playBtn, true, nextPlay);
+                    playBtn.title = nextPlay ? "Pause looping audio" : "Play looping audio";
+                }
+                triggerAudioPlayback(asset, nextPlay);
+            });
+            actions.appendChild(playBtn);
+        }
+
+        if (!isAudioAsset(asset)) {
+            const toggleBtn = document.createElement("button");
+            toggleBtn.type = "button";
+            toggleBtn.className = "ghost icon-button";
+            toggleBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? "fa-eye" : "fa-eye-slash"}"></i>`;
+            toggleBtn.title = asset.hidden ? "Show asset" : "Hide asset";
+            toggleBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                selectedAssetId = asset.id;
+                updateVisibility(asset, !asset.hidden);
+            });
+            actions.appendChild(toggleBtn);
+        }
+
+        row.appendChild(preview);
+        row.appendChild(meta);
+        row.appendChild(actions);
+
+        li.addEventListener("click", () => {
+            selectedAssetId = asset.id;
+            updateRenderState(asset);
+            drawAndList();
+        });
+
+        li.appendChild(row);
+        list.appendChild(li);
+    });
+
     updateSelectedAssetControls();
-    return;
-  }
+}
 
-  if (assetInspector) {
-    assetInspector.classList.toggle("hidden", !hasAssets);
-  }
-
-  const pendingItems = [...pendingUploads].sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
-  pendingItems.forEach((pending) => {
-    list.appendChild(createPendingListItem(pending));
-  });
-
-  const audioAssets = getAudioAssets();
-  const sortedAssets = [...audioAssets, ...getAssetsByLayer()];
-  sortedAssets.forEach((asset) => {
+function createPendingListItem(pending) {
     const li = document.createElement("li");
-    li.className = "asset-item";
-    if (asset.id === selectedAssetId) {
-      li.classList.add("selected");
-    }
-    li.classList.toggle("is-hidden", !!asset.hidden);
+    li.className = "asset-item pending";
 
     const row = document.createElement("div");
     row.className = "asset-row";
 
-    const preview = createPreviewElement(asset);
+    const preview = document.createElement("div");
+    preview.className = "asset-preview pending-preview";
+    preview.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>';
 
     const meta = document.createElement("div");
     meta.className = "meta";
     const name = document.createElement("strong");
-    name.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
+    name.textContent = pending?.name || "Uploading asset";
     const details = document.createElement("small");
-    details.textContent = `${Math.round(asset.width)}x${Math.round(asset.height)}`;
+    details.textContent = pending.status === "processing" ? "Processing upload…" : "Uploading…";
     meta.appendChild(name);
     meta.appendChild(details);
 
-    const actions = document.createElement("div");
-    actions.className = "actions";
-
-    if (isAudioAsset(asset)) {
-      const playBtn = document.createElement("button");
-      playBtn.type = "button";
-      playBtn.className = "ghost icon-button";
-      const isLooping = !!asset.audioLoop;
-      const isPlayingLoop = getLoopPlaybackState(asset);
-      updatePlayButtonIcon(playBtn, isLooping, isPlayingLoop);
-      playBtn.title = isLooping ? (isPlayingLoop ? "Pause looping audio" : "Play looping audio") : "Play audio";
-      playBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const nextPlay = isLooping ? !(loopPlaybackState.get(asset.id) ?? getLoopPlaybackState(asset)) : true;
-        if (isLooping) {
-          loopPlaybackState.set(asset.id, nextPlay);
-          updatePlayButtonIcon(playBtn, true, nextPlay);
-          playBtn.title = nextPlay ? "Pause looping audio" : "Play looping audio";
-        }
-        triggerAudioPlayback(asset, nextPlay);
-      });
-      actions.appendChild(playBtn);
+    const progress = document.createElement("div");
+    progress.className = "upload-progress";
+    const bar = document.createElement("div");
+    bar.className = "upload-progress-bar";
+    if (pending.status === "processing") {
+        bar.classList.add("is-processing");
     }
-
-    if (!isAudioAsset(asset)) {
-      const toggleBtn = document.createElement("button");
-      toggleBtn.type = "button";
-      toggleBtn.className = "ghost icon-button";
-      toggleBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? "fa-eye" : "fa-eye-slash"}"></i>`;
-      toggleBtn.title = asset.hidden ? "Show asset" : "Hide asset";
-      toggleBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        selectedAssetId = asset.id;
-        updateVisibility(asset, !asset.hidden);
-      });
-      actions.appendChild(toggleBtn);
-    }
+    progress.appendChild(bar);
+    meta.appendChild(progress);
 
     row.appendChild(preview);
     row.appendChild(meta);
-    row.appendChild(actions);
-
-    li.addEventListener("click", () => {
-      selectedAssetId = asset.id;
-      updateRenderState(asset);
-      drawAndList();
-    });
-
     li.appendChild(row);
-    list.appendChild(li);
-  });
 
-  updateSelectedAssetControls();
-}
-
-function createPendingListItem(pending) {
-  const li = document.createElement("li");
-  li.className = "asset-item pending";
-
-  const row = document.createElement("div");
-  row.className = "asset-row";
-
-  const preview = document.createElement("div");
-  preview.className = "asset-preview pending-preview";
-  preview.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>';
-
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const name = document.createElement("strong");
-  name.textContent = pending?.name || "Uploading asset";
-  const details = document.createElement("small");
-  details.textContent = pending.status === "processing" ? "Processing upload…" : "Uploading…";
-  meta.appendChild(name);
-  meta.appendChild(details);
-
-  const progress = document.createElement("div");
-  progress.className = "upload-progress";
-  const bar = document.createElement("div");
-  bar.className = "upload-progress-bar";
-  if (pending.status === "processing") {
-    bar.classList.add("is-processing");
-  }
-  progress.appendChild(bar);
-  meta.appendChild(progress);
-
-  row.appendChild(preview);
-  row.appendChild(meta);
-  li.appendChild(row);
-
-  return li;
+    return li;
 }
 
 function createBadge(label, extraClass = "") {
-  const badge = document.createElement("span");
-  badge.className = `badge ${extraClass}`.trim();
-  badge.textContent = label;
-  return badge;
+    const badge = document.createElement("span");
+    badge.className = `badge ${extraClass}`.trim();
+    badge.textContent = label;
+    return badge;
 }
 
 function getLoopPlaybackState(asset) {
-  if (!isAudioAsset(asset) || !asset.audioLoop) {
-    return false;
-  }
-  if (loopPlaybackState.has(asset.id)) {
-    return loopPlaybackState.get(asset.id);
-  }
-  const isVisible = asset.hidden === false || asset.hidden === undefined;
-  loopPlaybackState.set(asset.id, isVisible);
-  return isVisible;
+    if (!isAudioAsset(asset) || !asset.audioLoop) {
+        return false;
+    }
+    if (loopPlaybackState.has(asset.id)) {
+        return loopPlaybackState.get(asset.id);
+    }
+    const isVisible = asset.hidden === false || asset.hidden === undefined;
+    loopPlaybackState.set(asset.id, isVisible);
+    return isVisible;
 }
 
 function updatePlayButtonIcon(button, isLooping, isPlayingLoop) {
-  const icon = isLooping ? (isPlayingLoop ? "fa-pause" : "fa-play") : "fa-play";
-  button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+    const icon = isLooping ? (isPlayingLoop ? "fa-pause" : "fa-play") : "fa-play";
+    button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
 }
 
 function createPreviewElement(asset) {
-  if (isAudioAsset(asset)) {
-    const icon = document.createElement("div");
-    icon.className = "asset-preview audio-icon";
-    icon.innerHTML = '<i class="fa-solid fa-music" aria-hidden="true"></i>';
-    return icon;
-  }
-  if (isVideoAsset(asset) || isGifAsset(asset)) {
-    const still = document.createElement("div");
-    still.className = "asset-preview still";
-    still.setAttribute("aria-label", asset.name || "Asset preview");
+    if (isAudioAsset(asset)) {
+        const icon = document.createElement("div");
+        icon.className = "asset-preview audio-icon";
+        icon.innerHTML = '<i class="fa-solid fa-music" aria-hidden="true"></i>';
+        return icon;
+    }
+    if (isVideoAsset(asset) || isGifAsset(asset)) {
+        const still = document.createElement("div");
+        still.className = "asset-preview still";
+        still.setAttribute("aria-label", asset.name || "Asset preview");
 
-    const overlay = document.createElement("div");
-    overlay.className = "preview-overlay";
-    overlay.innerHTML = '<i class="fa-solid fa-play"></i>';
-    still.appendChild(overlay);
+        const overlay = document.createElement("div");
+        overlay.className = "preview-overlay";
+        overlay.innerHTML = '<i class="fa-solid fa-play"></i>';
+        still.appendChild(overlay);
 
-    loadPreviewFrame(asset, still);
-    return still;
-  }
+        loadPreviewFrame(asset, still);
+        return still;
+    }
 
-  const img = document.createElement("img");
-  img.className = "asset-preview";
-  img.src = asset.url;
-  img.alt = asset.name || "Asset preview";
-  img.loading = "lazy";
-  return img;
+    const img = document.createElement("img");
+    img.className = "asset-preview";
+    img.src = asset.url;
+    img.alt = asset.name || "Asset preview";
+    img.loading = "lazy";
+    return img;
 }
 
 function fetchPreviewData(asset) {
-  if (!asset) return Promise.resolve(null);
-  const cached = previewCache.get(asset.id);
-  if (cached) {
-    return Promise.resolve(cached);
-  }
+    if (!asset) return Promise.resolve(null);
+    const cached = previewCache.get(asset.id);
+    if (cached) {
+        return Promise.resolve(cached);
+    }
 
-  const fallback = () => {
-    const fallbackPromise = isVideoAsset(asset)
-      ? captureVideoFrame(asset)
-      : isGifAsset(asset)
-        ? captureGifFrame(asset)
-        : Promise.resolve(null);
-    return fallbackPromise.then((result) => {
-      if (!result) {
-        return null;
-      }
-      previewCache.set(asset.id, result);
-      return result;
-    });
-  };
-
-  if (!asset.previewUrl) {
-    return fallback();
-  }
-
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      previewCache.set(asset.id, asset.previewUrl);
-      resolve(asset.previewUrl);
+    const fallback = () => {
+        const fallbackPromise = isVideoAsset(asset)
+            ? captureVideoFrame(asset)
+            : isGifAsset(asset)
+              ? captureGifFrame(asset)
+              : Promise.resolve(null);
+        return fallbackPromise.then((result) => {
+            if (!result) {
+                return null;
+            }
+            previewCache.set(asset.id, result);
+            return result;
+        });
     };
-    img.onerror = () => fallback().then(resolve);
-    img.src = asset.previewUrl;
-  }).catch(() => null);
+
+    if (!asset.previewUrl) {
+        return fallback();
+    }
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            previewCache.set(asset.id, asset.previewUrl);
+            resolve(asset.previewUrl);
+        };
+        img.onerror = () => fallback().then(resolve);
+        img.src = asset.previewUrl;
+    }).catch(() => null);
 }
 
 function loadPreviewFrame(asset, element) {
-  if (!asset || !element) return;
-  fetchPreviewData(asset)
-    .then((dataUrl) => {
-      if (!dataUrl) return;
-      applyPreviewFrame(element, dataUrl);
-    })
-    .catch(() => {});
+    if (!asset || !element) return;
+    fetchPreviewData(asset)
+        .then((dataUrl) => {
+            if (!dataUrl) return;
+            applyPreviewFrame(element, dataUrl);
+        })
+        .catch(() => {});
 }
 
 function applyPreviewFrame(element, dataUrl) {
-  if (!element || !dataUrl) return;
-  element.style.backgroundImage = `url(${dataUrl})`;
-  element.classList.add("has-image");
+    if (!element || !dataUrl) return;
+    element.style.backgroundImage = `url(${dataUrl})`;
+    element.classList.add("has-image");
 }
 
 function ensureCanvasPreview(asset) {
-  const cachedData = previewCache.get(asset.id);
-  const cachedImage = previewImageCache.get(asset.id);
-  if (cachedData && cachedImage?.src === cachedData) {
-    return cachedImage.image;
-  }
+    const cachedData = previewCache.get(asset.id);
+    const cachedImage = previewImageCache.get(asset.id);
+    if (cachedData && cachedImage?.src === cachedData) {
+        return cachedImage.image;
+    }
 
-  if (cachedData) {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = requestDraw;
-    img.src = cachedData;
-    previewImageCache.set(asset.id, { src: cachedData, image: img });
-    return img;
-  }
+    if (cachedData) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = requestDraw;
+        img.src = cachedData;
+        previewImageCache.set(asset.id, { src: cachedData, image: img });
+        return img;
+    }
 
-  fetchPreviewData(asset)
-    .then((dataUrl) => {
-      if (!dataUrl) return;
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = requestDraw;
-      img.src = dataUrl;
-      previewImageCache.set(asset.id, { src: dataUrl, image: img });
-    })
-    .catch(() => {});
+    fetchPreviewData(asset)
+        .then((dataUrl) => {
+            if (!dataUrl) return;
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = requestDraw;
+            img.src = dataUrl;
+            previewImageCache.set(asset.id, { src: dataUrl, image: img });
+        })
+        .catch(() => {});
 
-  return null;
+    return null;
 }
 
 function captureVideoFrame(asset) {
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.preload = "auto";
-    video.muted = true;
-    video.playsInline = true;
-    video.src = asset.url;
+    return new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.crossOrigin = "anonymous";
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        video.src = asset.url;
 
-    video.addEventListener("loadedmetadata", () => recordDuration(asset.id, video.duration), { once: true });
+        video.addEventListener("loadedmetadata", () => recordDuration(asset.id, video.duration), { once: true });
 
-    const cleanup = () => {
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
-    };
+        const cleanup = () => {
+            video.pause();
+            video.removeAttribute("src");
+            video.load();
+        };
 
-    video.addEventListener(
-      "loadeddata",
-      () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || asset.width || 0;
-        canvas.height = video.videoHeight || asset.height || 0;
-        if (!canvas.width || !canvas.height) {
-          cleanup();
-          resolve(null);
-          return;
-        }
-        const context = canvas.getContext("2d");
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        try {
-          const dataUrl = canvas.toDataURL("image/png");
-          resolve(dataUrl);
-        } catch (err) {
-          resolve(null);
-        }
-        cleanup();
-      },
-      { once: true },
-    );
+        video.addEventListener(
+            "loadeddata",
+            () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth || asset.width || 0;
+                canvas.height = video.videoHeight || asset.height || 0;
+                if (!canvas.width || !canvas.height) {
+                    cleanup();
+                    resolve(null);
+                    return;
+                }
+                const context = canvas.getContext("2d");
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                try {
+                    const dataUrl = canvas.toDataURL("image/png");
+                    resolve(dataUrl);
+                } catch (err) {
+                    resolve(null);
+                }
+                cleanup();
+            },
+            { once: true },
+        );
 
-    video.addEventListener(
-      "error",
-      () => {
-        cleanup();
-        resolve(null);
-      },
-      { once: true },
-    );
-  });
+        video.addEventListener(
+            "error",
+            () => {
+                cleanup();
+                resolve(null);
+            },
+            { once: true },
+        );
+    });
 }
 
 function captureGifFrame(asset) {
-  if (!("ImageDecoder" in window)) {
-    return Promise.resolve(null);
-  }
-  return fetch(asset.url)
-    .then((r) => r.blob())
-    .then((blob) => new ImageDecoder({ data: blob, type: blob.type || "image/gif" }))
-    .then((decoder) => decoder.decode({ frameIndex: 0 }))
-    .then(({ image }) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.displayWidth || asset.width || 0;
-      canvas.height = image.displayHeight || asset.height || 0;
-      const ctx2d = canvas.getContext("2d");
-      ctx2d.drawImage(image, 0, 0, canvas.width, canvas.height);
-      image.close?.();
-      try {
-        return canvas.toDataURL("image/png");
-      } catch (err) {
-        return null;
-      }
-    })
-    .catch(() => null);
+    if (!("ImageDecoder" in window)) {
+        return Promise.resolve(null);
+    }
+    return fetch(asset.url)
+        .then((r) => r.blob())
+        .then((blob) => new ImageDecoder({ data: blob, type: blob.type || "image/gif" }))
+        .then((decoder) => decoder.decode({ frameIndex: 0 }))
+        .then(({ image }) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.displayWidth || asset.width || 0;
+            canvas.height = image.displayHeight || asset.height || 0;
+            const ctx2d = canvas.getContext("2d");
+            ctx2d.drawImage(image, 0, 0, canvas.width, canvas.height);
+            image.close?.();
+            try {
+                return canvas.toDataURL("image/png");
+            } catch (err) {
+                return null;
+            }
+        })
+        .catch(() => null);
 }
 
 function getSelectedAsset() {
-  return selectedAssetId ? assets.get(selectedAssetId) : null;
+    return selectedAssetId ? assets.get(selectedAssetId) : null;
 }
 
 function updateSelectedAssetControls(asset = getSelectedAsset()) {
-  if (controlsPlaceholder && controlsPanel && controlsPanel.parentElement !== controlsPlaceholder) {
-    controlsPlaceholder.appendChild(controlsPanel);
-  }
-
-  updateSelectedAssetSummary(asset);
-
-  if (!controlsPanel || !asset) {
-    if (controlsPanel) controlsPanel.classList.add("hidden");
-    return;
-  }
-
-  controlsPanel.classList.remove("hidden");
-  lastSizeInputChanged = null;
-  if (selectedZLabel) {
-    selectedZLabel.textContent = getLayerValue(asset.id);
-  }
-
-  if (widthInput) widthInput.value = Math.round(asset.width);
-  if (heightInput) heightInput.value = Math.round(asset.height);
-  if (aspectLockInput) {
-    aspectLockInput.checked = isAspectLocked(asset.id);
-    aspectLockInput.onchange = () => setAspectLock(asset.id, aspectLockInput.checked);
-  }
-  const hideLayout = isAudioAsset(asset);
-  if (layoutSection) {
-    layoutSection.classList.toggle("hidden", hideLayout);
-    const layoutControls = layoutSection.querySelectorAll("input, button");
-    layoutControls.forEach((control) => {
-      control.disabled = hideLayout;
-      control.classList.toggle("disabled", hideLayout);
-    });
-  }
-  if (assetActionButtons.length) {
-    assetActionButtons.forEach((button) => {
-      const allowForAudio = button.dataset.audioEnabled === "true";
-      const disableButton = hideLayout && !allowForAudio;
-      button.disabled = disableButton;
-      button.classList.toggle("disabled", disableButton);
-    });
-  }
-  if (speedInput) {
-    const percent = Math.round((asset.speed ?? 1) * 100);
-    speedInput.value = Math.min(1000, Math.max(0, percent));
-    setSpeedLabel(speedInput.value);
-  }
-  if (playbackSection) {
-    const shouldShowPlayback = isVideoAsset(asset);
-    playbackSection.classList.toggle("hidden", !shouldShowPlayback);
-    speedInput?.classList?.toggle("disabled", !shouldShowPlayback);
-  }
-  if (volumeSection) {
-    const showVolume = isAudioAsset(asset) || isVideoAsset(asset);
-    volumeSection.classList.toggle("hidden", !showVolume);
-    const volumeControls = volumeSection.querySelectorAll("input");
-    volumeControls.forEach((control) => {
-      control.disabled = !showVolume;
-      control.classList.toggle("disabled", !showVolume);
-    });
-    if (showVolume && volumeInput) {
-      const sliderValue = volumeToSlider(asset.audioVolume ?? 1);
-      volumeInput.value = sliderValue;
-      setVolumeLabel(sliderValue);
+    if (controlsPlaceholder && controlsPanel && controlsPanel.parentElement !== controlsPlaceholder) {
+        controlsPlaceholder.appendChild(controlsPanel);
     }
-  }
-  if (audioSection) {
-    const showAudio = isAudioAsset(asset);
-    audioSection.classList.toggle("hidden", !showAudio);
-    const audioInputs = [audioLoopInput, audioDelayInput, audioSpeedInput, audioPitchInput];
-    audioInputs.forEach((input) => {
-      if (!input) return;
-      input.disabled = !showAudio;
-      input.parentElement?.classList?.toggle("disabled", !showAudio);
-    });
-    if (showAudio) {
-      audioLoopInput.checked = !!asset.audioLoop;
-      const delayMs = clamp(Math.max(0, asset.audioDelayMillis ?? 0), 0, 30000);
-      audioDelayInput.value = delayMs;
-      setAudioDelayLabel(delayMs);
-      const audioSpeedPercent = clamp(Math.round(Math.max(0.25, asset.audioSpeed ?? 1) * 100), 25, 400);
-      audioSpeedInput.value = audioSpeedPercent;
-      setAudioSpeedLabel(audioSpeedPercent);
-      const pitchPercent = clamp(Math.round(Math.max(0.5, asset.audioPitch ?? 1) * 100), 50, 200);
-      audioPitchInput.value = pitchPercent;
-      setAudioPitchLabel(pitchPercent);
+
+    updateSelectedAssetSummary(asset);
+
+    if (!controlsPanel || !asset) {
+        if (controlsPanel) controlsPanel.classList.add("hidden");
+        return;
     }
-  }
+
+    controlsPanel.classList.remove("hidden");
+    lastSizeInputChanged = null;
+    if (selectedZLabel) {
+        selectedZLabel.textContent = getLayerValue(asset.id);
+    }
+
+    if (widthInput) widthInput.value = Math.round(asset.width);
+    if (heightInput) heightInput.value = Math.round(asset.height);
+    if (aspectLockInput) {
+        aspectLockInput.checked = isAspectLocked(asset.id);
+        aspectLockInput.onchange = () => setAspectLock(asset.id, aspectLockInput.checked);
+    }
+    const hideLayout = isAudioAsset(asset);
+    if (layoutSection) {
+        layoutSection.classList.toggle("hidden", hideLayout);
+        const layoutControls = layoutSection.querySelectorAll("input, button");
+        layoutControls.forEach((control) => {
+            control.disabled = hideLayout;
+            control.classList.toggle("disabled", hideLayout);
+        });
+    }
+    if (assetActionButtons.length) {
+        assetActionButtons.forEach((button) => {
+            const allowForAudio = button.dataset.audioEnabled === "true";
+            const disableButton = hideLayout && !allowForAudio;
+            button.disabled = disableButton;
+            button.classList.toggle("disabled", disableButton);
+        });
+    }
+    if (speedInput) {
+        const percent = Math.round((asset.speed ?? 1) * 100);
+        speedInput.value = Math.min(1000, Math.max(0, percent));
+        setSpeedLabel(speedInput.value);
+    }
+    if (playbackSection) {
+        const shouldShowPlayback = isVideoAsset(asset);
+        playbackSection.classList.toggle("hidden", !shouldShowPlayback);
+        speedInput?.classList?.toggle("disabled", !shouldShowPlayback);
+    }
+    if (volumeSection) {
+        const showVolume = isAudioAsset(asset) || isVideoAsset(asset);
+        volumeSection.classList.toggle("hidden", !showVolume);
+        const volumeControls = volumeSection.querySelectorAll("input");
+        volumeControls.forEach((control) => {
+            control.disabled = !showVolume;
+            control.classList.toggle("disabled", !showVolume);
+        });
+        if (showVolume && volumeInput) {
+            const sliderValue = volumeToSlider(asset.audioVolume ?? 1);
+            volumeInput.value = sliderValue;
+            setVolumeLabel(sliderValue);
+        }
+    }
+    if (audioSection) {
+        const showAudio = isAudioAsset(asset);
+        audioSection.classList.toggle("hidden", !showAudio);
+        const audioInputs = [audioLoopInput, audioDelayInput, audioSpeedInput, audioPitchInput];
+        audioInputs.forEach((input) => {
+            if (!input) return;
+            input.disabled = !showAudio;
+            input.parentElement?.classList?.toggle("disabled", !showAudio);
+        });
+        if (showAudio) {
+            audioLoopInput.checked = !!asset.audioLoop;
+            const delayMs = clamp(Math.max(0, asset.audioDelayMillis ?? 0), 0, 30000);
+            audioDelayInput.value = delayMs;
+            setAudioDelayLabel(delayMs);
+            const audioSpeedPercent = clamp(Math.round(Math.max(0.25, asset.audioSpeed ?? 1) * 100), 25, 400);
+            audioSpeedInput.value = audioSpeedPercent;
+            setAudioSpeedLabel(audioSpeedPercent);
+            const pitchPercent = clamp(Math.round(Math.max(0.5, asset.audioPitch ?? 1) * 100), 50, 200);
+            audioPitchInput.value = pitchPercent;
+            setAudioPitchLabel(pitchPercent);
+        }
+    }
 }
 
 function updateSelectedAssetSummary(asset) {
-  if (assetInspector) {
-    assetInspector.classList.toggle("hidden", !asset && !assets.size);
-  }
+    if (assetInspector) {
+        assetInspector.classList.toggle("hidden", !asset && !assets.size);
+    }
 
-  ensureDurationMetadata(asset);
+    ensureDurationMetadata(asset);
 
-  if (selectedAssetName) {
-    selectedAssetName.textContent = asset ? asset.name || `Asset ${asset.id.slice(0, 6)}` : "Choose an asset";
-  }
-  if (selectedAssetMeta) {
-    selectedAssetMeta.textContent = asset
-      ? getDisplayMediaType(asset)
-      : "Pick an asset in the list to adjust its placement and playback.";
-  }
-  if (selectedAssetResolution) {
-    if (asset) {
-      selectedAssetResolution.textContent = `${Math.round(asset.width)}×${Math.round(asset.height)}`;
-      selectedAssetResolution.classList.remove("hidden");
-    } else {
-      selectedAssetResolution.textContent = "";
-      selectedAssetResolution.classList.add("hidden");
+    if (selectedAssetName) {
+        selectedAssetName.textContent = asset ? asset.name || `Asset ${asset.id.slice(0, 6)}` : "Choose an asset";
     }
-  }
-  if (selectedAssetIdLabel) {
-    if (asset) {
-      selectedAssetIdLabel.textContent = `ID: ${asset.id}`;
-      selectedAssetIdLabel.classList.remove("hidden");
-    } else {
-      selectedAssetIdLabel.classList.add("hidden");
-      selectedAssetIdLabel.textContent = "";
+    if (selectedAssetMeta) {
+        selectedAssetMeta.textContent = asset
+            ? getDisplayMediaType(asset)
+            : "Pick an asset in the list to adjust its placement and playback.";
     }
-  }
-  if (selectedAssetBadges) {
-    selectedAssetBadges.innerHTML = "";
-    if (asset) {
-      selectedAssetBadges.appendChild(createBadge(getDisplayMediaType(asset)));
-      const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : "";
-      if (aspectLabel) {
-        selectedAssetBadges.appendChild(createBadge(aspectLabel, "subtle"));
-      }
-      const durationLabel = getDurationBadge(asset);
-      if (durationLabel) {
-        selectedAssetBadges.appendChild(createBadge(durationLabel, "subtle"));
-      }
-    }
-  }
-  if (selectedVisibilityBtn) {
-    selectedVisibilityBtn.disabled = !asset;
-    selectedVisibilityBtn.onclick = null;
-    if (asset && isAudioAsset(asset)) {
-      const isLooping = !!asset.audioLoop;
-      const isPlayingLoop = getLoopPlaybackState(asset);
-      updatePlayButtonIcon(selectedVisibilityBtn, isLooping, isPlayingLoop);
-      selectedVisibilityBtn.title = isLooping
-        ? isPlayingLoop
-          ? "Pause looping audio"
-          : "Play looping audio"
-        : "Play audio";
-      selectedVisibilityBtn.onclick = () => {
-        const nextPlay = isLooping ? !(loopPlaybackState.get(asset.id) ?? getLoopPlaybackState(asset)) : true;
-        if (isLooping) {
-          loopPlaybackState.set(asset.id, nextPlay);
-          updatePlayButtonIcon(selectedVisibilityBtn, true, nextPlay);
-          selectedVisibilityBtn.title = nextPlay ? "Pause looping audio" : "Play looping audio";
+    if (selectedAssetResolution) {
+        if (asset) {
+            selectedAssetResolution.textContent = `${Math.round(asset.width)}×${Math.round(asset.height)}`;
+            selectedAssetResolution.classList.remove("hidden");
+        } else {
+            selectedAssetResolution.textContent = "";
+            selectedAssetResolution.classList.add("hidden");
         }
-        triggerAudioPlayback(asset, nextPlay);
-      };
-    } else if (asset) {
-      selectedVisibilityBtn.title = asset.hidden ? "Show asset" : "Hide asset";
-      selectedVisibilityBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? "fa-eye" : "fa-eye-slash"}"></i>`;
-      selectedVisibilityBtn.onclick = () => updateVisibility(asset, !asset.hidden);
-    } else {
-      selectedVisibilityBtn.title = "Toggle visibility";
-      selectedVisibilityBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
     }
-  }
-  if (selectedDeleteBtn) {
-    selectedDeleteBtn.disabled = !asset;
-    selectedDeleteBtn.title = asset ? "Delete asset" : "Delete asset";
-  }
+    if (selectedAssetIdLabel) {
+        if (asset) {
+            selectedAssetIdLabel.textContent = `ID: ${asset.id}`;
+            selectedAssetIdLabel.classList.remove("hidden");
+        } else {
+            selectedAssetIdLabel.classList.add("hidden");
+            selectedAssetIdLabel.textContent = "";
+        }
+    }
+    if (selectedAssetBadges) {
+        selectedAssetBadges.innerHTML = "";
+        if (asset) {
+            selectedAssetBadges.appendChild(createBadge(getDisplayMediaType(asset)));
+            const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : "";
+            if (aspectLabel) {
+                selectedAssetBadges.appendChild(createBadge(aspectLabel, "subtle"));
+            }
+            const durationLabel = getDurationBadge(asset);
+            if (durationLabel) {
+                selectedAssetBadges.appendChild(createBadge(durationLabel, "subtle"));
+            }
+        }
+    }
+    if (selectedVisibilityBtn) {
+        selectedVisibilityBtn.disabled = !asset;
+        selectedVisibilityBtn.onclick = null;
+        if (asset && isAudioAsset(asset)) {
+            const isLooping = !!asset.audioLoop;
+            const isPlayingLoop = getLoopPlaybackState(asset);
+            updatePlayButtonIcon(selectedVisibilityBtn, isLooping, isPlayingLoop);
+            selectedVisibilityBtn.title = isLooping
+                ? isPlayingLoop
+                    ? "Pause looping audio"
+                    : "Play looping audio"
+                : "Play audio";
+            selectedVisibilityBtn.onclick = () => {
+                const nextPlay = isLooping ? !(loopPlaybackState.get(asset.id) ?? getLoopPlaybackState(asset)) : true;
+                if (isLooping) {
+                    loopPlaybackState.set(asset.id, nextPlay);
+                    updatePlayButtonIcon(selectedVisibilityBtn, true, nextPlay);
+                    selectedVisibilityBtn.title = nextPlay ? "Pause looping audio" : "Play looping audio";
+                }
+                triggerAudioPlayback(asset, nextPlay);
+            };
+        } else if (asset) {
+            selectedVisibilityBtn.title = asset.hidden ? "Show asset" : "Hide asset";
+            selectedVisibilityBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? "fa-eye" : "fa-eye-slash"}"></i>`;
+            selectedVisibilityBtn.onclick = () => updateVisibility(asset, !asset.hidden);
+        } else {
+            selectedVisibilityBtn.title = "Toggle visibility";
+            selectedVisibilityBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+        }
+    }
+    if (selectedDeleteBtn) {
+        selectedDeleteBtn.disabled = !asset;
+        selectedDeleteBtn.title = asset ? "Delete asset" : "Delete asset";
+    }
 }
 
 function ensureDurationMetadata(asset) {
-  if (!asset || hasDuration(asset) || (!isVideoAsset(asset) && !isAudioAsset(asset))) {
-    return;
-  }
+    if (!asset || hasDuration(asset) || (!isVideoAsset(asset) && !isAudioAsset(asset))) {
+        return;
+    }
 
-  const element = document.createElement(isVideoAsset(asset) ? "video" : "audio");
-  element.preload = "metadata";
-  element.muted = true;
-  element.playsInline = true;
-  element.src = asset.url;
+    const element = document.createElement(isVideoAsset(asset) ? "video" : "audio");
+    element.preload = "metadata";
+    element.muted = true;
+    element.playsInline = true;
+    element.src = asset.url;
 
-  const cleanup = () => {
-    element.removeAttribute("src");
-    element.load();
-  };
+    const cleanup = () => {
+        element.removeAttribute("src");
+        element.load();
+    };
 
-  element.addEventListener(
-    "loadedmetadata",
-    () => {
-      recordDuration(asset.id, element.duration);
-      cleanup();
-    },
-    { once: true },
-  );
+    element.addEventListener(
+        "loadedmetadata",
+        () => {
+            recordDuration(asset.id, element.duration);
+            cleanup();
+        },
+        { once: true },
+    );
 
-  element.addEventListener("error", cleanup, { once: true });
+    element.addEventListener("error", cleanup, { once: true });
 }
 
 function applyTransformFromInputs() {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const locked = isAspectLocked(asset.id);
-  const ratio = getAssetAspectRatio(asset);
-  let nextWidth = parseFloat(widthInput?.value) || asset.width;
-  let nextHeight = parseFloat(heightInput?.value) || asset.height;
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const locked = isAspectLocked(asset.id);
+    const ratio = getAssetAspectRatio(asset);
+    let nextWidth = parseFloat(widthInput?.value) || asset.width;
+    let nextHeight = parseFloat(heightInput?.value) || asset.height;
 
-  if (locked && ratio) {
-    if (lastSizeInputChanged === "height") {
-      nextWidth = nextHeight * ratio;
-      if (widthInput) widthInput.value = Math.round(nextWidth);
-    } else {
-      nextHeight = nextWidth / ratio;
-      if (heightInput) heightInput.value = Math.round(nextHeight);
+    if (locked && ratio) {
+        if (lastSizeInputChanged === "height") {
+            nextWidth = nextHeight * ratio;
+            if (widthInput) widthInput.value = Math.round(nextWidth);
+        } else {
+            nextHeight = nextWidth / ratio;
+            if (heightInput) heightInput.value = Math.round(nextHeight);
+        }
     }
-  }
 
-  asset.width = Math.max(10, nextWidth);
-  asset.height = Math.max(10, nextHeight);
-  updateRenderState(asset);
-  persistTransform(asset);
-  drawAndList();
+    asset.width = Math.max(10, nextWidth);
+    asset.height = Math.max(10, nextHeight);
+    updateRenderState(asset);
+    persistTransform(asset);
+    drawAndList();
 }
 
 function updatePlaybackFromInputs() {
-  const asset = getSelectedAsset();
-  if (!asset || !isVideoAsset(asset)) return;
-  const percent = Math.max(0, Math.min(1000, parseFloat(speedInput?.value) || 100));
-  setSpeedLabel(percent);
-  asset.speed = percent / 100;
-  updateRenderState(asset);
-  schedulePersistTransform(asset);
-  const media = mediaCache.get(asset.id);
-  if (media) {
-    applyMediaSettings(media, asset);
-  }
-  drawAndList();
+    const asset = getSelectedAsset();
+    if (!asset || !isVideoAsset(asset)) return;
+    const percent = Math.max(0, Math.min(1000, parseFloat(speedInput?.value) || 100));
+    setSpeedLabel(percent);
+    asset.speed = percent / 100;
+    updateRenderState(asset);
+    schedulePersistTransform(asset);
+    const media = mediaCache.get(asset.id);
+    if (media) {
+        applyMediaSettings(media, asset);
+    }
+    drawAndList();
 }
 
 function updateVolumeFromInput() {
-  const asset = getSelectedAsset();
-  if (!asset || !(isVideoAsset(asset) || isAudioAsset(asset))) return;
-  const sliderValue = Math.max(0, Math.min(VOLUME_SLIDER_MAX, parseFloat(volumeInput?.value) || 100));
-  const volumeValue = sliderToVolume(sliderValue);
-  setVolumeLabel(sliderValue);
-  asset.audioVolume = volumeValue;
-  const media = mediaCache.get(asset.id);
-  if (media) {
-    applyMediaSettings(media, asset);
-  }
-  if (isAudioAsset(asset)) {
-    const controller = ensureAudioController(asset);
-    applyAudioSettings(controller, asset);
-  }
-  schedulePersistTransform(asset);
-  drawAndList();
+    const asset = getSelectedAsset();
+    if (!asset || !(isVideoAsset(asset) || isAudioAsset(asset))) return;
+    const sliderValue = Math.max(0, Math.min(VOLUME_SLIDER_MAX, parseFloat(volumeInput?.value) || 100));
+    const volumeValue = sliderToVolume(sliderValue);
+    setVolumeLabel(sliderValue);
+    asset.audioVolume = volumeValue;
+    const media = mediaCache.get(asset.id);
+    if (media) {
+        applyMediaSettings(media, asset);
+    }
+    if (isAudioAsset(asset)) {
+        const controller = ensureAudioController(asset);
+        applyAudioSettings(controller, asset);
+    }
+    schedulePersistTransform(asset);
+    drawAndList();
 }
 
 function updateAudioSettingsFromInputs() {
-  const asset = getSelectedAsset();
-  if (!asset || !isAudioAsset(asset)) return;
-  asset.audioLoop = !!audioLoopInput?.checked;
-  const delayMs = clamp(Math.max(0, parseInt(audioDelayInput?.value || "0", 10)), 0, 30000);
-  asset.audioDelayMillis = delayMs;
-  setAudioDelayLabel(delayMs);
-  if (audioDelayInput) audioDelayInput.value = delayMs;
-  const nextAudioSpeedPercent = clamp(Math.max(25, parseInt(audioSpeedInput?.value || "100", 10)), 25, 400);
-  setAudioSpeedLabel(nextAudioSpeedPercent);
-  if (audioSpeedInput) audioSpeedInput.value = nextAudioSpeedPercent;
-  asset.audioSpeed = Math.max(0.25, nextAudioSpeedPercent / 100);
-  const nextAudioPitchPercent = clamp(Math.max(50, parseInt(audioPitchInput?.value || "100", 10)), 50, 200);
-  setAudioPitchLabel(nextAudioPitchPercent);
-  if (audioPitchInput) audioPitchInput.value = nextAudioPitchPercent;
-  asset.audioPitch = Math.max(0.5, nextAudioPitchPercent / 100);
-  const controller = ensureAudioController(asset);
-  applyAudioSettings(controller, asset);
-  schedulePersistTransform(asset);
-  drawAndList();
+    const asset = getSelectedAsset();
+    if (!asset || !isAudioAsset(asset)) return;
+    asset.audioLoop = !!audioLoopInput?.checked;
+    const delayMs = clamp(Math.max(0, parseInt(audioDelayInput?.value || "0", 10)), 0, 30000);
+    asset.audioDelayMillis = delayMs;
+    setAudioDelayLabel(delayMs);
+    if (audioDelayInput) audioDelayInput.value = delayMs;
+    const nextAudioSpeedPercent = clamp(Math.max(25, parseInt(audioSpeedInput?.value || "100", 10)), 25, 400);
+    setAudioSpeedLabel(nextAudioSpeedPercent);
+    if (audioSpeedInput) audioSpeedInput.value = nextAudioSpeedPercent;
+    asset.audioSpeed = Math.max(0.25, nextAudioSpeedPercent / 100);
+    const nextAudioPitchPercent = clamp(Math.max(50, parseInt(audioPitchInput?.value || "100", 10)), 50, 200);
+    setAudioPitchLabel(nextAudioPitchPercent);
+    if (audioPitchInput) audioPitchInput.value = nextAudioPitchPercent;
+    asset.audioPitch = Math.max(0.5, nextAudioPitchPercent / 100);
+    const controller = ensureAudioController(asset);
+    applyAudioSettings(controller, asset);
+    schedulePersistTransform(asset);
+    drawAndList();
 }
 
 function nudgeRotation(delta) {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const next = (asset.rotation || 0) + delta;
-  asset.rotation = next;
-  updateRenderState(asset);
-  persistTransform(asset);
-  drawAndList();
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const next = (asset.rotation || 0) + delta;
+    asset.rotation = next;
+    updateRenderState(asset);
+    persistTransform(asset);
+    drawAndList();
 }
 
 function recenterSelectedAsset() {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const centerX = (canvas.width - asset.width) / 2;
-  const centerY = (canvas.height - asset.height) / 2;
-  asset.x = centerX;
-  asset.y = centerY;
-  updateRenderState(asset);
-  persistTransform(asset);
-  drawAndList();
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const centerX = (canvas.width - asset.width) / 2;
+    const centerY = (canvas.height - asset.height) / 2;
+    asset.x = centerX;
+    asset.y = centerY;
+    updateRenderState(asset);
+    persistTransform(asset);
+    drawAndList();
 }
 
 function bringForward() {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const ordered = getAssetsByLayer();
-  const index = ordered.findIndex((item) => item.id === asset.id);
-  if (index <= 0) return;
-  [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]];
-  applyLayerOrder(ordered);
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getAssetsByLayer();
+    const index = ordered.findIndex((item) => item.id === asset.id);
+    if (index <= 0) return;
+    [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]];
+    applyLayerOrder(ordered);
 }
 
 function bringBackward() {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const ordered = getAssetsByLayer();
-  const index = ordered.findIndex((item) => item.id === asset.id);
-  if (index === -1 || index === ordered.length - 1) return;
-  [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]];
-  applyLayerOrder(ordered);
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getAssetsByLayer();
+    const index = ordered.findIndex((item) => item.id === asset.id);
+    if (index === -1 || index === ordered.length - 1) return;
+    [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]];
+    applyLayerOrder(ordered);
 }
 
 function bringToFront() {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const ordered = getAssetsByLayer().filter((item) => item.id !== asset.id);
-  ordered.unshift(asset);
-  applyLayerOrder(ordered);
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getAssetsByLayer().filter((item) => item.id !== asset.id);
+    ordered.unshift(asset);
+    applyLayerOrder(ordered);
 }
 
 function sendToBack() {
-  const asset = getSelectedAsset();
-  if (!asset) return;
-  const ordered = getAssetsByLayer().filter((item) => item.id !== asset.id);
-  ordered.push(asset);
-  applyLayerOrder(ordered);
+    const asset = getSelectedAsset();
+    if (!asset) return;
+    const ordered = getAssetsByLayer().filter((item) => item.id !== asset.id);
+    ordered.push(asset);
+    applyLayerOrder(ordered);
 }
 
 function applyLayerOrder(ordered) {
-  const newOrder = ordered.map((item) => item.id).filter((id) => assets.has(id));
-  layerOrder = newOrder;
-  const changed = ordered.map((item) => assets.get(item.id)).filter(Boolean);
-  changed.forEach((item) => updateRenderState(item));
-  changed.forEach((item) => schedulePersistTransform(item, true));
-  drawAndList();
+    const newOrder = ordered.map((item) => item.id).filter((id) => assets.has(id));
+    layerOrder = newOrder;
+    const changed = ordered.map((item) => assets.get(item.id)).filter(Boolean);
+    changed.forEach((item) => updateRenderState(item));
+    changed.forEach((item) => schedulePersistTransform(item, true));
+    drawAndList();
 }
 
 function getAssetAspectRatio(asset) {
-  const media = ensureMedia(asset);
-  if (isVideoElement(media) && media?.videoWidth && media?.videoHeight) {
-    return media.videoWidth / media.videoHeight;
-  }
-  if (!isVideoElement(media) && media?.naturalWidth && media?.naturalHeight) {
-    return media.naturalWidth / media.naturalHeight;
-  }
-  if (asset.width && asset.height) {
-    return asset.width / asset.height;
-  }
-  return null;
+    const media = ensureMedia(asset);
+    if (isVideoElement(media) && media?.videoWidth && media?.videoHeight) {
+        return media.videoWidth / media.videoHeight;
+    }
+    if (!isVideoElement(media) && media?.naturalWidth && media?.naturalHeight) {
+        return media.naturalWidth / media.naturalHeight;
+    }
+    if (asset.width && asset.height) {
+        return asset.width / asset.height;
+    }
+    return null;
 }
 
 function formatAspectRatioLabel(asset) {
-  if (isAudioAsset(asset)) {
-    return "";
-  }
-  const ratio = getAssetAspectRatio(asset);
-  if (!ratio) {
-    return "";
-  }
-  const normalized = ratio >= 1 ? `${ratio.toFixed(2)}:1` : `1:${(1 / ratio).toFixed(2)}`;
-  return `AR ${normalized}`;
+    if (isAudioAsset(asset)) {
+        return "";
+    }
+    const ratio = getAssetAspectRatio(asset);
+    if (!ratio) {
+        return "";
+    }
+    const normalized = ratio >= 1 ? `${ratio.toFixed(2)}:1` : `1:${(1 / ratio).toFixed(2)}`;
+    return `AR ${normalized}`;
 }
 
 function setAspectLock(assetId, locked) {
-  aspectLockState.set(assetId, locked);
+    aspectLockState.set(assetId, locked);
 }
 
 function isAspectLocked(assetId) {
-  return aspectLockState.has(assetId) ? aspectLockState.get(assetId) : true;
+    return aspectLockState.has(assetId) ? aspectLockState.get(assetId) : true;
 }
 
 function handleSizeInputChange(type) {
-  lastSizeInputChanged = type;
-  const asset = getSelectedAsset();
-  if (!asset) {
-    return;
-  }
-  if (!isAspectLocked(asset.id)) {
+    lastSizeInputChanged = type;
+    const asset = getSelectedAsset();
+    if (!asset) {
+        return;
+    }
+    if (!isAspectLocked(asset.id)) {
+        commitSizeChange();
+        return;
+    }
+    const ratio = getAssetAspectRatio(asset);
+    if (!ratio) {
+        return;
+    }
+    if (type === "width" && widthInput && heightInput) {
+        const width = parseFloat(widthInput.value);
+        if (width > 0) {
+            heightInput.value = Math.round(width / ratio);
+        }
+    } else if (type === "height" && widthInput && heightInput) {
+        const height = parseFloat(heightInput.value);
+        if (height > 0) {
+            widthInput.value = Math.round(height * ratio);
+        }
+    }
     commitSizeChange();
-    return;
-  }
-  const ratio = getAssetAspectRatio(asset);
-  if (!ratio) {
-    return;
-  }
-  if (type === "width" && widthInput && heightInput) {
-    const width = parseFloat(widthInput.value);
-    if (width > 0) {
-      heightInput.value = Math.round(width / ratio);
-    }
-  } else if (type === "height" && widthInput && heightInput) {
-    const height = parseFloat(heightInput.value);
-    if (height > 0) {
-      widthInput.value = Math.round(height * ratio);
-    }
-  }
-  commitSizeChange();
 }
 
 function updateVisibility(asset, hidden) {
-  fetch(`/api/channels/${broadcaster}/assets/${asset.id}/visibility`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hidden }),
-  })
-    .then((r) => {
-      if (!r.ok) {
-        throw new Error("Failed to update visibility");
-      }
-      return r.json();
+    fetch(`/api/channels/${broadcaster}/assets/${asset.id}/visibility`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hidden }),
     })
-    .then((updated) => {
-      storeAsset(updated);
-      let visibilityMessage = null;
-      if (updated.hidden) {
-        loopPlaybackState.set(updated.id, false);
-        stopAudio(updated.id);
-        showToast("Asset hidden from broadcast.", "info");
-      } else if (isAudioAsset(updated)) {
-        playAudioFromCanvas(updated, true);
-        visibilityMessage = "Asset is now visible and active.";
-      } else {
-        visibilityMessage = "Asset is now visible.";
-      }
-      if (visibilityMessage) {
-        showToast(visibilityMessage, "success");
-      }
-      updateRenderState(updated);
-      drawAndList();
-    })
-    .catch(() => showToast("Unable to change visibility right now.", "error"));
+        .then((r) => {
+            if (!r.ok) {
+                throw new Error("Failed to update visibility");
+            }
+            return r.json();
+        })
+        .then((updated) => {
+            storeAsset(updated);
+            let visibilityMessage = null;
+            if (updated.hidden) {
+                loopPlaybackState.set(updated.id, false);
+                stopAudio(updated.id);
+                showToast("Asset hidden from broadcast.", "info");
+            } else if (isAudioAsset(updated)) {
+                playAudioFromCanvas(updated, true);
+                visibilityMessage = "Asset is now visible and active.";
+            } else {
+                visibilityMessage = "Asset is now visible.";
+            }
+            if (visibilityMessage) {
+                showToast(visibilityMessage, "success");
+            }
+            updateRenderState(updated);
+            drawAndList();
+        })
+        .catch(() => showToast("Unable to change visibility right now.", "error"));
 }
 
 function triggerAudioPlayback(asset, shouldPlay = true) {
-  if (!asset) return Promise.resolve();
-  return fetch(`/api/channels/${broadcaster}/assets/${asset.id}/play`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ play: shouldPlay }),
-  })
-    .then((r) => r.json())
-    .then((updated) => {
-      storeAsset(updated);
-      updateRenderState(updated);
-      return updated;
-    });
+    if (!asset) return Promise.resolve();
+    return fetch(`/api/channels/${broadcaster}/assets/${asset.id}/play`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ play: shouldPlay }),
+    })
+        .then((r) => r.json())
+        .then((updated) => {
+            storeAsset(updated);
+            updateRenderState(updated);
+            return updated;
+        });
 }
 
 function deleteAsset(asset) {
-  fetch(`/api/channels/${broadcaster}/assets/${asset.id}`, { method: "DELETE" })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error("Failed to delete asset");
-      }
-      clearMedia(asset.id);
-      assets.delete(asset.id);
-      renderStates.delete(asset.id);
-      layerOrder = layerOrder.filter((id) => id !== asset.id);
-      cancelPendingTransform(asset.id);
-      if (selectedAssetId === asset.id) {
-        selectedAssetId = null;
-      }
-      drawAndList();
-      showToast("Asset deleted.", "info");
-    })
-    .catch(() => showToast("Unable to delete asset. Please try again.", "error"));
+    fetch(`/api/channels/${broadcaster}/assets/${asset.id}`, { method: "DELETE" })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error("Failed to delete asset");
+            }
+            clearMedia(asset.id);
+            assets.delete(asset.id);
+            renderStates.delete(asset.id);
+            layerOrder = layerOrder.filter((id) => id !== asset.id);
+            cancelPendingTransform(asset.id);
+            if (selectedAssetId === asset.id) {
+                selectedAssetId = null;
+            }
+            drawAndList();
+            showToast("Asset deleted.", "info");
+        })
+        .catch(() => showToast("Unable to delete asset. Please try again.", "error"));
 }
 
 function handleFileSelection(input) {
-  if (!input) return;
-  const hasFile = input.files && input.files.length;
-  const name = hasFile ? input.files[0].name : "";
-  if (fileNameLabel) {
-    fileNameLabel.textContent = name || "No file chosen";
-  }
-  if (hasFile) {
-    uploadAsset(input.files[0]);
-  }
+    if (!input) return;
+    const hasFile = input.files && input.files.length;
+    const name = hasFile ? input.files[0].name : "";
+    if (fileNameLabel) {
+        fileNameLabel.textContent = name || "No file chosen";
+    }
+    if (hasFile) {
+        uploadAsset(input.files[0]);
+    }
 }
 
 function uploadAsset(file = null) {
-  const fileInput = document.getElementById("asset-file");
-  const selectedFile = file || (fileInput?.files && fileInput.files.length ? fileInput.files[0] : null);
-  if (!selectedFile) {
-    showToast("Choose an image, GIF, video, or audio file to upload.", "info");
-    return;
-  }
-  if (selectedFile.size > UPLOAD_LIMIT_BYTES) {
-    showToast(`File is too large. Maximum upload size is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB.`, "error");
-    return;
-  }
+    const fileInput = document.getElementById("asset-file");
+    const selectedFile = file || (fileInput?.files && fileInput.files.length ? fileInput.files[0] : null);
+    if (!selectedFile) {
+        showToast("Choose an image, GIF, video, or audio file to upload.", "info");
+        return;
+    }
+    if (selectedFile.size > UPLOAD_LIMIT_BYTES) {
+        showToast(`File is too large. Maximum upload size is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB.`, "error");
+        return;
+    }
 
-  const pendingId = addPendingUpload(selectedFile.name);
-  const data = new FormData();
-  data.append("file", selectedFile);
-  if (fileNameLabel) {
-    fileNameLabel.textContent = "Uploading...";
-  }
-  fetch(`/api/channels/${broadcaster}/assets`, {
-    method: "POST",
-    body: data,
-  })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-      if (fileInput) {
-        fileInput.value = "";
-        handleFileSelection(fileInput);
-      }
-      showToast("Upload received. Processing asset...", "success");
-      updatePendingUpload(pendingId, { status: "processing" });
+    const pendingId = addPendingUpload(selectedFile.name);
+    const data = new FormData();
+    data.append("file", selectedFile);
+    if (fileNameLabel) {
+        fileNameLabel.textContent = "Uploading...";
+    }
+    fetch(`/api/channels/${broadcaster}/assets`, {
+        method: "POST",
+        body: data,
     })
-    .catch(() => {
-      if (fileNameLabel) {
-        fileNameLabel.textContent = "Upload failed";
-      }
-      removePendingUpload(pendingId);
-      showToast("Upload failed. Please try again with a supported file.", "error");
-    });
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error("Upload failed");
+            }
+            if (fileInput) {
+                fileInput.value = "";
+                handleFileSelection(fileInput);
+            }
+            showToast("Upload received. Processing asset...", "success");
+            updatePendingUpload(pendingId, { status: "processing" });
+        })
+        .catch(() => {
+            if (fileNameLabel) {
+                fileNameLabel.textContent = "Upload failed";
+            }
+            removePendingUpload(pendingId);
+            showToast("Upload failed. Please try again with a supported file.", "error");
+        });
 }
 
 function getCanvasPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  return {
-    x: (event.clientX - rect.left) * scaleX,
-    y: (event.clientY - rect.top) * scaleY,
-  };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY,
+    };
 }
 
 function isPointOnAsset(asset, x, y) {
-  ctx.save();
-  const halfWidth = asset.width / 2;
-  const halfHeight = asset.height / 2;
-  ctx.translate(asset.x + halfWidth, asset.y + halfHeight);
-  ctx.rotate((asset.rotation * Math.PI) / 180);
-  const path = new Path2D();
-  path.rect(-halfWidth, -halfHeight, asset.width, asset.height);
-  const hit = ctx.isPointInPath(path, x, y);
-  ctx.restore();
-  return hit;
+    ctx.save();
+    const halfWidth = asset.width / 2;
+    const halfHeight = asset.height / 2;
+    ctx.translate(asset.x + halfWidth, asset.y + halfHeight);
+    ctx.rotate((asset.rotation * Math.PI) / 180);
+    const path = new Path2D();
+    path.rect(-halfWidth, -halfHeight, asset.width, asset.height);
+    const hit = ctx.isPointInPath(path, x, y);
+    ctx.restore();
+    return hit;
 }
 
 function findAssetAtPoint(x, y) {
-  const ordered = getAssetsByLayer();
-  return ordered.find((asset) => !isAudioAsset(asset) && isPointOnAsset(asset, x, y)) || null;
+    const ordered = getAssetsByLayer();
+    return ordered.find((asset) => !isAudioAsset(asset) && isPointOnAsset(asset, x, y)) || null;
 }
 
 function persistTransform(asset, silent = false) {
-  cancelPendingTransform(asset.id);
-  const layer = getLayerValue(asset.id);
-  fetch(`/api/channels/${broadcaster}/assets/${asset.id}/transform`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      x: asset.x,
-      y: asset.y,
-      width: asset.width,
-      height: asset.height,
-      rotation: asset.rotation,
-      speed: asset.speed,
-      layer,
-      zIndex: layer,
-      audioLoop: asset.audioLoop,
-      audioDelayMillis: asset.audioDelayMillis,
-      audioSpeed: asset.audioSpeed,
-      audioPitch: asset.audioPitch,
-      audioVolume: asset.audioVolume,
-    }),
-  })
-    .then((r) => {
-      if (!r.ok) {
-        throw new Error("Transform failed");
-      }
-      return r.json();
+    cancelPendingTransform(asset.id);
+    const layer = getLayerValue(asset.id);
+    fetch(`/api/channels/${broadcaster}/assets/${asset.id}/transform`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            x: asset.x,
+            y: asset.y,
+            width: asset.width,
+            height: asset.height,
+            rotation: asset.rotation,
+            speed: asset.speed,
+            layer,
+            zIndex: layer,
+            audioLoop: asset.audioLoop,
+            audioDelayMillis: asset.audioDelayMillis,
+            audioSpeed: asset.audioSpeed,
+            audioPitch: asset.audioPitch,
+            audioVolume: asset.audioVolume,
+        }),
     })
-    .then((updated) => {
-      storeAsset(updated);
-      updateRenderState(updated);
-      if (!silent) {
-        drawAndList();
-      }
-    })
-    .catch(() => {
-      if (!silent) {
-        showToast("Unable to save changes. Please retry.", "error");
-      }
-    });
+        .then((r) => {
+            if (!r.ok) {
+                throw new Error("Transform failed");
+            }
+            return r.json();
+        })
+        .then((updated) => {
+            storeAsset(updated);
+            updateRenderState(updated);
+            if (!silent) {
+                drawAndList();
+            }
+        })
+        .catch(() => {
+            if (!silent) {
+                showToast("Unable to save changes. Please retry.", "error");
+            }
+        });
 }
 
 canvas.addEventListener("mousedown", (event) => {
-  const point = getCanvasPoint(event);
-  const current = getSelectedAsset();
-  const handle = current ? hitHandle(current, point) : null;
-  if (current && handle) {
-    interactionState =
-      handle === "rotate"
-        ? {
-            mode: "rotate",
-            assetId: current.id,
-            startAngle: angleFromCenter(current, point),
-            startRotation: current.rotation || 0,
-          }
-        : {
-            mode: "resize",
-            assetId: current.id,
-            handle,
-            startLocal: pointerToLocal(current, point),
-            original: { ...current },
-          };
-    canvas.style.cursor = cursorForHandle(handle);
-    drawAndList();
-    return;
-  }
+    const point = getCanvasPoint(event);
+    const current = getSelectedAsset();
+    const handle = current ? hitHandle(current, point) : null;
+    if (current && handle) {
+        interactionState =
+            handle === "rotate"
+                ? {
+                      mode: "rotate",
+                      assetId: current.id,
+                      startAngle: angleFromCenter(current, point),
+                      startRotation: current.rotation || 0,
+                  }
+                : {
+                      mode: "resize",
+                      assetId: current.id,
+                      handle,
+                      startLocal: pointerToLocal(current, point),
+                      original: { ...current },
+                  };
+        canvas.style.cursor = cursorForHandle(handle);
+        drawAndList();
+        return;
+    }
 
-  const hit = findAssetAtPoint(point.x, point.y);
-  if (hit) {
-    selectedAssetId = hit.id;
-    updateRenderState(hit);
-    interactionState = {
-      mode: "move",
-      assetId: hit.id,
-      offsetX: point.x - hit.x,
-      offsetY: point.y - hit.y,
-    };
-    canvas.style.cursor = "grabbing";
-  } else {
-    selectedAssetId = null;
-    interactionState = null;
-    canvas.style.cursor = "default";
-  }
-  drawAndList();
+    const hit = findAssetAtPoint(point.x, point.y);
+    if (hit) {
+        selectedAssetId = hit.id;
+        updateRenderState(hit);
+        interactionState = {
+            mode: "move",
+            assetId: hit.id,
+            offsetX: point.x - hit.x,
+            offsetY: point.y - hit.y,
+        };
+        canvas.style.cursor = "grabbing";
+    } else {
+        selectedAssetId = null;
+        interactionState = null;
+        canvas.style.cursor = "default";
+    }
+    drawAndList();
 });
 
 canvas.addEventListener("mousemove", (event) => {
-  const point = getCanvasPoint(event);
-  if (!interactionState) {
-    updateHoverCursor(point);
-    return;
-  }
-  const asset = assets.get(interactionState.assetId);
-  if (!asset) {
-    interactionState = null;
-    updateHoverCursor(point);
-    return;
-  }
+    const point = getCanvasPoint(event);
+    if (!interactionState) {
+        updateHoverCursor(point);
+        return;
+    }
+    const asset = assets.get(interactionState.assetId);
+    if (!asset) {
+        interactionState = null;
+        updateHoverCursor(point);
+        return;
+    }
 
-  if (interactionState.mode === "move") {
-    asset.x = point.x - interactionState.offsetX;
-    asset.y = point.y - interactionState.offsetY;
-    updateRenderState(asset);
-    canvas.style.cursor = "grabbing";
-    requestDraw();
-  } else if (interactionState.mode === "resize") {
-    resizeFromHandle(interactionState, point);
-    canvas.style.cursor = cursorForHandle(interactionState.handle);
-  } else if (interactionState.mode === "rotate") {
-    const angle = angleFromCenter(asset, point);
-    asset.rotation = (interactionState.startRotation || 0) + (angle - interactionState.startAngle);
-    updateRenderState(asset);
-    canvas.style.cursor = "grabbing";
-    requestDraw();
-  }
+    if (interactionState.mode === "move") {
+        asset.x = point.x - interactionState.offsetX;
+        asset.y = point.y - interactionState.offsetY;
+        updateRenderState(asset);
+        canvas.style.cursor = "grabbing";
+        requestDraw();
+    } else if (interactionState.mode === "resize") {
+        resizeFromHandle(interactionState, point);
+        canvas.style.cursor = cursorForHandle(interactionState.handle);
+    } else if (interactionState.mode === "rotate") {
+        const angle = angleFromCenter(asset, point);
+        asset.rotation = (interactionState.startRotation || 0) + (angle - interactionState.startAngle);
+        updateRenderState(asset);
+        canvas.style.cursor = "grabbing";
+        requestDraw();
+    }
 });
 
 function endInteraction() {
-  if (!interactionState) {
-    return;
-  }
-  const asset = assets.get(interactionState.assetId);
-  interactionState = null;
-  canvas.style.cursor = "default";
-  drawAndList();
-  if (asset) {
-    persistTransform(asset);
-  }
+    if (!interactionState) {
+        return;
+    }
+    const asset = assets.get(interactionState.assetId);
+    interactionState = null;
+    canvas.style.cursor = "default";
+    drawAndList();
+    if (asset) {
+        persistTransform(asset);
+    }
 }
 
 canvas.addEventListener("mouseup", endInteraction);
 canvas.addEventListener("mouseleave", endInteraction);
 
 window.addEventListener("resize", () => {
-  resizeCanvas();
+    resizeCanvas();
 });
 
 fetchCanvasSettings().finally(() => {
-  resizeCanvas();
-  connect();
+    resizeCanvas();
+    connect();
 });

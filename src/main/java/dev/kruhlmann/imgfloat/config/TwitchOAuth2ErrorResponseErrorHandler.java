@@ -1,9 +1,8 @@
 package dev.kruhlmann.imgfloat.config;
 
-import java.io.IOException;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.ClientHttpResponse;
@@ -31,20 +30,24 @@ class TwitchOAuth2ErrorResponseErrorHandler extends OAuth2ErrorResponseErrorHand
         String body = new String(bodyBytes, StandardCharsets.UTF_8);
 
         if (body.isBlank()) {
-            LOG.warn("Failed to parse Twitch OAuth error response (status: {}, headers: {}): <empty body>",
-                    response.getStatusCode(),
-                    response.getHeaders());
+            LOG.warn(
+                "Failed to parse Twitch OAuth error response (status: {}, headers: {}): <empty body>",
+                response.getStatusCode(),
+                response.getHeaders()
+            );
             throw asAuthorizationException(body, null);
         }
 
         try {
             super.handleError(new CachedBodyClientHttpResponse(response, bodyBytes));
         } catch (HttpMessageNotReadableException | IllegalArgumentException ex) {
-            LOG.warn("Failed to parse Twitch OAuth error response (status: {}, headers: {}): {}",
-                    response.getStatusCode(),
-                    response.getHeaders(),
-                    body,
-                    ex);
+            LOG.warn(
+                "Failed to parse Twitch OAuth error response (status: {}, headers: {}): {}",
+                response.getStatusCode(),
+                response.getHeaders(),
+                body,
+                ex
+            );
             throw asAuthorizationException(body, ex);
         }
     }

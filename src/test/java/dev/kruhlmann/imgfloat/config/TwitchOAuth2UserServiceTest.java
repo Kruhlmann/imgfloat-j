@@ -8,7 +8,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.time.Instant;
 import java.util.Set;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -26,51 +25,54 @@ class TwitchOAuth2UserServiceTest {
     @Test
     void unwrapsTwitchUserAndAddsClientIdHeaderToUserInfoRequest() {
         ClientRegistration registration = twitchRegistrationBuilder()
-                .clientId("client-123")
-                .clientSecret("secret")
-                .build();
+            .clientId("client-123")
+            .clientSecret("secret")
+            .build();
 
         OAuth2UserRequest userRequest = userRequest(registration);
         RestTemplate restTemplate = TwitchOAuth2UserService.createRestTemplate(userRequest);
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
 
-        TwitchOAuth2UserService service = new TwitchOAuth2UserService(ignored -> restTemplate);
+        TwitchOAuth2UserService service = new TwitchOAuth2UserService((ignored) -> restTemplate);
 
-        server.expect(requestTo("https://api.twitch.tv/helix/users"))
-                .andExpect(method(HttpMethod.GET))
-                .andExpect(header("Client-ID", "client-123"))
-                .andRespond(withSuccess(
-                        "{\"data\":[{\"id\":\"42\",\"login\":\"demo\",\"display_name\":\"Demo\"}]}",
-                        MediaType.APPLICATION_JSON));
+        server
+            .expect(requestTo("https://api.twitch.tv/helix/users"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("Client-ID", "client-123"))
+            .andRespond(
+                withSuccess(
+                    "{\"data\":[{\"id\":\"42\",\"login\":\"demo\",\"display_name\":\"Demo\"}]}",
+                    MediaType.APPLICATION_JSON
+                )
+            );
 
         OAuth2User user = service.loadUser(userRequest);
 
         assertThat(user.getName()).isEqualTo("demo");
-        assertThat(user.getAttributes())
-                .containsEntry("id", "42")
-                .containsEntry("display_name", "Demo");
+        assertThat(user.getAttributes()).containsEntry("id", "42").containsEntry("display_name", "Demo");
         server.verify();
     }
 
     private OAuth2UserRequest userRequest(ClientRegistration registration) {
         OAuth2AccessToken accessToken = new OAuth2AccessToken(
-                OAuth2AccessToken.TokenType.BEARER,
-                "token",
-                Instant.now(),
-                Instant.now().plusSeconds(60),
-                Set.of("user:read:email"));
+            OAuth2AccessToken.TokenType.BEARER,
+            "token",
+            Instant.now(),
+            Instant.now().plusSeconds(60),
+            Set.of("user:read:email")
+        );
         return new OAuth2UserRequest(registration, accessToken);
     }
 
     private ClientRegistration.Builder twitchRegistrationBuilder() {
         return ClientRegistration.withRegistrationId("twitch")
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .clientName("Twitch")
-                .redirectUri("https://example.com/login/oauth2/code/twitch")
-                .authorizationUri("https://id.twitch.tv/oauth2/authorize")
-                .tokenUri("https://id.twitch.tv/oauth2/token")
-                .userInfoUri("https://api.twitch.tv/helix/users")
-                .userNameAttributeName("login");
+            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+            .clientName("Twitch")
+            .redirectUri("https://example.com/login/oauth2/code/twitch")
+            .authorizationUri("https://id.twitch.tv/oauth2/authorize")
+            .tokenUri("https://id.twitch.tv/oauth2/token")
+            .userInfoUri("https://api.twitch.tv/helix/users")
+            .userNameAttributeName("login");
     }
 }

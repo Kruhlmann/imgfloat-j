@@ -1,6 +1,7 @@
 package dev.kruhlmann.imgfloat.model;
 
 public class VisibilityRequest {
+
     private boolean hidden;
 
     public boolean isHidden() {

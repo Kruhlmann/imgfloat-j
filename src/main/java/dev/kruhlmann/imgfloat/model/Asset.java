@@ -4,9 +4,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
 import jakarta.persistence.PreUpdate;
-
+import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
@@ -14,18 +13,25 @@ import java.util.UUID;
 @Entity
 @Table(name = "assets")
 public class Asset {
+
     @Id
     private String id;
+
     @Column(nullable = false)
     private String broadcaster;
+
     @Column(nullable = false)
     private String name;
+
     @Column(columnDefinition = "TEXT", nullable = false)
     private String url;
+
     @Column(columnDefinition = "TEXT", nullable = false)
     private String preview;
+
     @Column(nullable = false)
     private Instant createdAt;
+
     private double x;
     private double y;
     private double width;
@@ -43,8 +49,7 @@ public class Asset {
     private Double audioVolume;
     private boolean hidden;
 
-    public Asset() {
-    }
+    public Asset() {}
 
     public Asset(String broadcaster, String name, String url, double width, double height) {
         this.id = UUID.randomUUID().toString();

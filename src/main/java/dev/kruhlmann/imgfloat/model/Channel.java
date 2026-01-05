@@ -10,7 +10,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -20,6 +19,7 @@ import java.util.stream.Collectors;
 @Entity
 @Table(name = "channels")
 public class Channel {
+
     @Id
     private String broadcaster;
 
@@ -32,8 +32,7 @@ public class Channel {
 
     private double canvasHeight = 1080;
 
-    public Channel() {
-    }
+    public Channel() {}
 
     public Channel(String broadcaster) {
         this.broadcaster = normalize(broadcaster);
@@ -77,9 +76,7 @@ public class Channel {
     @PreUpdate
     public void normalizeFields() {
         this.broadcaster = normalize(broadcaster);
-        this.admins = admins.stream()
-                .map(Channel::normalize)
-                .collect(Collectors.toSet());
+        this.admins = admins.stream().map(Channel::normalize).collect(Collectors.toSet());
         if (canvasWidth <= 0) {
             canvasWidth = 1920;
         }

@@ -4,31 +4,39 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.util.unit.DataSize;
-import org.springframework.core.env.Environment;
 
 @Component
 public class SystemEnvironmentValidator {
+
     private static final Logger log = LoggerFactory.getLogger(SystemEnvironmentValidator.class);
 
     private final Environment environment;
 
     @Value("${spring.security.oauth2.client.registration.twitch.client-id:#{null}}")
     private String twitchClientId;
+
     @Value("${spring.security.oauth2.client.registration.twitch.client-secret:#{null}}")
     private String twitchClientSecret;
+
     @Value("${spring.servlet.multipart.max-file-size:#{null}}")
     private String springMaxFileSize;
+
     @Value("${spring.servlet.multipart.max-request-size:#{null}}")
     private String springMaxRequestSize;
+
     @Value("${IMGFLOAT_ASSETS_PATH:#{null}}")
     private String assetsPath;
+
     @Value("${IMGFLOAT_PREVIEWS_PATH:#{null}}")
     private String previewsPath;
+
     @Value("${IMGFLOAT_DB_PATH:#{null}}")
     private String dbPath;
+
     @Value("${IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN:#{null}}")
     private String initialSysadmin;
 
@@ -41,7 +49,11 @@ public class SystemEnvironmentValidator {
 
     @PostConstruct
     public void validate() {
-        if (Boolean.parseBoolean(environment.getProperty("org.springframework.boot.test.context.SpringBootTestContextBootstrapper"))) {
+        if (
+            Boolean.parseBoolean(
+                environment.getProperty("org.springframework.boot.test.context.SpringBootTestContextBootstrapper")
+            )
+        ) {
             log.info("Skipping environment validation in test context");
             return;
         }
@@ -60,9 +72,7 @@ public class SystemEnvironmentValidator {
         checkString(previewsPath, "IMGFLOAT_PREVIEWS_PATH", missing);
 
         if (!missing.isEmpty()) {
-            throw new IllegalStateException(
-                "Missing or invalid environment variables:\n" + missing
-            );
+            throw new IllegalStateException("Missing or invalid environment variables:\n" + missing);
         }
 
         log.info("Environment validation successful:");
@@ -93,7 +103,7 @@ public class SystemEnvironmentValidator {
     private String redact(String value) {
         if (value != null && StringUtils.hasText(value)) {
             return "**************";
-        };
+        }
         return "<not set>";
     }
 }

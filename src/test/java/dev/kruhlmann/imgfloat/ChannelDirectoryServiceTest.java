@@ -1,27 +1,28 @@
 package dev.kruhlmann.imgfloat;
 
-import dev.kruhlmann.imgfloat.model.TransformRequest;
-import dev.kruhlmann.imgfloat.model.VisibilityRequest;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import dev.kruhlmann.imgfloat.model.Asset;
 import dev.kruhlmann.imgfloat.model.AssetView;
 import dev.kruhlmann.imgfloat.model.Channel;
+import dev.kruhlmann.imgfloat.model.Settings;
+import dev.kruhlmann.imgfloat.model.TransformRequest;
+import dev.kruhlmann.imgfloat.model.VisibilityRequest;
 import dev.kruhlmann.imgfloat.repository.AssetRepository;
 import dev.kruhlmann.imgfloat.repository.ChannelRepository;
-import dev.kruhlmann.imgfloat.service.ChannelDirectoryService;
 import dev.kruhlmann.imgfloat.service.AssetStorageService;
+import dev.kruhlmann.imgfloat.service.ChannelDirectoryService;
+import dev.kruhlmann.imgfloat.service.SettingsService;
 import dev.kruhlmann.imgfloat.service.media.MediaDetectionService;
 import dev.kruhlmann.imgfloat.service.media.MediaOptimizationService;
 import dev.kruhlmann.imgfloat.service.media.MediaPreviewService;
-import dev.kruhlmann.imgfloat.service.SettingsService;
-import dev.kruhlmann.imgfloat.model.Settings;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
-
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,19 +34,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-
 import javax.imageio.ImageIO;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 class ChannelDirectoryServiceTest {
+
     private ChannelDirectoryService service;
     private SimpMessagingTemplate messagingTemplate;
     private ChannelRepository channelRepository;
@@ -66,8 +65,15 @@ class ChannelDirectoryServiceTest {
         MediaPreviewService mediaPreviewService = new MediaPreviewService();
         MediaOptimizationService mediaOptimizationService = new MediaOptimizationService(mediaPreviewService);
         MediaDetectionService mediaDetectionService = new MediaDetectionService();
-        service = new ChannelDirectoryService(channelRepository, assetRepository, messagingTemplate,
-                assetStorageService, mediaDetectionService, mediaOptimizationService, settingsService);
+        service = new ChannelDirectoryService(
+            channelRepository,
+            assetRepository,
+            messagingTemplate,
+            assetStorageService,
+            mediaDetectionService,
+            mediaOptimizationService,
+            settingsService
+        );
         ReflectionTestUtils.setField(service, "uploadLimitBytes", 5_000_000L);
     }
 
@@ -78,7 +84,10 @@ class ChannelDirectoryServiceTest {
         Optional<AssetView> created = service.createAsset("caster", file);
         assertThat(created).isPresent();
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(messagingTemplate).convertAndSend(org.mockito.ArgumentMatchers.contains("/topic/channel/caster"), captor.capture());
+        verify(messagingTemplate).convertAndSend(
+            org.mockito.ArgumentMatchers.contains("/topic/channel/caster"),
+            captor.capture()
+        );
     }
 
     @Test
@@ -105,8 +114,8 @@ class ChannelDirectoryServiceTest {
         transform.setWidth(0);
 
         assertThatThrownBy(() -> service.updateTransform(channel, id, transform))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Canvas width out of range");
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Canvas width out of range");
     }
 
     @Test
@@ -118,15 +127,15 @@ class ChannelDirectoryServiceTest {
         speedTransform.setSpeed(5.0);
 
         assertThatThrownBy(() -> service.updateTransform(channel, id, speedTransform))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Speed out of range");
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Speed out of range");
 
         TransformRequest volumeTransform = validTransform();
         volumeTransform.setAudioVolume(6.5);
 
         assertThatThrownBy(() -> service.updateTransform(channel, id, volumeTransform))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Audio volume out of range");
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Audio volume out of range");
     }
 
     @Test
@@ -178,44 +187,56 @@ class ChannelDirectoryServiceTest {
         Map<String, Channel> channels = new ConcurrentHashMap<>();
         Map<String, Asset> assets = new ConcurrentHashMap<>();
 
-        when(channelRepository.findById(anyString()))
-                .thenAnswer(invocation -> Optional.ofNullable(channels.get(invocation.getArgument(0))));
-        when(channelRepository.save(any(Channel.class)))
-                .thenAnswer(invocation -> {
-                    Channel channel = invocation.getArgument(0);
-                    channels.put(channel.getBroadcaster(), channel);
-                    return channel;
-                });
-        when(channelRepository.findAll())
-                .thenAnswer(invocation -> List.copyOf(channels.values()));
-        when(channelRepository.findTop50ByBroadcasterContainingIgnoreCaseOrderByBroadcasterAsc(anyString()))
-                .thenAnswer(invocation -> channels.values().stream()
-                        .filter(channel -> Optional.ofNullable(channel.getBroadcaster()).orElse("")
-                                .contains(Optional.ofNullable(invocation.getArgument(0, String.class)).orElse("").toLowerCase()))
-                        .sorted(Comparator.comparing(Channel::getBroadcaster))
-                        .limit(50)
-                        .toList());
+        when(channelRepository.findById(anyString())).thenAnswer((invocation) ->
+            Optional.ofNullable(channels.get(invocation.getArgument(0)))
+        );
+        when(channelRepository.save(any(Channel.class))).thenAnswer((invocation) -> {
+            Channel channel = invocation.getArgument(0);
+            channels.put(channel.getBroadcaster(), channel);
+            return channel;
+        });
+        when(channelRepository.findAll()).thenAnswer((invocation) -> List.copyOf(channels.values()));
+        when(channelRepository.findTop50ByBroadcasterContainingIgnoreCaseOrderByBroadcasterAsc(anyString())).thenAnswer(
+            (invocation) ->
+                channels
+                    .values()
+                    .stream()
+                    .filter((channel) ->
+                        Optional.ofNullable(channel.getBroadcaster())
+                            .orElse("")
+                            .contains(
+                                Optional.ofNullable(invocation.getArgument(0, String.class)).orElse("").toLowerCase()
+                            )
+                    )
+                    .sorted(Comparator.comparing(Channel::getBroadcaster))
+                    .limit(50)
+                    .toList()
+        );
 
-        when(assetRepository.save(any(Asset.class)))
-                .thenAnswer(invocation -> {
-                    Asset asset = invocation.getArgument(0);
-                    assets.put(asset.getId(), asset);
-                    return asset;
-                });
-        when(assetRepository.findById(anyString()))
-                .thenAnswer(invocation -> Optional.ofNullable(assets.get(invocation.getArgument(0))));
-        when(assetRepository.findByBroadcaster(anyString()))
-                .thenAnswer(invocation -> filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0), false));
-        when(assetRepository.findByBroadcasterAndHiddenFalse(anyString()))
-                .thenAnswer(invocation -> filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0), true));
-        doAnswer(invocation -> assets.remove(invocation.getArgument(0, Asset.class).getId()))
-                .when(assetRepository).delete(any(Asset.class));
+        when(assetRepository.save(any(Asset.class))).thenAnswer((invocation) -> {
+            Asset asset = invocation.getArgument(0);
+            assets.put(asset.getId(), asset);
+            return asset;
+        });
+        when(assetRepository.findById(anyString())).thenAnswer((invocation) ->
+            Optional.ofNullable(assets.get(invocation.getArgument(0)))
+        );
+        when(assetRepository.findByBroadcaster(anyString())).thenAnswer((invocation) ->
+            filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0), false)
+        );
+        when(assetRepository.findByBroadcasterAndHiddenFalse(anyString())).thenAnswer((invocation) ->
+            filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0), true)
+        );
+        doAnswer((invocation) -> assets.remove(invocation.getArgument(0, Asset.class).getId()))
+            .when(assetRepository)
+            .delete(any(Asset.class));
     }
 
     private List<Asset> filterAssetsByBroadcaster(Collection<Asset> assets, String broadcaster, boolean onlyVisible) {
-        return assets.stream()
-                .filter(asset -> asset.getBroadcaster().equalsIgnoreCase(broadcaster))
-                .filter(asset -> !onlyVisible || !asset.isHidden())
-                .toList();
+        return assets
+            .stream()
+            .filter((asset) -> asset.getBroadcaster().equalsIgnoreCase(broadcaster))
+            .filter((asset) -> !onlyVisible || !asset.isHidden())
+            .toList();
     }
 }

@@ -4,34 +4,42 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
 import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "settings")
 public class Settings {
+
     @Id
     @Column(nullable = false)
     private int id = 1;
+
     @Column(nullable = false)
     private double minAssetPlaybackSpeedFraction;
+
     @Column(nullable = false)
     private double maxAssetPlaybackSpeedFraction;
+
     @Column(nullable = false)
     private double minAssetAudioPitchFraction;
+
     @Column(nullable = false)
     private double maxAssetAudioPitchFraction;
+
     @Column(nullable = false)
     private double minAssetVolumeFraction;
+
     @Column(nullable = false)
     private double maxAssetVolumeFraction;
+
     @Column(nullable = false)
     private int maxCanvasSideLengthPixels;
+
     @Column(nullable = false)
     private int canvasFramesPerSecond;
 
-    protected Settings() {
-    }
+    protected Settings() {}
 
     public static Settings defaults() {
         Settings s = new Settings();
@@ -117,5 +125,4 @@ public class Settings {
     public void setCanvasFramesPerSecond(int canvasFramesPerSecond) {
         this.canvasFramesPerSecond = canvasFramesPerSecond;
     }
-
 }
