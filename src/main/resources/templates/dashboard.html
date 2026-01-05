@@ -1,151 +1,166 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Imgfloat Dashboard</title>
     <link rel="stylesheet" href="/css/styles.css" />
-</head>
-<body class="dashboard-body">
-<div class="dashboard-shell">
-    <header class="dashboard-topbar">
+  </head>
+  <body class="dashboard-body">
+    <div class="dashboard-shell">
+      <header class="dashboard-topbar">
         <div class="brand">
-            <div class="brand-mark">IF</div>
-            <div>
-                <div class="brand-title">Imgfloat</div>
-                <div class="brand-subtitle">Twitch overlay manager</div>
-            </div>
+          <div class="brand-mark">IF</div>
+          <div>
+            <div class="brand-title">Imgfloat</div>
+            <div class="brand-subtitle">Twitch overlay manager</div>
+          </div>
         </div>
         <div class="user-pill">
-            <span class="eyebrow subtle">Signed in as</span>
-            <span class="user-display" th:text="${username}">user</span>
+          <span class="eyebrow subtle">Signed in as</span>
+          <span class="user-display" th:text="${username}">user</span>
         </div>
-    </header>
+      </header>
 
-    <section class="card">
+      <section class="card">
         <p class="eyebrow">Navigation</p>
         <h3>Shortcuts</h3>
         <p class="muted">Jump into your overlay</p>
         <div class="panel-actions">
-            <a class="button block" th:href="@{'/view/' + ${channel} + '/broadcast'}">Open broadcast overlay</a>
-            <a class="button ghost block" th:href="@{'/view/' + ${channel} + '/admin'}">Open admin console</a>
-            <a class="button ghost block" href="/channels">Browse channels</a>
-            <form class="block" th:action="@{/logout}" method="post">
-                <button class="secondary block" type="submit">Logout</button>
-            </form>
+          <a class="button block" th:href="@{'/view/' + ${channel} + '/broadcast'}">Open broadcast overlay</a>
+          <a class="button ghost block" th:href="@{'/view/' + ${channel} + '/admin'}">Open admin console</a>
+          <a class="button ghost block" href="/channels">Browse channels</a>
+          <form class="block" th:action="@{/logout}" method="post">
+            <button class="secondary block" type="submit">Logout</button>
+          </form>
         </div>
-    </section>
+      </section>
 
-    <section class="card">
+      <section class="card">
         <p class="eyebrow">Settings</p>
         <h3>Overlay dimensions</h3>
         <p class="muted">Match these with your OBS resolution.</p>
         <div class="control-grid">
-            <label>
-                Width
-                <input id="canvas-width" type="number" min="100" step="10" />
-            </label>
-            <label>
-                Height
-                <input id="canvas-height" type="number" min="100" step="10" />
-            </label>
+          <label>
+            Width
+            <input id="canvas-width" type="number" min="100" step="10" />
+          </label>
+          <label>
+            Height
+            <input id="canvas-height" type="number" min="100" step="10" />
+          </label>
         </div>
         <div class="control-actions">
-            <button type="button" onclick="saveCanvasSettings()">Save canvas size</button>
-            <span id="canvas-status" class="muted"></span>
+          <button type="button" onclick="saveCanvasSettings()">Save canvas size</button>
+          <span id="canvas-status" class="muted"></span>
         </div>
-    </section>
+      </section>
 
-    <section class="card-grid two-col">
+      <section class="card-grid two-col">
         <div class="card">
-            <div class="card-header">
-                <div>
-                    <p class="eyebrow">Collaboration</p>
-                    <h3>Channel admins</h3>
-                    <p class="muted">Invite moderators to help manage assets.</p>
-                </div>
-            </div>
-            <div class="inline-form">
-                <input id="new-admin" placeholder="Twitch username" />
-                <button type="button" onclick="addAdmin()">Add admin</button>
-            </div>
-            <div class="card-section">
-                <div class="section-header">
-                    <h4 class="list-title">Channel Admins</h4>
-                    <p class="muted">Users who can currently modify your overlay.</p>
-                </div>
-                <ul id="admin-list" class="stacked-list"></ul>
-            </div>
-            <div class="card-section">
-                <div class="section-header">
-                    <h4 class="list-title">Your Twitch moderators</h4>
-                    <p class="muted">Add moderators who already help run your channel.</p>
-                </div>
-                <ul id="admin-suggestions" class="stacked-list"></ul>
-            </div>
-        </div>
-    </section>
-
-    <section th:if="${adminChannels != null}" class="card">
-        <div class="card-header">
+          <div class="card-header">
             <div>
-                <p class="eyebrow">Your access</p>
-                <h3>Channels you administer</h3>
-                <p class="muted">Jump into a teammate's overlay console.</p>
+              <p class="eyebrow">Collaboration</p>
+              <h3>Channel admins</h3>
+              <p class="muted">Invite moderators to help manage assets.</p>
             </div>
+          </div>
+          <div class="inline-form">
+            <input id="new-admin" placeholder="Twitch username" />
+            <button type="button" onclick="addAdmin()">Add admin</button>
+          </div>
+          <div class="card-section">
+            <div class="section-header">
+              <h4 class="list-title">Channel Admins</h4>
+              <p class="muted">Users who can currently modify your overlay.</p>
+            </div>
+            <ul id="admin-list" class="stacked-list"></ul>
+          </div>
+          <div class="card-section">
+            <div class="section-header">
+              <h4 class="list-title">Your Twitch moderators</h4>
+              <p class="muted">Add moderators who already help run your channel.</p>
+            </div>
+            <ul id="admin-suggestions" class="stacked-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section th:if="${adminChannels != null}" class="card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Your access</p>
+            <h3>Channels you administer</h3>
+            <p class="muted">Jump into a teammate's overlay console.</p>
+          </div>
         </div>
         <p th:if="${#lists.isEmpty(adminChannels)}">No admin invitations yet.</p>
         <ul th:if="${!#lists.isEmpty(adminChannels)}" class="stacked-list">
-            <li th:each="channelName : ${adminChannels}" class="stacked-list-item">
-                <div>
-                    <p class="list-title" th:text="${channelName}">channel</p>
-                    <p class="muted">Channel admin access</p>
-                </div>
-                <a class="button ghost" th:href="@{'/view/' + ${channelName} + '/admin'}">Open</a>
-            </li>
-        </ul>
-    </section>
-
-    <section class="card download-card-block">
-        <div class="download-header">
+          <li th:each="channelName : ${adminChannels}" class="stacked-list-item">
             <div>
-                <p class="eyebrow">Desktop app</p>
-                <h3>Download Imgfloat</h3>
-                <p class="muted">Version <span class="version-inline" th:text="${releaseVersion}">0.0.1</span> · build <span class="version-inline" th:text="${version}">unknown</span></p>
+              <p class="list-title" th:text="${channelName}">channel</p>
+              <p class="muted">Channel admin access</p>
             </div>
+            <a class="button ghost" th:href="@{'/view/' + ${channelName} + '/admin'}">Open</a>
+          </li>
+        </ul>
+      </section>
+
+      <section class="card download-card-block">
+        <div class="download-header">
+          <div>
+            <p class="eyebrow">Desktop app</p>
+            <h3>Download Imgfloat</h3>
+            <p class="muted">
+              Version <span class="version-inline" th:text="${releaseVersion}">0.0.1</span> · build
+              <span class="version-inline" th:text="${version}">unknown</span>
+            </p>
+          </div>
         </div>
         <div class="download-grid">
-            <div class="download-card" data-platform="mac">
-                <div class="download-card-header">
-                    <p class="eyebrow">macOS</p>
-                    <span class="badge soft recommended-badge hidden">Recommended</span>
-                </div>
-                <p class="muted">Apple Silicon build (ARM64)</p>
-                <a class="button block" th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '-arm64.dmg'">Download .dmg</a>
+          <div class="download-card" data-platform="mac">
+            <div class="download-card-header">
+              <p class="eyebrow">macOS</p>
+              <span class="badge soft recommended-badge hidden">Recommended</span>
             </div>
-            <div class="download-card" data-platform="windows">
-                <div class="download-card-header">
-                    <p class="eyebrow">Windows</p>
-                    <span class="badge soft recommended-badge hidden">Recommended</span>
-                </div>
-                <p class="muted">Installer for Windows 10 and 11</p>
-                <a class="button block" th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat.Setup.' + ${releaseVersion} + '.exe'">Download .exe</a>
+            <p class="muted">Apple Silicon build (ARM64)</p>
+            <a
+              class="button block"
+              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '-arm64.dmg'"
+              >Download .dmg</a
+            >
+          </div>
+          <div class="download-card" data-platform="windows">
+            <div class="download-card-header">
+              <p class="eyebrow">Windows</p>
+              <span class="badge soft recommended-badge hidden">Recommended</span>
             </div>
-            <div class="download-card" data-platform="linux">
-                <div class="download-card-header">
-                    <p class="eyebrow">Linux</p>
-                    <span class="badge soft recommended-badge hidden">Recommended</span>
-                </div>
-                <p class="muted">AppImage for most distributions</p>
-                <a class="button block" th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '.AppImage'">Download AppImage</a>
+            <p class="muted">Installer for Windows 10 and 11</p>
+            <a
+              class="button block"
+              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat.Setup.' + ${releaseVersion} + '.exe'"
+              >Download .exe</a
+            >
+          </div>
+          <div class="download-card" data-platform="linux">
+            <div class="download-card-header">
+              <p class="eyebrow">Linux</p>
+              <span class="badge soft recommended-badge hidden">Recommended</span>
             </div>
+            <p class="muted">AppImage for most distributions</p>
+            <a
+              class="button block"
+              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '.AppImage'"
+              >Download AppImage</a
+            >
+          </div>
         </div>
-    </section>
-</div>
-<script src="/js/toast.js"></script>
-<script src="/js/downloads.js"></script>
-<script th:inline="javascript">
-    const broadcaster = /*[[${channel}]]*/ '';
-</script>
-<script src="/js/dashboard.js"></script>
-</body>
+      </section>
+    </div>
+    <script src="/js/toast.js"></script>
+    <script src="/js/downloads.js"></script>
+    <script th:inline="javascript">
+      const broadcaster = /*[[${channel}]]*/ "";
+    </script>
+    <script src="/js/dashboard.js"></script>
+  </body>
 </html>

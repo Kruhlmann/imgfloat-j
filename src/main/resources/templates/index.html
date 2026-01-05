@@ -1,79 +1,95 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Imgfloat - Twitch overlay</title>
     <link rel="stylesheet" href="/css/styles.css" />
-</head>
-<body class="landing-body">
-<div class="landing">
-    <header class="landing-header">
+  </head>
+  <body class="landing-body">
+    <div class="landing">
+      <header class="landing-header">
         <div class="brand">
-            <div class="brand-mark">IF</div>
-            <div>
-                <div class="brand-title">Imgfloat</div>
-                <div class="brand-subtitle">Twitch overlay manager</div>
-            </div>
+          <div class="brand-mark">IF</div>
+          <div>
+            <div class="brand-title">Imgfloat</div>
+            <div class="brand-subtitle">Twitch overlay manager</div>
+          </div>
         </div>
-    </header>
+      </header>
 
-    <main class="hero hero-compact">
+      <main class="hero hero-compact">
         <div class="hero-text">
-            <p class="eyebrow">Overlay toolkit</p>
-            <h1>Keep your Twitch overlays tidy.</h1>
-            <p class="lead">Upload artwork, drop it into a shared dashboard, and stay in sync with your mods without clutter.</p>
-            <div class="cta-row">
-                <a class="button" href="/oauth2/authorization/twitch">Login with Twitch</a>
-                <a class="button ghost" href="/channels" rel="prefetch">Browse channels</a>
-            </div>
+          <p class="eyebrow">Overlay toolkit</p>
+          <h1>Keep your Twitch overlays tidy.</h1>
+          <p class="lead">
+            Upload artwork, drop it into a shared dashboard, and stay in sync with your mods without clutter.
+          </p>
+          <div class="cta-row">
+            <a class="button" href="/oauth2/authorization/twitch">Login with Twitch</a>
+            <a class="button ghost" href="/channels" rel="prefetch">Browse channels</a>
+          </div>
         </div>
-    </main>
+      </main>
 
-    <section class="download-section">
+      <section class="download-section">
         <div class="download-header">
-            <p class="eyebrow">Desktop app</p>
-            <h2>Download Imgfloat</h2>
-            <p class="muted">Version <span class="version-inline" th:text="${releaseVersion}">0.0.1</span> for Windows, macOS, and Linux.</p>
+          <p class="eyebrow">Desktop app</p>
+          <h2>Download Imgfloat</h2>
+          <p class="muted">
+            Version <span class="version-inline" th:text="${releaseVersion}">0.0.1</span> for Windows, macOS, and Linux.
+          </p>
         </div>
         <div class="download-grid">
-            <div class="download-card" data-platform="mac">
-                <div class="download-card-header">
-                    <p class="eyebrow">macOS</p>
-                    <span class="badge soft recommended-badge hidden">Recommended</span>
-                </div>
-                <p class="muted">Apple Silicon build (ARM64)</p>
-                <a class="button block" th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '-arm64.dmg'">Download .dmg</a>
+          <div class="download-card" data-platform="mac">
+            <div class="download-card-header">
+              <p class="eyebrow">macOS</p>
+              <span class="badge soft recommended-badge hidden">Recommended</span>
             </div>
-            <div class="download-card" data-platform="windows">
-                <div class="download-card-header">
-                    <p class="eyebrow">Windows</p>
-                    <span class="badge soft recommended-badge hidden">Recommended</span>
-                </div>
-                <p class="muted">Installer for Windows 10 and 11</p>
-                <a class="button block" th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat.Setup.' + ${releaseVersion} + '.exe'">Download .exe</a>
+            <p class="muted">Apple Silicon build (ARM64)</p>
+            <a
+              class="button block"
+              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '-arm64.dmg'"
+              >Download .dmg</a
+            >
+          </div>
+          <div class="download-card" data-platform="windows">
+            <div class="download-card-header">
+              <p class="eyebrow">Windows</p>
+              <span class="badge soft recommended-badge hidden">Recommended</span>
             </div>
-            <div class="download-card" data-platform="linux">
-                <div class="download-card-header">
-                    <p class="eyebrow">Linux</p>
-                    <span class="badge soft recommended-badge hidden">Recommended</span>
-                </div>
-                <p class="muted">AppImage for most distributions</p>
-                <a class="button block" th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '.AppImage'">Download AppImage</a>
+            <p class="muted">Installer for Windows 10 and 11</p>
+            <a
+              class="button block"
+              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat.Setup.' + ${releaseVersion} + '.exe'"
+              >Download .exe</a
+            >
+          </div>
+          <div class="download-card" data-platform="linux">
+            <div class="download-card-header">
+              <p class="eyebrow">Linux</p>
+              <span class="badge soft recommended-badge hidden">Recommended</span>
             </div>
+            <p class="muted">AppImage for most distributions</p>
+            <a
+              class="button block"
+              th:href="'https://github.com/Kruhlmann/imgfloat-j/releases/download/' + ${releaseVersion} + '/Imgfloat-' + ${releaseVersion} + '.AppImage'"
+              >Download AppImage</a
+            >
+          </div>
         </div>
-    </section>
+      </section>
 
-    <footer class="landing-meta">
+      <footer class="landing-meta">
         <div class="build-chip">
-            <span class="muted">License</span>
-            <span class="version-badge">MIT</span>
+          <span class="muted">License</span>
+          <span class="version-badge">MIT</span>
         </div>
         <div class="build-chip">
-            <span class="muted">Build</span>
-            <span class="version-badge" th:text="${version}">unknown</span>
+          <span class="muted">Build</span>
+          <span class="version-badge" th:text="${version}">unknown</span>
         </div>
-    </footer>
-</div>
-<script src="/js/downloads.js"></script>
-</body>
+      </footer>
+    </div>
+    <script src="/js/downloads.js"></script>
+  </body>
 </html>
