@@ -18,6 +18,7 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 
 public class SQLiteOAuth2AuthorizedClientService implements OAuth2AuthorizedClientService {
+    private static final Logger LOG = LoggerFactory.getLogger(SQLiteOAuth2AuthorizedClientService.class);
     private static final String TABLE_NAME = "oauth2_authorized_client";
 
     private final JdbcOperations jdbcOperations;
@@ -72,7 +73,7 @@ public class SQLiteOAuth2AuthorizedClientService implements OAuth2AuthorizedClie
     @Override
     public void saveAuthorizedClient(OAuth2AuthorizedClient authorizedClient, Authentication principal) {
         try {
-            int updated = jdbcOperations.update("""
+            jdbcOperations.update("""
                     INSERT INTO oauth2_authorized_client (
                         client_registration_id, principal_name,
                         access_token_value, access_token_issued_at, access_token_expires_at, access_token_scopes,
@@ -102,7 +103,9 @@ public class SQLiteOAuth2AuthorizedClientService implements OAuth2AuthorizedClie
                         }
                     });
         } catch (DataAccessException ex) {
-            throw ex;
+            LOG.error("Failed to save authorized client for registration ID '{}' and principal '{}'",
+                    authorizedClient.getClientRegistration().getRegistrationId(),
+                    principal.getName(), ex);
         }
     }
 

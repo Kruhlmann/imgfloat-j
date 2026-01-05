@@ -79,15 +79,16 @@ public class SchemaMigration implements ApplicationRunner {
             return;
         }
 
-        addColumnIfMissing("assets", columns, "speed", "REAL", "1.0");
-        addColumnIfMissing("assets", columns, "muted", "BOOLEAN", "0");
-        addColumnIfMissing("assets", columns, "media_type", "TEXT", "'application/octet-stream'");
-        addColumnIfMissing("assets", columns, "audio_loop", "BOOLEAN", "0");
-        addColumnIfMissing("assets", columns, "audio_delay_millis", "INTEGER", "0");
-        addColumnIfMissing("assets", columns, "audio_speed", "REAL", "1.0");
-        addColumnIfMissing("assets", columns, "audio_pitch", "REAL", "1.0");
-        addColumnIfMissing("assets", columns, "audio_volume", "REAL", "1.0");
-        addColumnIfMissing("assets", columns, "preview", "TEXT", "NULL");
+        String table = "assets";
+        addColumnIfMissing(table, columns, "speed", "REAL", "1.0");
+        addColumnIfMissing(table, columns, "muted", "BOOLEAN", "0");
+        addColumnIfMissing(table, columns, "media_type", "TEXT", "'application/octet-stream'");
+        addColumnIfMissing(table, columns, "audio_loop", "BOOLEAN", "0");
+        addColumnIfMissing(table, columns, "audio_delay_millis", "INTEGER", "0");
+        addColumnIfMissing(table, columns, "audio_speed", "REAL", "1.0");
+        addColumnIfMissing(table, columns, "audio_pitch", "REAL", "1.0");
+        addColumnIfMissing(table, columns, "audio_volume", "REAL", "1.0");
+        addColumnIfMissing(table, columns, "preview", "TEXT", "NULL");
     }
 
     private void addColumnIfMissing(String tableName, List<String> existingColumns, String columnName, String dataType, String defaultValue) {

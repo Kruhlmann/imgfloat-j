@@ -9,8 +9,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.util.unit.DataSize;
 import org.springframework.core.env.Environment;
 
-import java.util.Locale;
-
 @Component
 public class SystemEnvironmentValidator {
     private static final Logger log = LoggerFactory.getLogger(SystemEnvironmentValidator.class);
@@ -61,7 +59,7 @@ public class SystemEnvironmentValidator {
         checkString(assetsPath, "IMGFLOAT_ASSETS_PATH", missing);
         checkString(previewsPath, "IMGFLOAT_PREVIEWS_PATH", missing);
 
-        if (missing.length() > 0) {
+        if (!missing.isEmpty()) {
             throw new IllegalStateException(
                 "Missing or invalid environment variables:\n" + missing
             );
