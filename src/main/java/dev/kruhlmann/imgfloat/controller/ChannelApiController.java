@@ -124,7 +124,7 @@ public class ChannelApiController {
             LOG.warn(
                 "No authorized Twitch client found for {} while fetching admin suggestions for {}",
                 sessionUsername,
-                broadcaster
+                broadcaster.replaceAll("[\n\r]", "_")
             );
             return List.of();
         }
@@ -185,7 +185,7 @@ public class ChannelApiController {
         authorizationService.userMatchesSessionUsernameOrThrowHttpError(broadcaster, sessionUsername);
         LOG.info(
             "Updating canvas for {} by {}: {}x{}",
-            broadcaster,
+            broadcaster.replaceAll("[\n\r]", "_"),
             sessionUsername,
             request.getWidth(),
             request.getHeight()
@@ -276,7 +276,7 @@ public class ChannelApiController {
         LOG.info(
             "Updating visibility for asset {} on {} by {} to hidden={} ",
             assetId,
-            broadcaster,
+            broadcaster.replaceAll("[\n\r]", "_"),
             sessionUsername,
             request.isHidden()
         );
@@ -284,7 +284,12 @@ public class ChannelApiController {
             .updateVisibility(broadcaster, assetId, request)
             .map(ResponseEntity::ok)
             .orElseThrow(() -> {
-                LOG.warn("Visibility update for missing asset {} on {} by {}", assetId, broadcaster, sessionUsername);
+                LOG.warn(
+                    "Visibility update for missing asset {} on {} by {}",
+                    assetId.replaceAll("[\n\r]", "_"),
+                    broadcaster.replaceAll("[\n\r]", "_"),
+                    sessionUsername
+                );
                 return new ResponseStatusException(NOT_FOUND, "Asset not found");
             });
     }

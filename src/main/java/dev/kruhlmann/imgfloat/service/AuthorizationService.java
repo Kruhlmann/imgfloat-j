@@ -51,6 +51,7 @@ public class AuthorizationService {
         String broadcaster,
         String sessionUsername
     ) {
+        broadcaster = broadcaster.replaceAll("[\n\r]", "_");
         if (!userIsBroadcasterOrChannelAdminForBroadcaster(broadcaster, sessionUsername)) {
             LOG.warn(
                 "Access denied for broadcaster/admin-only action by user {} on broadcaster {}",

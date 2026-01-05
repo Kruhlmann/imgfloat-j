@@ -115,9 +115,9 @@ class ChannelApiIntegrationTest {
 
         mockMvc
             .perform(
-                delete("/api/channels/{broadcaster}/assets/{id}", broadcaster, assetId).with(
-                    oauth2Login().attributes((attrs) -> attrs.put("preferred_username", broadcaster))
-                ).with(csrf())
+                delete("/api/channels/{broadcaster}/assets/{id}", broadcaster, assetId)
+                    .with(oauth2Login().attributes((attrs) -> attrs.put("preferred_username", broadcaster)))
+                    .with(csrf())
             )
             .andExpect(status().isOk());
     }

@@ -103,6 +103,7 @@ public class SchemaMigration implements ApplicationRunner {
             return;
         }
 
+        // SECURITY: This is ok, because tableName and columnName are controlled internally and not from user input.
         try {
             jdbcTemplate.execute(
                 "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + dataType + " DEFAULT " + defaultValue

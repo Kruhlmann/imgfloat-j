@@ -95,7 +95,11 @@ public class ViewController {
             broadcaster,
             sessionUsername
         );
-        LOG.info("Rendering admin console for {} (requested by {})", broadcaster, sessionUsername);
+        LOG.info(
+            "Rendering admin console for {} (requested by {})",
+            broadcaster.replaceAll("[\n\r]", "_"),
+            sessionUsername
+        );
         Settings settings = settingsService.get();
         model.addAttribute("broadcaster", broadcaster.toLowerCase());
         model.addAttribute("username", sessionUsername);

@@ -129,11 +129,14 @@ public class ChannelDirectoryService {
 
     public Optional<AssetView> createAsset(String broadcaster, MultipartFile file) throws IOException {
         long fileSize = file.getSize();
-        long maxSize = uploadLimitBytes;
-        if (fileSize > maxSize) {
+        if (fileSize > uploadLimitBytes) {
             throw new ResponseStatusException(
                 PAYLOAD_TOO_LARGE,
-                String.format("Uploaded file is too large (%d bytes). Maximum allowed is %d bytes.", fileSize, maxSize)
+                String.format(
+                    "Uploaded file is too large (%d bytes). Maximum allowed is %d bytes.",
+                    fileSize,
+                    uploadLimitBytes
+                )
             );
         }
         Channel channel = getOrCreateChannel(broadcaster);
