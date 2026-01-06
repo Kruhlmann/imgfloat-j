@@ -93,7 +93,8 @@ public class GitInfoService {
                 return null;
             }
         } catch (InterruptedException e) {
-            LOG.debug("Git command interrupted {}", String.join(" ", command), e);
+	    Thread.currentThread().interrupt();
+            LOG.debug("Thread interrupt during git command {}", String.join(" ", command), e);
             return null;
         } catch (IOException e) {
             LOG.debug("Git command IO error command {}", String.join(" ", command), e);
