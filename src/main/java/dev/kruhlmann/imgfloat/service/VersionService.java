@@ -2,6 +2,7 @@ package dev.kruhlmann.imgfloat.service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.FileNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,7 +23,7 @@ public class VersionService {
     private final String clientVersion;
     private final String releaseVersion;
 
-    public VersionService() {
+    public VersionService() throws IOException {
         this.serverVersion = resolveServerVersion();
         this.clientVersion = resolveClientVersion();
         this.releaseVersion = normalizeReleaseVersion(this.clientVersion);
@@ -59,14 +60,6 @@ public class VersionService {
         }
 
         return "unknown";
-    }
-
-    private String resolveClientVersion() {
-        try {
-            return getPackageJsonVersion();
-        } catch (IOException e) {
-            throw new IllegalStateException("Client manifest is missing", e);
-        }
     }
 
     private String normalizeReleaseVersion(String baseVersion) throws IllegalStateException {
@@ -154,10 +147,10 @@ public class VersionService {
         return null;
     }
 
-    private String getPackageJsonVersion() throws IOException {
+    private String resolveClientVersion() throws IOException {
         Path packageJsonPath = Paths.get("package.json");
         if (!Files.exists(packageJsonPath) || !Files.isRegularFile(packageJsonPath)) {
-            return null;
+            throw new FileNotFoundException("package.json not found at " + packageJsonPath.toAbsolutePath());
         }
 
         String packageJson = Files.readString(packageJsonPath, StandardCharsets.UTF_8);
@@ -169,6 +162,6 @@ public class VersionService {
             }
         }
 
-        return null;
+        throw new IllegalStateException("Version not found or invalid in package.json");
     }
 }

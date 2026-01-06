@@ -14,6 +14,8 @@ Define the following required environment variables:
 | `IMGFLOAT_PREVIEWS_PATH` | Filesystem path to store generated image previews | /var/imgfloat/previews |
 | `IMGFLOAT_DB_PATH` | Filesystem path to the SQLite database file | /var/imgfloat/imgfloat.db |
 | `IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN` | Twitch username of the initial sysadmin user | example_broadcaster |
+| `IMGFLOAT_GITHUB_OWNER` | Github user or org which has the client repository | Kruhlmann |
+| `IMGFLOAT_GITHUB_REPO` | Client repository name | imgfloat-j |
 | `SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE` | Maximum upload file size | 10MB |
 | `SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE` | Maximum upload request size | 10MB |
 | `IMGFLOAT_GITHUB_OWNER` | GitHub owner used to build desktop download links | Kruhlmann |
@@ -34,5 +36,7 @@ If you want to use the default development setup your `.env` file should look li
 ```sh
 TWITCH_CLIENT_ID=...
 TWITCH_CLIENT_SECRET=...
+IMGFLOAT_GITHUB_OWNER=...
+IMGFLOAT_GITHUB_REPO=...
 IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN=...
 ```
