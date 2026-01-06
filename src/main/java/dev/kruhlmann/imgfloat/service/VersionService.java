@@ -1,6 +1,5 @@
 package dev.kruhlmann.imgfloat.service;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -145,12 +144,61 @@ public class VersionService {
     }
 
     private String resolveClientVersion() throws IOException {
-        Path packageJsonPath = Paths.get("package.json");
-        if (!Files.exists(packageJsonPath) || !Files.isRegularFile(packageJsonPath)) {
-            throw new FileNotFoundException("package.json not found at " + packageJsonPath.toAbsolutePath());
+        String classpathVersion = getClasspathPackageJsonVersion();
+        if (classpathVersion != null) {
+            return classpathVersion;
         }
 
-        String packageJson = Files.readString(packageJsonPath, StandardCharsets.UTF_8);
+        String filesystemVersion = getFilesystemPackageJsonVersion();
+        if (filesystemVersion != null) {
+            return filesystemVersion;
+        }
+
+        LOG.warn(
+            "Unable to resolve client version from package.json; falling back to server version {}",
+            serverVersion
+        );
+        return serverVersion;
+    }
+
+    private String getClasspathPackageJsonVersion() {
+        try (InputStream resource = getClass().getClassLoader().getResourceAsStream("package.json")) {
+            if (resource == null) {
+                return null;
+            }
+            String version = extractPackageJsonVersion(resource);
+            if (version != null) {
+                return version;
+            }
+            LOG.warn("Unable to parse client version from classpath package.json");
+        } catch (IOException e) {
+            LOG.warn("Error while reading classpath package.json", e);
+        }
+        return null;
+    }
+
+    private String getFilesystemPackageJsonVersion() throws IOException {
+        Path packageJsonPath = Paths.get("package.json");
+        if (!Files.exists(packageJsonPath) || !Files.isRegularFile(packageJsonPath)) {
+            LOG.warn("package.json not found at {}", packageJsonPath.toAbsolutePath());
+            return null;
+        }
+
+        try (InputStream stream = Files.newInputStream(packageJsonPath)) {
+            String version = extractPackageJsonVersion(stream);
+            if (version != null) {
+                return version;
+            }
+            LOG.warn(
+                "Unable to parse client version from filesystem package.json at {}",
+                packageJsonPath.toAbsolutePath()
+            );
+        }
+        return null;
+    }
+
+    private String extractPackageJsonVersion(InputStream packageJsonStream) throws IOException {
+        String packageJson = new String(packageJsonStream.readAllBytes(), StandardCharsets.UTF_8);
         Matcher matcher = PACKAGE_VERSION_PATTERN.matcher(packageJson);
         if (matcher.find()) {
             String version = matcher.group(1);
@@ -158,7 +206,6 @@ public class VersionService {
                 return version.trim();
             }
         }
-
-        throw new IllegalStateException("Version not found or invalid in package.json");
+        return null;
     }
 }
