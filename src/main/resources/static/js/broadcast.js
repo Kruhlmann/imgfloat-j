@@ -1,5 +1,5 @@
 const canvas = document.getElementById("broadcast-canvas");
-const obsBrowser = !!window.obsstudio;
+const obsBrowser = !!globalThis.obsstudio;
 const supportsAnimatedDecode =
     typeof ImageDecoder !== "undefined" && typeof createImageBitmap === "function" && !obsBrowser;
 const canPlayProbe = document.createElement("video");
@@ -28,7 +28,7 @@ let layerOrder = [];
 applyCanvasSettings(canvasSettings);
 
 audioUnlockEvents.forEach((eventName) => {
-    window.addEventListener(eventName, () => {
+    globalThis.addEventListener(eventName, () => {
         if (!pendingAudioUnlock.size) return;
         pendingAudioUnlock.forEach((controller) => safePlay(controller));
         pendingAudioUnlock.clear();
@@ -434,7 +434,7 @@ function isAudioAsset(asset) {
 }
 
 function isVideoElement(element) {
-    return element && element.tagName === "VIDEO";
+    return element?.tagName === "VIDEO";
 }
 
 function isGifAsset(asset) {
@@ -896,7 +896,7 @@ function startRenderLoop() {
     }, MIN_FRAME_TIME);
 }
 
-window.addEventListener("resize", () => {
+globalThis.addEventListener("resize", () => {
     resizeCanvas();
 });
 

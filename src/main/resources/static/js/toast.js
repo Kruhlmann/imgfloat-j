@@ -38,7 +38,7 @@
         setTimeout(() => toast.remove(), 250);
     }
 
-    window.showToast = function showToast(message, type = "info", options = {}) {
+    globalThis.showToast = function showToast(message, type = "info", options = {}) {
         if (!message) return;
         const normalized = ["success", "error", "warning", "info"].includes(type) ? type : "info";
         const duration = typeof options.duration === "number" ? options.duration : DEFAULT_DURATION;

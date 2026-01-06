@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
             searchInput.focus();
             return;
         }
-        window.location.href = `/view/${encodeURIComponent(broadcaster)}/broadcast`;
+        globalThis.location.href = `/view/${encodeURIComponent(broadcaster)}/broadcast`;
     });
 
     loadChannels();

@@ -67,7 +67,7 @@ let stompClient;
 applyCanvasSettings(canvasSettings);
 
 audioUnlockEvents.forEach((eventName) => {
-    window.addEventListener(eventName, () => {
+    globalThis.addEventListener(eventName, () => {
         if (!pendingAudioUnlock.size) return;
         pendingAudioUnlock.forEach((controller) => {
             safePlay(controller);
@@ -275,7 +275,7 @@ function setAudioSpeedLabel(percentValue) {
 }
 
 function formatDelayLabel(ms) {
-    const numeric = Math.max(0, parseInt(ms, 10) || 0);
+    const numeric = Math.max(0, Number.parseInt(ms, 10) || 0);
     if (numeric >= 1000) {
         const seconds = numeric / 1000;
         const decimals = Number.isInteger(seconds) ? 0 : 1;
@@ -376,7 +376,7 @@ if (selectedDeleteBtn) {
     });
 }
 
-window.addEventListener("keydown", (event) => {
+globalThis.addEventListener("keydown", (event) => {
     if (isFormInputElement(event.target)) {
         return;
     }
@@ -596,11 +596,14 @@ function applyPatch(assetId, patch) {
         clearMedia(assetId);
         loopPlaybackState.delete(assetId);
     }
-    const targetLayer = Number.isFinite(patch.layer)
-        ? patch.layer
-        : Number.isFinite(patch.zIndex)
-          ? patch.zIndex
-          : null;
+    let targetLayer;
+    if (Number.isFinite(patch.layer)) {
+        targetLayer = patch.layer;
+    } else if (Number.isFinite(patch.zIndex)) {
+        targetLayer = patch.zIndex;
+    } else {
+        targetLayer = null;
+    }
     if (!isAudio && Number.isFinite(targetLayer)) {
         const currentOrder = getLayerOrder().filter((id) => id !== assetId);
         const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
@@ -1093,7 +1096,7 @@ function ensureMedia(asset) {
         return null;
     }
 
-    if (isGifAsset(asset) && "ImageDecoder" in window) {
+    if (isGifAsset(asset) && "ImageDecoder" in globalThis) {
         const animated = ensureAnimatedImage(asset);
         if (animated) {
             mediaCache.set(asset.id, animated);
@@ -1567,7 +1570,7 @@ function captureVideoFrame(asset) {
 }
 
 function captureGifFrame(asset) {
-    if (!("ImageDecoder" in window)) {
+    if (!("ImageDecoder" in globalThis)) {
         return Promise.resolve(null);
     }
     return fetch(asset.url)
@@ -1857,15 +1860,15 @@ function updateAudioSettingsFromInputs() {
     const asset = getSelectedAsset();
     if (!asset || !isAudioAsset(asset)) return;
     asset.audioLoop = !!audioLoopInput?.checked;
-    const delayMs = clamp(Math.max(0, parseInt(audioDelayInput?.value || "0", 10)), 0, 30000);
+    const delayMs = clamp(Math.max(0, Number.parseInt(audioDelayInput?.value || "0", 10)), 0, 30000);
     asset.audioDelayMillis = delayMs;
     setAudioDelayLabel(delayMs);
     if (audioDelayInput) audioDelayInput.value = delayMs;
-    const nextAudioSpeedPercent = clamp(Math.max(25, parseInt(audioSpeedInput?.value || "100", 10)), 25, 400);
+    const nextAudioSpeedPercent = clamp(Math.max(25, Number.parseInt(audioSpeedInput?.value || "100", 10)), 25, 400);
     setAudioSpeedLabel(nextAudioSpeedPercent);
     if (audioSpeedInput) audioSpeedInput.value = nextAudioSpeedPercent;
     asset.audioSpeed = Math.max(0.25, nextAudioSpeedPercent / 100);
-    const nextAudioPitchPercent = clamp(Math.max(50, parseInt(audioPitchInput?.value || "100", 10)), 50, 200);
+    const nextAudioPitchPercent = clamp(Math.max(50, Number.parseInt(audioPitchInput?.value || "100", 10)), 50, 200);
     setAudioPitchLabel(nextAudioPitchPercent);
     if (audioPitchInput) audioPitchInput.value = nextAudioPitchPercent;
     asset.audioPitch = Math.max(0.5, nextAudioPitchPercent / 100);
@@ -2288,7 +2291,7 @@ function endInteraction() {
 canvas.addEventListener("mouseup", endInteraction);
 canvas.addEventListener("mouseleave", endInteraction);
 
-window.addEventListener("resize", () => {
+globalThis.addEventListener("resize", () => {
     resizeCanvas();
 });
 

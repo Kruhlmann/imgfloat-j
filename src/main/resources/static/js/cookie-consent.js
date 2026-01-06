@@ -11,14 +11,14 @@
 
     const persistDismissal = () => {
         try {
-            window.localStorage.setItem(CONSENT_STORAGE_KEY, "true");
+            globalThis.localStorage.setItem(CONSENT_STORAGE_KEY, "true");
         } catch {}
         document.cookie = `${CONSENT_STORAGE_KEY}=true; max-age=${COOKIE_MAX_AGE_SECONDS}; path=/; SameSite=Lax`;
     };
 
     const hasDismissed = () => {
         try {
-            if (window.localStorage.getItem(CONSENT_STORAGE_KEY) === "true") {
+            if (globalThis.localStorage.getItem(CONSENT_STORAGE_KEY) === "true") {
                 return true;
             }
         } catch {}
@@ -41,7 +41,7 @@
         }
         persistDismissal();
         banner.classList.add("cookie-consent-exit");
-        window.setTimeout(() => banner.remove(), 180);
+        globalThis.setTimeout(() => banner.remove(), 180);
     };
 
     const renderBanner = () => {
