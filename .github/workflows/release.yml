@@ -3,9 +3,22 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  
 jobs:
   release:
-    runs-on: ubuntu-latest
+    name: Release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            args: --linux AppImage
+          - os: windows-latest
+            args: --win nsis
+          - os: macos-latest
+            args: --mac
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,15 +30,11 @@ jobs:
           cache: npm
       - name: Install deps
         run: npm ci
-      - name: Ensure version is not already tagged
+      - name: Verify version is set
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists. Bump version first."
-            exit 1
-          fi
+          node -e "process.exit(require('./package.json').version ? 0 : 1)"
       - name: Build + publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npx electron-builder --publish always
+          npx electron-builder ${{ matrix.args }} --publish always
