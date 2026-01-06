@@ -70,8 +70,9 @@ public class ViewController {
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/channels")
-    public String channelDirectory() {
+    public String channelDirectory(Model model) {
         LOG.info("Rendering channel directory");
+        addVersionAttributes(model);
         return "channels";
     }
 

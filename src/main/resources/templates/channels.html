@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
     <head>
         <meta charset="UTF-8" />
         <title>Browse channels - Imgfloat</title>
@@ -39,6 +39,32 @@
                     </form>
                 </section>
             </main>
+
+            <footer class="landing-meta">
+                <div class="build-chip">
+                    <span class="muted">License</span>
+                    <span class="version-badge">MIT</span>
+                </div>
+                <div class="build-chip">
+                    <span class="muted">Version</span>
+                    <span class="version-badge" th:text="${version}">unknown</span>
+                </div>
+                <div class="build-chip">
+                    <span class="muted">Build</span>
+                    <a
+                        class="version-badge version-link"
+                        th:if="${buildCommitUrl}"
+                        th:href="${buildCommitUrl}"
+                        th:text="${buildCommitShort}"
+                        rel="noreferrer"
+                        target="_blank"
+                        >unknown</a
+                    >
+                    <span class="version-badge" th:unless="${buildCommitUrl}" th:text="${buildCommitShort}"
+                        >unknown</span
+                    >
+                </div>
+            </footer>
         </div>
         <script src="/js/cookie-consent.js"></script>
     </body>
