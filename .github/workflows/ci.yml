@@ -75,6 +75,7 @@ jobs:
           ./dist/*.AppImage --appimage-extract
           sudo apt-get update
           sudo apt-get install -y xvfb
+          cd squashfs-root
           APPDIR="$(pwd)" xvfb-run ./AppRun --no-sandbox
 
       - name: Upload Electron artifacts
