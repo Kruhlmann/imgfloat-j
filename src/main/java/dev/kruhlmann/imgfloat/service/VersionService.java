@@ -39,10 +39,7 @@ public class VersionService {
 
     public String getReleaseTag() {
         if (releaseVersion == null || releaseVersion.isBlank()) {
-            return "latest";
-        }
-        if ("latest".equalsIgnoreCase(releaseVersion)) {
-            return "latest";
+            throw new IllegalStateException("Release version is not available");
         }
         String normalized = releaseVersion.startsWith("v") ? releaseVersion.substring(1) : releaseVersion;
         return "v" + normalized;
@@ -59,7 +56,7 @@ public class VersionService {
             return pomXmlVersion;
         }
 
-        return "unknown";
+        throw new IllegalStateException("Release version is not available");
     }
 
     private String normalizeReleaseVersion(String baseVersion) throws IllegalStateException {
