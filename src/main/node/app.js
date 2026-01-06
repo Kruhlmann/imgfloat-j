@@ -71,7 +71,7 @@ function onPostNavigationLoad(win, url, broadcastRect) {
     }
 }
 
-function createWindow() {
+function createWindow(version) {
     const win = new BrowserWindow({
         width: initialWindowWidthPx,
         height: initialWindowHeightPx,
@@ -83,6 +83,7 @@ function createWindow() {
         webPreferences: { backgroundThrottling: false },
     });
     win.setMenu(null);
+    win.setTitle(`Imgfloat Client v${version}`);
 
     return win;
 }
@@ -98,10 +99,12 @@ app.whenReady().then(() => {
     autoUpdater.checkForUpdatesAndNotify();
 
     let broadcastRect = { width: 0, height: 0 };
-    const win = createWindow();
+    const version = app.getVersion();
+    const win = createWindow(version);
     win.loadURL(process.env["IMGFLOAT_CHANNELS_URL"] || "https://imgfloat.kruhlmann.dev/channels");
     win.webContents.on("did-finish-load", () => onPostNavigationLoad(win, undefined, broadcastRect));
     win.webContents.on("did-navigate", (_, url) => onPostNavigationLoad(win, url, broadcastRect));
     win.webContents.on("did-navigate-in-page", (_, url) => onPostNavigationLoad(win, url, broadcastRect));
+    win.on("page-title-updated", (e) => e.preventDefault());
     win.on("closed", clearCanvasSizeInterval);
 });
