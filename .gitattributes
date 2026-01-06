@@ -5,3 +5,10 @@ src/main/resources/assets/icon/raw.png filter=lfs diff=lfs merge=lfs -text
 src/main/resources/assets/icon/raw.xcf filter=lfs diff=lfs merge=lfs -text
 src/main/resources/static/favicon.ico filter=lfs diff=lfs merge=lfs -text
 src/main/resources/static/img/brand.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/48x48.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/256x256.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/32x32.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/512x512.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/64x64.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/128x128.png filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/icon/linux/16x16.png filter=lfs diff=lfs merge=lfs -text
