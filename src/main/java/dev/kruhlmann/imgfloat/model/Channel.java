@@ -12,6 +12,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.util.Collections;
 import java.util.HashSet;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,6 +32,12 @@ public class Channel {
     private double canvasWidth = 1920;
 
     private double canvasHeight = 1080;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     public Channel() {}
 
@@ -75,6 +82,11 @@ public class Channel {
     @PrePersist
     @PreUpdate
     public void normalizeFields() {
+        Instant now = Instant.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        updatedAt = now;
         this.broadcaster = normalize(broadcaster);
         this.admins = admins.stream().map(Channel::normalize).collect(Collectors.toSet());
         if (canvasWidth <= 0) {
@@ -83,6 +95,14 @@ public class Channel {
         if (canvasHeight <= 0) {
             canvasHeight = 1080;
         }
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 
     private static String normalize(String value) {

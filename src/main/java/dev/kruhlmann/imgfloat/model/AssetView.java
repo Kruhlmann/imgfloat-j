@@ -25,7 +25,8 @@ public record AssetView(
     Double audioVolume,
     boolean hidden,
     boolean hasPreview,
-    Instant createdAt
+    Instant createdAt,
+    Instant updatedAt
 ) {
     public static AssetView from(String broadcaster, Asset asset) {
         return new AssetView(
@@ -53,7 +54,8 @@ public record AssetView(
             asset.getAudioVolume(),
             asset.isHidden(),
             asset.getPreview() != null && !asset.getPreview().isBlank(),
-            asset.getCreatedAt()
+            asset.getCreatedAt(),
+            asset.getUpdatedAt()
         );
     }
 }

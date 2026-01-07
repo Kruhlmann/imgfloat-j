@@ -85,7 +85,7 @@ function renderSuggestedAdmins(list) {
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "ghost";
-        addBtn.textContent = "Add as admin";
+        addBtn.textContent = "Add channel admin";
         addBtn.addEventListener("click", () => addAdmin(admin.login));
 
         actions.appendChild(addBtn);

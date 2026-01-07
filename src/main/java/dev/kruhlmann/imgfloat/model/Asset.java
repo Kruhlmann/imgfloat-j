@@ -29,8 +29,11 @@ public class Asset {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String preview;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     private double x;
     private double y;
@@ -66,17 +69,20 @@ public class Asset {
         this.zIndex = 1;
         this.hidden = true;
         this.createdAt = Instant.now();
+        this.updatedAt = this.createdAt;
     }
 
     @PrePersist
     @PreUpdate
     public void prepare() {
+        Instant now = Instant.now();
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
         }
         if (this.createdAt == null) {
-            this.createdAt = Instant.now();
+            this.createdAt = now;
         }
+        this.updatedAt = now;
         this.broadcaster = normalize(broadcaster);
         if (this.name == null || this.name.isBlank()) {
             this.name = this.id;
@@ -233,6 +239,14 @@ public class Asset {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public Integer getZIndex() {

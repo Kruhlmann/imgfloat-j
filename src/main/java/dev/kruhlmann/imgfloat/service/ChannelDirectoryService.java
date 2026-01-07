@@ -85,7 +85,7 @@ public class ChannelDirectoryService {
         Channel channel = getOrCreateChannel(broadcaster);
         boolean added = channel.addAdmin(username);
         if (added) {
-            channelRepository.save(channel);
+            channelRepository.saveAndFlush(channel);
             messagingTemplate.convertAndSend(topicFor(broadcaster), "Admin added: " + username);
         }
         return added;
@@ -95,7 +95,7 @@ public class ChannelDirectoryService {
         Channel channel = getOrCreateChannel(broadcaster);
         boolean removed = channel.removeAdmin(username);
         if (removed) {
-            channelRepository.save(channel);
+            channelRepository.saveAndFlush(channel);
             messagingTemplate.convertAndSend(topicFor(broadcaster), "Admin removed: " + username);
         }
         return removed;
