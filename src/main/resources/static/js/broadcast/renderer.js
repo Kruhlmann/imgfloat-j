@@ -1,0 +1,385 @@
+import { AssetKind, MIN_FRAME_TIME, VISIBILITY_THRESHOLD } from "./constants.js";
+import { createBroadcastState } from "./state.js";
+import { getAssetKind, isCodeAsset, isVisualAsset, isVideoElement } from "./assetKinds.js";
+import { ensureLayerPosition, getLayerOrder, getRenderOrder } from "./layers.js";
+import { getVisibilityState, smoothState } from "./visibility.js";
+import { createAudioManager } from "./audioManager.js";
+import { createMediaManager } from "./mediaManager.js";
+
+export class BroadcastRenderer {
+    constructor({ canvas, broadcaster, showToast }) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d");
+        this.broadcaster = broadcaster;
+        this.showToast = showToast;
+        this.state = createBroadcastState();
+        this.lastRenderTime = 0;
+        this.frameScheduled = false;
+        this.pendingDraw = false;
+        this.renderIntervalId = null;
+
+        this.obsBrowser = !!globalThis.obsstudio;
+        this.supportsAnimatedDecode =
+            typeof ImageDecoder !== "undefined" &&
+            typeof createImageBitmap === "function" &&
+            !this.obsBrowser;
+        this.canPlayProbe = document.createElement("video");
+
+        this.audioManager = createAudioManager({ assets: this.state.assets });
+        this.mediaManager = createMediaManager({
+            state: this.state,
+            audioManager: this.audioManager,
+            draw: () => this.draw(),
+            obsBrowser: this.obsBrowser,
+            supportsAnimatedDecode: this.supportsAnimatedDecode,
+            canPlayProbe: this.canPlayProbe,
+        });
+
+        this.applyCanvasSettings(this.state.canvasSettings);
+        globalThis.addEventListener("resize", () => {
+            this.resizeCanvas();
+        });
+    }
+
+    start() {
+        this.fetchCanvasSettings().finally(() => {
+            this.resizeCanvas();
+            this.startRenderLoop();
+            this.connect();
+        });
+    }
+
+    connect() {
+        const socket = new SockJS("/ws");
+        const stompClient = Stomp.over(socket);
+        stompClient.connect({}, () => {
+            stompClient.subscribe(`/topic/channel/${this.broadcaster}`, (payload) => {
+                const body = JSON.parse(payload.body);
+                this.handleEvent(body);
+            });
+            fetch(`/api/channels/${this.broadcaster}/assets`)
+                .then((r) => {
+                    if (!r.ok) {
+                        throw new Error("Failed to load assets");
+                    }
+                    return r.json();
+                })
+                .then((assets) => this.renderAssets(assets))
+                .catch(() =>
+                    this.showToast("Unable to load overlay assets. Retrying may help.", "error"),
+                );
+        });
+    }
+
+    renderAssets(list) {
+        this.state.layerOrder = [];
+        list.forEach((asset) => {
+            this.storeAsset(asset, "append");
+            if (isCodeAsset(asset)) {
+                this.spawnUserJavaScriptWorker(asset);
+            }
+        });
+        this.draw();
+    }
+
+    storeAsset(asset, placement = "keep") {
+        if (!asset) return;
+        console.info(`Storing asset: ${asset.id}`);
+        const wasExisting = this.state.assets.has(asset.id);
+        this.state.assets.set(asset.id, asset);
+        ensureLayerPosition(this.state, asset.id, placement);
+        if (!wasExisting && !this.state.visibilityStates.has(asset.id)) {
+            const initialAlpha = 0; // Fade in newly discovered assets
+            this.state.visibilityStates.set(asset.id, {
+                alpha: initialAlpha,
+                targetHidden: !!asset.hidden,
+            });
+        }
+    }
+
+    removeAsset(assetId) {
+        this.state.assets.delete(assetId);
+        this.state.layerOrder = this.state.layerOrder.filter((id) => id !== assetId);
+        this.mediaManager.clearMedia(assetId);
+        this.stopUserJavaScriptWorker(assetId);
+        this.state.renderStates.delete(assetId);
+        this.state.visibilityStates.delete(assetId);
+    }
+
+    async fetchCanvasSettings() {
+        return fetch(`/api/channels/${encodeURIComponent(this.broadcaster)}/canvas`)
+            .then((r) => {
+                if (!r.ok) {
+                    throw new Error("Failed to load canvas");
+                }
+                return r.json();
+            })
+            .then((settings) => {
+                this.applyCanvasSettings(settings);
+            })
+            .catch(() => {
+                this.resizeCanvas();
+                this.showToast("Using default canvas size. Unable to load saved settings.", "warning");
+            });
+    }
+
+    applyCanvasSettings(settings) {
+        if (!settings) {
+            return;
+        }
+        const width = Number.isFinite(settings.width)
+            ? settings.width
+            : this.state.canvasSettings.width;
+        const height = Number.isFinite(settings.height)
+            ? settings.height
+            : this.state.canvasSettings.height;
+        this.state.canvasSettings = { width, height };
+        this.resizeCanvas();
+    }
+
+    resizeCanvas() {
+        if (
+            Number.isFinite(this.state.canvasSettings.width) &&
+            Number.isFinite(this.state.canvasSettings.height)
+        ) {
+            this.canvas.width = this.state.canvasSettings.width;
+            this.canvas.height = this.state.canvasSettings.height;
+            this.canvas.style.width = `${this.state.canvasSettings.width}px`;
+            this.canvas.style.height = `${this.state.canvasSettings.height}px`;
+        }
+        this.draw();
+    }
+
+    handleEvent(event) {
+        if (event.type === "CANVAS" && event.payload) {
+            this.applyCanvasSettings(event.payload);
+            return;
+        }
+        const assetId = event.assetId || event?.patch?.id || event?.payload?.id;
+        if (event.type === "VISIBILITY") {
+            this.handleVisibilityEvent(event);
+            return;
+        }
+        if (event.type === "DELETED") {
+            this.removeAsset(assetId);
+        } else if (event.patch) {
+            this.applyPatch(assetId, event.patch);
+            if (event.payload) {
+                const payload = this.normalizePayload(event.payload);
+                if (payload.hidden) {
+                    this.hideAssetWithTransition(payload);
+                } else if (!this.state.assets.has(payload.id)) {
+                    this.upsertVisibleAsset(payload, "append");
+                }
+            }
+        } else if (event.type === "PLAY" && event.payload) {
+            const payload = this.normalizePayload(event.payload);
+            this.storeAsset(payload);
+            if (getAssetKind(payload) === AssetKind.AUDIO) {
+                this.audioManager.handleAudioPlay(payload, event.play !== false);
+            }
+        } else if (event.payload && !event.payload.hidden) {
+            const payload = this.normalizePayload(event.payload);
+            this.upsertVisibleAsset(payload);
+        } else if (event.payload && event.payload.hidden) {
+            this.hideAssetWithTransition(event.payload);
+        }
+        this.draw();
+    }
+
+    normalizePayload(payload) {
+        return { ...payload };
+    }
+
+    hideAssetWithTransition(asset) {
+        const payload = asset ? this.normalizePayload(asset) : null;
+        if (!payload?.id) {
+            return;
+        }
+        const existing = this.state.assets.get(payload.id);
+        if (
+            !existing &&
+            (!Number.isFinite(payload.x) ||
+                !Number.isFinite(payload.y) ||
+                !Number.isFinite(payload.width) ||
+                !Number.isFinite(payload.height))
+        ) {
+            return;
+        }
+        const merged = this.normalizePayload({ ...(existing || {}), ...payload, hidden: true });
+        this.storeAsset(merged);
+        this.stopUserJavaScriptWorker(merged.id);
+        this.audioManager.stopAudio(payload.id);
+    }
+
+    upsertVisibleAsset(asset, placement = "keep") {
+        const payload = asset ? this.normalizePayload(asset) : null;
+        if (!payload?.id) {
+            return;
+        }
+        const placementMode = this.state.assets.has(payload.id) ? "keep" : placement;
+        this.storeAsset(payload, placementMode);
+        this.mediaManager.ensureMedia(payload);
+        const kind = getAssetKind(payload);
+        if (kind === AssetKind.AUDIO) {
+            this.audioManager.playAudioImmediately(payload);
+        } else if (kind === AssetKind.CODE) {
+            this.spawnUserJavaScriptWorker(payload);
+        }
+    }
+
+    handleVisibilityEvent(event) {
+        const payload = event.payload ? this.normalizePayload(event.payload) : null;
+        const patch = event.patch;
+        const id = payload?.id || patch?.id || event.assetId;
+
+        if (payload?.hidden || patch?.hidden) {
+            this.hideAssetWithTransition({ id, ...payload, ...patch });
+            this.draw();
+            return;
+        }
+
+        if (payload) {
+            const placement = this.state.assets.has(payload.id) ? "keep" : "append";
+            this.upsertVisibleAsset(payload, placement);
+        }
+
+        if (patch && id) {
+            this.applyPatch(id, patch);
+        }
+
+        this.draw();
+    }
+
+    applyPatch(assetId, patch) {
+        if (!assetId || !patch) {
+            return;
+        }
+        const sanitizedPatch = Object.fromEntries(
+            Object.entries(patch).filter(([, value]) => value !== null && value !== undefined),
+        );
+        const existing = this.state.assets.get(assetId);
+        if (!existing) {
+            return;
+        }
+        const merged = this.normalizePayload({ ...existing, ...sanitizedPatch });
+        console.log(merged);
+        const isVisual = isVisualAsset(merged);
+        if (sanitizedPatch.hidden) {
+            this.hideAssetWithTransition(merged);
+            return;
+        }
+        const targetLayer = Number.isFinite(patch.layer)
+            ? patch.layer
+            : Number.isFinite(patch.zIndex)
+              ? patch.zIndex
+              : null;
+        if (isVisual && Number.isFinite(targetLayer)) {
+            const currentOrder = getLayerOrder(this.state).filter((id) => id !== assetId);
+            const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
+            currentOrder.splice(insertIndex, 0, assetId);
+            this.state.layerOrder = currentOrder;
+        }
+        this.storeAsset(merged);
+        this.mediaManager.ensureMedia(merged);
+        if (isCodeAsset(merged)) {
+            console.info(`Spawning JS worker for patched asset: ${merged.id}`);
+            this.spawnUserJavaScriptWorker(merged);
+        }
+    }
+
+    draw() {
+        if (this.frameScheduled) {
+            this.pendingDraw = true;
+            return;
+        }
+        this.frameScheduled = true;
+        requestAnimationFrame((timestamp) => {
+            const elapsed = timestamp - this.lastRenderTime;
+            const delay = MIN_FRAME_TIME - elapsed;
+            const shouldRender = elapsed >= MIN_FRAME_TIME;
+
+            if (shouldRender) {
+                this.lastRenderTime = timestamp;
+                this.renderFrame();
+            }
+
+            this.frameScheduled = false;
+            if (this.pendingDraw || !shouldRender) {
+                this.pendingDraw = false;
+                setTimeout(() => this.draw(), Math.max(0, delay));
+            }
+        });
+    }
+
+    renderFrame() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        getRenderOrder(this.state).forEach((asset) => this.drawAsset(asset));
+    }
+
+    drawAsset(asset) {
+        const visibility = getVisibilityState(this.state, asset);
+        if (visibility.alpha <= VISIBILITY_THRESHOLD && asset.hidden) {
+            return;
+        }
+        const renderState = smoothState(this.state, asset);
+        const halfWidth = renderState.width / 2;
+        const halfHeight = renderState.height / 2;
+        this.ctx.save();
+        this.ctx.globalAlpha = Math.max(0, Math.min(1, visibility.alpha));
+        this.ctx.translate(renderState.x + halfWidth, renderState.y + halfHeight);
+        this.ctx.rotate((renderState.rotation * Math.PI) / 180);
+
+        const kind = getAssetKind(asset);
+        if (kind === AssetKind.CODE) {
+            this.ctx.restore();
+            return;
+        }
+
+        if (kind === AssetKind.AUDIO) {
+            if (!asset.hidden) {
+                this.audioManager.autoStartAudio(asset);
+            }
+            this.ctx.restore();
+            return;
+        }
+
+        const media = this.mediaManager.ensureMedia(asset);
+        const drawSource = media?.isAnimated ? media.bitmap : media;
+        const ready = this.isDrawable(media);
+        if (ready && drawSource) {
+            this.ctx.drawImage(drawSource, -halfWidth, -halfHeight, renderState.width, renderState.height);
+        }
+
+        this.ctx.restore();
+    }
+
+    isDrawable(element) {
+        if (!element) {
+            return false;
+        }
+        if (element.isAnimated) {
+            return !!element.bitmap;
+        }
+        if (isVideoElement(element)) {
+            return element.readyState >= 2;
+        }
+        if (typeof ImageBitmap !== "undefined" && element instanceof ImageBitmap) {
+            return true;
+        }
+        return !!element.complete;
+    }
+
+    startRenderLoop() {
+        if (this.renderIntervalId) {
+            return;
+        }
+        this.renderIntervalId = setInterval(() => {
+            this.draw();
+        }, MIN_FRAME_TIME);
+    }
+
+    spawnUserJavaScriptWorker() {}
+
+    stopUserJavaScriptWorker() {}
+}
