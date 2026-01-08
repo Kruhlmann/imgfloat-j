@@ -20,6 +20,8 @@ Visit [imgfloat.kruhlmann.dev](https://imgfloat.kruhlmann.dev) once your streame
 
 ## Running locally
 
+### Environment
+
 Define the following required environment variables:
 
 | Variable | Description | Example Value |
@@ -53,4 +55,46 @@ TWITCH_CLIENT_SECRET=...
 IMGFLOAT_GITHUB_OWNER=...
 IMGFLOAT_GITHUB_REPO=...
 IMGFLOAT_INITIAL_TWITCH_USERNAME_SYSADMIN=...
+```
+
+### Build and run
+
+To run the application:
+
+```sh
+$ make run
+...
+...  : Tomcat started on port 8080 (http) with context path ''
+```
+
+If you want live compilation run the `watch` command in a separate terminal. Note that this doesn't automatically reload the browser; this has to be done manually.
+
+```sh
+$ make watch
+...
+[INFO] BUILD SUCCESS
+```
+
+This automatically re-compiles the project when source files change. `entr` is required for this to work.
+
+### Running the electron client
+
+There are two methods of running the electron app during development.
+
+#### Running in the current X server
+
+```sh
+$ make run-client
+...
+^C
+```
+
+#### Running in a sandboxed X server
+
+This method spawns an Xorg server with `Xephyr` and `openbox` to ensure a floating window manager, which will more accurately reflect the common user environment. Killing either the Xephyr or electron process shuts both down.
+
+```sh
+$ make run-client-x
+...
+^C
 ```

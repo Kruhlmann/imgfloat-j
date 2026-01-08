@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
+ELECTRON="$1"
 APP_ENTRY="src/main/node/app.js"
 SCREEN="1280x800"
 
@@ -33,7 +34,7 @@ OPENBOX_PID=$!
 
 sleep 0.5
 
-DISPLAY=":$DISP" electron "$APP_ENTRY" &
+DISPLAY=":$DISP" "${ELECTRON}" "$APP_ENTRY" &
 ELECTRON_PID=$!
 DISPLAY=":$DISP" xsetroot -solid "#009999"
 

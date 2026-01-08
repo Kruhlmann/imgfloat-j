@@ -10,6 +10,13 @@ IMGFLOAT_ASSETS_PATH ?= ./assets
 IMGFLOAT_PREVIEWS_PATH ?= ./previews
 SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE ?= 10MB
 SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE ?= 10MB
+WATCHDIR = ./src/main
+ELECTRON := $(shell \
+	if [ -f /etc/os-release ] && grep -q '^ID=nixos' /etc/os-release; then \
+		echo electron; \
+	else \
+		echo "npx electron"; \
+	fi)
 RUNTIME_ENV = IMGFLOAT_ASSETS_PATH=$(IMGFLOAT_ASSETS_PATH) \
 			  IMGFLOAT_PREVIEWS_PATH=$(IMGFLOAT_PREVIEWS_PATH) \
 			  IMGFLOAT_GITHUB_OWNER=$(IMGFLOAT_GITHUB_OWNER) \
@@ -17,7 +24,6 @@ RUNTIME_ENV = IMGFLOAT_ASSETS_PATH=$(IMGFLOAT_ASSETS_PATH) \
 			  IMGFLOAT_DB_PATH=$(IMGFLOAT_DB_PATH) \
 			  SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=$(SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE) \
 			  SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=$(SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE)
-WATCHDIR = ./src/main
 
 node_modules: package-lock.json
 	npm install
@@ -43,9 +49,13 @@ test:
 package:
 	mvn clean package
 
+.PHONY: run-client
+run-client:
+	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels $(ELECTRON) ./src/main/node/app.js
+
 .PHONY: runx
-runx:
-	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels ./src/main/shell/run-electron-app-in-xorg
+run-client-x:
+	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels ./src/main/shell/run-electron-app-in-xorg $(ELECTRON)
 
 .PHONY: fix
 fix: node_modules
