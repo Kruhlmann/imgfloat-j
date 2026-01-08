@@ -13,6 +13,7 @@ const animatedCache = new Map();
 const blobCache = new Map();
 const animationFailures = new Map();
 const audioControllers = new Map();
+const videoPlaybackStates = new WeakMap();
 const pendingAudioUnlock = new Set();
 const TARGET_FPS = 60;
 const MIN_FRAME_TIME = 1000 / TARGET_FPS;
@@ -88,6 +89,7 @@ function removeAsset(assetId) {
     assets.delete(assetId);
     layerOrder = layerOrder.filter((id) => id !== assetId);
     clearMedia(assetId);
+    stopUserJavaScriptWorker(assetId);
     renderStates.delete(assetId);
     visibilityStates.delete(assetId);
 }
@@ -120,7 +122,12 @@ function connect() {
 
 function renderAssets(list) {
     layerOrder = [];
-    list.forEach((asset) => storeAsset(asset, "append"));
+    list.forEach((asset) => {
+        storeAsset(asset, "append");
+        if (isCodeAsset(asset)) {
+            spawnUserJavaScriptWorker(asset);
+        }
+    });
     draw();
 }
 
@@ -231,6 +238,7 @@ function hideAssetWithTransition(asset) {
     }
     const merged = normalizePayload({ ...(existing || {}), ...payload, hidden: true });
     storeAsset(merged);
+    stopUserJavaScriptWorker(merged.id);
     stopAudio(payload.id);
 }
 
@@ -244,6 +252,8 @@ function upsertVisibleAsset(asset, placement = "keep") {
     ensureMedia(payload);
     if (isAudioAsset(payload)) {
         playAudioImmediately(payload);
+    } else if (isCodeAsset(payload)) {
+        spawnUserJavaScriptWorker(payload);
     }
 }
 
@@ -282,6 +292,7 @@ function applyPatch(assetId, patch) {
         return;
     }
     const merged = normalizePayload({ ...existing, ...sanitizedPatch });
+    console.log(merged)
     const isAudio = isAudioAsset(merged);
     if (sanitizedPatch.hidden) {
         hideAssetWithTransition(merged);
@@ -300,6 +311,10 @@ function applyPatch(assetId, patch) {
     }
     storeAsset(merged);
     ensureMedia(merged);
+    if (isCodeAsset(merged)) {
+        console.info(`Spawning JS worker for patched asset: ${merged.id}`);
+        spawnUserJavaScriptWorker(merged);
+    }
 }
 
 function draw() {
@@ -437,6 +452,17 @@ function isVideoAsset(asset) {
 
 function isAudioAsset(asset) {
     return asset?.mediaType?.startsWith("audio/");
+}
+function getVideoPlaybackState(element) {
+    if (!element) {
+        return { playRequested: false, unmuteOnPlay: false };
+    }
+    let state = videoPlaybackStates.get(element);
+    if (!state) {
+        state = { playRequested: false, unmuteOnPlay: false };
+        videoPlaybackStates.set(element, state);
+    }
+    return state;
 }
 
 function isCodeAsset(asset) {
@@ -694,6 +720,17 @@ function ensureMedia(asset) {
         element.onloadedmetadata = () => recordDuration(asset.id, element.duration);
         element.preload = "auto";
         element.addEventListener("error", () => clearMedia(asset.id));
+        const playbackState = getVideoPlaybackState(element);
+        element.addEventListener("playing", () => {
+            playbackState.playRequested = false;
+            if (playbackState.unmuteOnPlay) {
+                element.muted = false;
+                playbackState.unmuteOnPlay = false;
+            }
+        });
+        element.addEventListener("pause", () => {
+            playbackState.playRequested = false;
+        });
         applyMediaVolume(element, asset);
         element.muted = true;
         setVideoSource(element, asset);
@@ -867,6 +904,7 @@ function applyMediaSettings(element, asset) {
 }
 
 function startVideoPlayback(element, asset) {
+    const playbackState = getVideoPlaybackState(element);
     const nextSpeed = asset.speed ?? 1;
     const effectiveSpeed = Math.max(nextSpeed, 0.01);
     if (element.playbackRate !== effectiveSpeed) {
@@ -878,6 +916,8 @@ function startVideoPlayback(element, asset) {
 
     if (effectiveSpeed === 0) {
         element.pause();
+        playbackState.playRequested = false;
+        playbackState.unmuteOnPlay = false;
         return;
     }
 
@@ -887,13 +927,19 @@ function startVideoPlayback(element, asset) {
         if (!element.paused && element.readyState >= 2) {
             element.muted = false;
         } else {
-            element.addEventListener(
-                "playing",
-                () => {
-                    element.muted = false;
-                },
-                { once: true },
-            );
+            playbackState.unmuteOnPlay = true;
+        }
+    }
+
+    if (element.paused || element.ended) {
+        if (!playbackState.playRequested) {
+            playbackState.playRequested = true;
+            const playPromise = element.play();
+            if (playPromise?.catch) {
+                playPromise.catch(() => {
+                    playbackState.playRequested = false;
+                });
+            }
         }
     }
 }
