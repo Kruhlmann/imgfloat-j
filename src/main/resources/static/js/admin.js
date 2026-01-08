@@ -2255,6 +2255,7 @@ function beginAssetUpload(selectedFile) {
     const pendingId = addPendingUpload(selectedFile.name);
     const data = new FormData();
     data.append("file", selectedFile);
+    const fileInput = document.getElementById("asset-file");
     if (fileNameLabel) {
         fileNameLabel.textContent = "Uploading...";
     }
