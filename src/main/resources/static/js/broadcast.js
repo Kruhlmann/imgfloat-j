@@ -37,7 +37,7 @@ audioUnlockEvents.forEach((eventName) => {
 
 function ensureLayerPosition(assetId, placement = "keep") {
     const asset = assets.get(assetId);
-    if (asset && isAudioAsset(asset)) {
+    if (asset && (isAudioAsset(asset) || isCodeAsset(asset))) {
         return;
     }
     const existingIndex = layerOrder.indexOf(assetId);
@@ -58,10 +58,10 @@ function ensureLayerPosition(assetId, placement = "keep") {
 function getLayerOrder() {
     layerOrder = layerOrder.filter((id) => {
         const asset = assets.get(id);
-        return asset && !isAudioAsset(asset);
+        return asset && !isAudioAsset(asset) && !isCodeAsset(asset);
     });
     assets.forEach((asset, id) => {
-        if (isAudioAsset(asset)) {
+        if (isAudioAsset(asset) || isCodeAsset(asset)) {
             return;
         }
         if (!layerOrder.includes(id)) {
@@ -345,6 +345,11 @@ function drawAsset(asset) {
     ctx.translate(renderState.x + halfWidth, renderState.y + halfHeight);
     ctx.rotate((renderState.rotation * Math.PI) / 180);
 
+    if (isCodeAsset(asset)) {
+        ctx.restore();
+        return;
+    }
+
     if (isAudioAsset(asset)) {
         if (!asset.hidden) {
             autoStartAudio(asset);
@@ -431,6 +436,11 @@ function isVideoAsset(asset) {
 
 function isAudioAsset(asset) {
     return asset?.mediaType?.startsWith("audio/");
+}
+
+function isCodeAsset(asset) {
+    const type = (asset?.mediaType || asset?.originalMediaType || "").toLowerCase();
+    return type.startsWith("application/javascript") || type.startsWith("text/javascript");
 }
 
 function isVideoElement(element) {

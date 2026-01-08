@@ -34,7 +34,9 @@ public class AssetStorageService {
         Map.entry("audio/wav", ".wav"),
         Map.entry("audio/ogg", ".ogg"),
         Map.entry("audio/webm", ".webm"),
-        Map.entry("audio/flac", ".flac")
+        Map.entry("audio/flac", ".flac"),
+        Map.entry("application/javascript", ".js"),
+        Map.entry("text/javascript", ".js")
     );
 
     private final Path assetRoot;

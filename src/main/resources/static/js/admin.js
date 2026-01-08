@@ -46,6 +46,7 @@ const selectedAssetMeta = document.getElementById("selected-asset-meta");
 const selectedAssetResolution = document.getElementById("selected-asset-resolution");
 const selectedAssetIdLabel = document.getElementById("selected-asset-id");
 const selectedAssetBadges = document.getElementById("selected-asset-badges");
+const selectedEditBtn = document.getElementById("selected-asset-edit");
 const selectedVisibilityBtn = document.getElementById("selected-asset-visibility");
 const selectedDeleteBtn = document.getElementById("selected-asset-delete");
 const assetActionRow = document.getElementById("asset-actions");
@@ -111,7 +112,7 @@ function cancelPendingTransform(assetId) {
 
 function ensureLayerPosition(assetId, placement = "keep") {
     const asset = assets.get(assetId);
-    if (asset && isAudioAsset(asset)) {
+    if (asset && (isAudioAsset(asset) || isCodeAsset(asset))) {
         return;
     }
     const existingIndex = layerOrder.indexOf(assetId);
@@ -132,10 +133,10 @@ function ensureLayerPosition(assetId, placement = "keep") {
 function getLayerOrder() {
     layerOrder = layerOrder.filter((id) => {
         const asset = assets.get(id);
-        return asset && !isAudioAsset(asset);
+        return asset && !isAudioAsset(asset) && !isCodeAsset(asset);
     });
     assets.forEach((asset, id) => {
-        if (isAudioAsset(asset)) {
+        if (isAudioAsset(asset) || isCodeAsset(asset)) {
             return;
         }
         if (!layerOrder.includes(id)) {
@@ -157,6 +158,12 @@ function getAudioAssets() {
         .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
 }
 
+function getCodeAssets() {
+    return Array.from(assets.values())
+        .filter((asset) => isCodeAsset(asset))
+        .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+}
+
 function getRenderOrder() {
     return [...getLayerOrder()]
         .reverse()
@@ -166,7 +173,7 @@ function getRenderOrder() {
 
 function getLayerValue(assetId) {
     const asset = assets.get(assetId);
-    if (asset && isAudioAsset(asset)) {
+    if (asset && (isAudioAsset(asset) || isCodeAsset(asset))) {
         return 0;
     }
     const order = getLayerOrder();
@@ -645,6 +652,11 @@ function drawAsset(asset) {
     ctx.translate(renderState.x + halfWidth, renderState.y + halfHeight);
     ctx.rotate((renderState.rotation * Math.PI) / 180);
 
+    if (isCodeAsset(asset)) {
+        ctx.restore();
+        return;
+    }
+
     if (isAudioAsset(asset)) {
         autoStartAudio(asset);
         ctx.restore();
@@ -930,6 +942,23 @@ function isAudioAsset(asset) {
     return type.startsWith("audio/");
 }
 
+function isCodeAsset(asset) {
+    const type = (asset?.mediaType || asset?.originalMediaType || "").toLowerCase();
+    return type.startsWith("application/javascript") || type.startsWith("text/javascript");
+}
+
+function isJavaScriptFile(file) {
+    if (!file) {
+        return false;
+    }
+    const type = (file.type || "").toLowerCase();
+    if (type.includes("javascript")) {
+        return true;
+    }
+    const name = (file.name || "").toLowerCase();
+    return name.endsWith(".js") || name.endsWith(".mjs");
+}
+
 function isVideoElement(element) {
     return element && element.tagName === "VIDEO";
 }
@@ -938,6 +967,9 @@ function getDisplayMediaType(asset) {
     const raw = asset.originalMediaType || asset.mediaType || "";
     if (!raw) {
         return "Unknown";
+    }
+    if (isCodeAsset(asset)) {
+        return "JavaScript";
     }
     const parts = raw.split("/");
     return parts.length > 1 ? parts[1].toUpperCase() : raw.toUpperCase();
@@ -1265,8 +1297,9 @@ function renderAssetList() {
         list.appendChild(createPendingListItem(pending));
     });
 
+    const codeAssets = getCodeAssets();
     const audioAssets = getAudioAssets();
-    const sortedAssets = [...audioAssets, ...getAssetsByLayer()];
+    const sortedAssets = [...codeAssets, ...audioAssets, ...getAssetsByLayer()];
     sortedAssets.forEach((asset) => {
         const li = document.createElement("li");
         li.className = "asset-item";
@@ -1285,12 +1318,27 @@ function renderAssetList() {
         const name = document.createElement("strong");
         name.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
         const details = document.createElement("small");
-        details.textContent = `${Math.round(asset.width)}x${Math.round(asset.height)}`;
+        details.textContent = isCodeAsset(asset)
+            ? "JavaScript"
+            : `${Math.round(asset.width)}x${Math.round(asset.height)}`;
         meta.appendChild(name);
         meta.appendChild(details);
 
         const actions = document.createElement("div");
         actions.className = "actions";
+
+        if (isCodeAsset(asset)) {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "ghost icon-button";
+            editBtn.innerHTML = '<i class="fa-solid fa-code"></i>';
+            editBtn.title = "Edit script";
+            editBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openCodeAssetEditor(asset);
+            });
+            actions.appendChild(editBtn);
+        }
 
         if (isAudioAsset(asset)) {
             const playBtn = document.createElement("button");
@@ -1313,7 +1361,7 @@ function renderAssetList() {
             actions.appendChild(playBtn);
         }
 
-        if (!isAudioAsset(asset)) {
+        if (!isAudioAsset(asset) && !isCodeAsset(asset)) {
             const toggleBtn = document.createElement("button");
             toggleBtn.type = "button";
             toggleBtn.className = "ghost icon-button";
@@ -1406,6 +1454,12 @@ function updatePlayButtonIcon(button, isLooping, isPlayingLoop) {
 }
 
 function createPreviewElement(asset) {
+    if (isCodeAsset(asset)) {
+        const icon = document.createElement("div");
+        icon.className = "asset-preview code-icon";
+        icon.innerHTML = '<i class="fa-solid fa-code" aria-hidden="true"></i>';
+        return icon;
+    }
     if (isAudioAsset(asset)) {
         const icon = document.createElement("div");
         icon.className = "asset-preview audio-icon";
@@ -1621,7 +1675,7 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
         aspectLockInput.checked = isAspectLocked(asset.id);
         aspectLockInput.onchange = () => setAspectLock(asset.id, aspectLockInput.checked);
     }
-    const hideLayout = isAudioAsset(asset);
+    const hideLayout = isAudioAsset(asset) || isCodeAsset(asset);
     if (layoutSection) {
         layoutSection.classList.toggle("hidden", hideLayout);
         const layoutControls = layoutSection.querySelectorAll("input, button");
@@ -1633,7 +1687,8 @@ function updateSelectedAssetControls(asset = getSelectedAsset()) {
     if (assetActionButtons.length) {
         assetActionButtons.forEach((button) => {
             const allowForAudio = button.dataset.audioEnabled === "true";
-            const disableButton = hideLayout && !allowForAudio;
+            const allowForCode = button.dataset.codeEnabled === "true";
+            const disableButton = hideLayout && !(allowForAudio || allowForCode);
             button.disabled = disableButton;
             button.classList.toggle("disabled", disableButton);
         });
@@ -1703,8 +1758,13 @@ function updateSelectedAssetSummary(asset) {
     }
     if (selectedAssetResolution) {
         if (asset) {
-            selectedAssetResolution.textContent = `${Math.round(asset.width)}×${Math.round(asset.height)}`;
-            selectedAssetResolution.classList.remove("hidden");
+            if (isCodeAsset(asset)) {
+                selectedAssetResolution.textContent = "";
+                selectedAssetResolution.classList.add("hidden");
+            } else {
+                selectedAssetResolution.textContent = `${Math.round(asset.width)}×${Math.round(asset.height)}`;
+                selectedAssetResolution.classList.remove("hidden");
+            }
         } else {
             selectedAssetResolution.textContent = "";
             selectedAssetResolution.classList.add("hidden");
@@ -1723,7 +1783,7 @@ function updateSelectedAssetSummary(asset) {
         selectedAssetBadges.innerHTML = "";
         if (asset) {
             selectedAssetBadges.appendChild(createBadge(getDisplayMediaType(asset)));
-            const aspectLabel = !isAudioAsset(asset) ? formatAspectRatioLabel(asset) : "";
+            const aspectLabel = !isAudioAsset(asset) && !isCodeAsset(asset) ? formatAspectRatioLabel(asset) : "";
             if (aspectLabel) {
                 selectedAssetBadges.appendChild(createBadge(aspectLabel, "subtle"));
             }
@@ -1731,6 +1791,13 @@ function updateSelectedAssetSummary(asset) {
             if (durationLabel) {
                 selectedAssetBadges.appendChild(createBadge(durationLabel, "subtle"));
             }
+        }
+    }
+    if (selectedEditBtn) {
+        selectedEditBtn.disabled = !asset || !isCodeAsset(asset);
+        selectedEditBtn.onclick = null;
+        if (asset && isCodeAsset(asset)) {
+            selectedEditBtn.onclick = () => openCodeAssetEditor(asset);
         }
     }
     if (selectedVisibilityBtn) {
@@ -1754,6 +1821,10 @@ function updateSelectedAssetSummary(asset) {
                 }
                 triggerAudioPlayback(asset, nextPlay);
             };
+        } else if (asset && isCodeAsset(asset)) {
+            selectedVisibilityBtn.disabled = true;
+            selectedVisibilityBtn.title = "Script assets do not render on the canvas";
+            selectedVisibilityBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
         } else if (asset) {
             selectedVisibilityBtn.title = asset.hidden ? "Show asset" : "Hide asset";
             selectedVisibilityBtn.innerHTML = `<i class="fa-solid ${asset.hidden ? "fa-eye" : "fa-eye-slash"}"></i>`;
@@ -1767,6 +1838,61 @@ function updateSelectedAssetSummary(asset) {
         selectedDeleteBtn.disabled = !asset;
         selectedDeleteBtn.title = asset ? "Delete asset" : "Delete asset";
     }
+}
+
+function openCodeAssetEditor(asset) {
+    if (!asset) {
+        return;
+    }
+    const modal = document.getElementById("custom-asset-modal");
+    const nameInput = document.getElementById("custom-asset-name");
+    const codeInput = document.getElementById("custom-asset-code");
+    const errorWrapper = document.getElementById("custom-asset-error");
+    const errorTitle = document.getElementById("js-error-title");
+    const errorDetails = document.getElementById("js-error-details");
+
+    if (errorWrapper) {
+        errorWrapper.classList.add("hidden");
+    }
+    if (errorTitle) {
+        errorTitle.textContent = "";
+    }
+    if (errorDetails) {
+        errorDetails.textContent = "";
+    }
+    if (nameInput) {
+        nameInput.value = asset.name || "";
+    }
+    if (codeInput) {
+        codeInput.value = "";
+        codeInput.placeholder = "Loading script...";
+        codeInput.disabled = true;
+        codeInput.dataset.assetId = asset.id;
+    }
+    if (modal) {
+        modal.classList.remove("hidden");
+    }
+
+    fetch(asset.url)
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error("Failed to load script");
+            }
+            return response.text();
+        })
+        .then((text) => {
+            if (codeInput) {
+                codeInput.disabled = false;
+                codeInput.value = text;
+            }
+        })
+        .catch(() => {
+            if (codeInput) {
+                codeInput.disabled = false;
+                codeInput.value = "";
+            }
+            showToast("Unable to load script content.", "error");
+        });
 }
 
 function ensureDurationMetadata(asset) {
@@ -2092,7 +2218,7 @@ function uploadAsset(file = null) {
     const fileInput = document.getElementById("asset-file");
     const selectedFile = file || (fileInput?.files && fileInput.files.length ? fileInput.files[0] : null);
     if (!selectedFile) {
-        showToast("Choose an image, GIF, video, or audio file to upload.", "info");
+        showToast("Choose an image, GIF, video, audio, or JavaScript file to upload.", "info");
         return;
     }
     if (selectedFile.size > UPLOAD_LIMIT_BYTES) {
@@ -2100,6 +2226,32 @@ function uploadAsset(file = null) {
         return;
     }
 
+    if (isJavaScriptFile(selectedFile)) {
+        selectedFile
+            .text()
+            .then((source) => {
+                if (typeof getUserJavaScriptSourceError === "function") {
+                    const error = getUserJavaScriptSourceError(source);
+                    if (error) {
+                        showToast(`JavaScript error: ${error.title}`, "error");
+                        if (fileNameLabel) {
+                            fileNameLabel.textContent = "Upload failed";
+                        }
+                        return;
+                    }
+                }
+                beginAssetUpload(selectedFile);
+            })
+            .catch(() => {
+                showToast("Unable to read the JavaScript file. Please try again.", "error");
+            });
+        return;
+    }
+
+    beginAssetUpload(selectedFile);
+}
+
+function beginAssetUpload(selectedFile) {
     const pendingId = addPendingUpload(selectedFile.name);
     const data = new FormData();
     data.append("file", selectedFile);
@@ -2121,10 +2273,11 @@ function uploadAsset(file = null) {
             showToast("Upload received. Processing asset...", "success");
             updatePendingUpload(pendingId, { status: "processing" });
         })
-        .catch(() => {
+        .catch((e) => {
             if (fileNameLabel) {
                 fileNameLabel.textContent = "Upload failed";
             }
+            console.error(e);
             removePendingUpload(pendingId);
             showToast("Upload failed. Please try again with a supported file.", "error");
         });

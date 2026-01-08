@@ -51,7 +51,7 @@
                             id="asset-file"
                             class="file-input-field"
                             type="file"
-                            accept="image/*,video/*,audio/*"
+                            accept="image/*,video/*,audio/*,application/javascript,text/javascript,.js,.mjs"
                             onchange="handleFileSelection(this)"
                         />
                         <label for="asset-file" class="file-input-trigger">
@@ -313,6 +313,16 @@
                                             <i class="fa-solid fa-rotate-right"></i>
                                         </button>
                                         <button
+                                            id="selected-asset-edit"
+                                            class="secondary"
+                                            type="button"
+                                            title="Edit script"
+                                            disabled
+                                            data-code-enabled="true"
+                                        >
+                                            <i class="fa-solid fa-code"></i>
+                                        </button>
+                                        <button
                                             id="selected-asset-visibility"
                                             class="secondary"
                                             type="button"
@@ -329,6 +339,7 @@
                                             title="Delete asset"
                                             disabled
                                             data-audio-enabled="true"
+                                            data-code-enabled="true"
                                         >
                                             <i class="fa-solid fa-trash"></i>
                                         </button>

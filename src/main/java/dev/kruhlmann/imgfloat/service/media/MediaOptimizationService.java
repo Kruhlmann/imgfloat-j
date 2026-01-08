@@ -72,6 +72,10 @@ public class MediaOptimizationService {
             return new OptimizedAsset(bytes, mediaType, 0, 0, null);
         }
 
+        if (mediaType.startsWith("application/javascript") || mediaType.startsWith("text/javascript")) {
+            return new OptimizedAsset(bytes, mediaType, 0, 0, null);
+        }
+
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
         if (image != null) {
             return new OptimizedAsset(bytes, mediaType, image.getWidth(), image.getHeight(), null);

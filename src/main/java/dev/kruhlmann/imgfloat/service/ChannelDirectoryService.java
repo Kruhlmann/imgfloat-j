@@ -155,8 +155,9 @@ public class ChannelDirectoryService {
             .orElse("asset_" + System.currentTimeMillis());
 
         boolean isAudio = optimized.mediaType().startsWith("audio/");
-        double defaultWidth = isAudio ? 400 : 640;
-        double defaultHeight = isAudio ? 80 : 360;
+        boolean isCode = isCodeMediaType(optimized.mediaType()) || isCodeMediaType(mediaType);
+        double defaultWidth = isAudio ? 400 : isCode ? 480 : 640;
+        double defaultHeight = isAudio ? 80 : isCode ? 270 : 360;
         double width = optimized.width() > 0 ? optimized.width() : defaultWidth;
         double height = optimized.height() > 0 ? optimized.height() : defaultHeight;
 
@@ -360,6 +361,14 @@ public class ChannelDirectoryService {
 
     private String normalize(String value) {
         return value == null ? null : value.toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isCodeMediaType(String mediaType) {
+        if (mediaType == null || mediaType.isBlank()) {
+            return false;
+        }
+        String normalized = mediaType.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("application/javascript") || normalized.startsWith("text/javascript");
     }
 
     private String topicFor(String broadcaster) {

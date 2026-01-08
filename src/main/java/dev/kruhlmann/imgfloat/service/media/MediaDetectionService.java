@@ -26,7 +26,9 @@ public class MediaDetectionService {
         Map.entry("mov", "video/quicktime"),
         Map.entry("mp3", "audio/mpeg"),
         Map.entry("wav", "audio/wav"),
-        Map.entry("ogg", "audio/ogg")
+        Map.entry("ogg", "audio/ogg"),
+        Map.entry("js", "application/javascript"),
+        Map.entry("mjs", "text/javascript")
     );
     private static final Set<String> ALLOWED_MEDIA_TYPES = Set.copyOf(EXTENSION_TYPES.values());
 
