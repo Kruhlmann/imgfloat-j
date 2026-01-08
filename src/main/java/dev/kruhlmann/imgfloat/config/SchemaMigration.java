@@ -24,7 +24,7 @@ public class SchemaMigration implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         ensureSessionAttributeUpsertTrigger();
         ensureChannelCanvasColumns();
-        ensureAssetMediaColumns();
+        ensureAssetTables();
         ensureAuthorizedClientTable();
         normalizeAuthorizedClientTimestamps();
     }
@@ -67,12 +67,12 @@ public class SchemaMigration implements ApplicationRunner {
         addColumnIfMissing("channels", columns, "canvas_height", "REAL", "1080");
     }
 
-    private void ensureAssetMediaColumns() {
+    private void ensureAssetTables() {
         List<String> columns;
         try {
             columns = jdbcTemplate.query("PRAGMA table_info(assets)", (rs, rowNum) -> rs.getString("name"));
         } catch (DataAccessException ex) {
-            logger.warn("Unable to inspect assets table for media columns", ex);
+            logger.warn("Unable to inspect assets table for asset columns", ex);
             return;
         }
 
@@ -81,15 +81,121 @@ public class SchemaMigration implements ApplicationRunner {
         }
 
         String table = "assets";
-        addColumnIfMissing(table, columns, "speed", "REAL", "1.0");
-        addColumnIfMissing(table, columns, "muted", "BOOLEAN", "0");
-        addColumnIfMissing(table, columns, "media_type", "TEXT", "'application/octet-stream'");
-        addColumnIfMissing(table, columns, "audio_loop", "BOOLEAN", "0");
-        addColumnIfMissing(table, columns, "audio_delay_millis", "INTEGER", "0");
-        addColumnIfMissing(table, columns, "audio_speed", "REAL", "1.0");
-        addColumnIfMissing(table, columns, "audio_pitch", "REAL", "1.0");
-        addColumnIfMissing(table, columns, "audio_volume", "REAL", "1.0");
-        addColumnIfMissing(table, columns, "preview", "TEXT", "NULL");
+        addColumnIfMissing(table, columns, "asset_type", "TEXT", "'OTHER'");
+        ensureAssetTypeTables(columns);
+    }
+
+    private void ensureAssetTypeTables(List<String> assetColumns) {
+        try {
+            jdbcTemplate.execute(
+                """
+                CREATE TABLE IF NOT EXISTS visual_assets (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    preview TEXT,
+                    x REAL NOT NULL DEFAULT 0,
+                    y REAL NOT NULL DEFAULT 0,
+                    width REAL NOT NULL DEFAULT 0,
+                    height REAL NOT NULL DEFAULT 0,
+                    rotation REAL NOT NULL DEFAULT 0,
+                    speed REAL,
+                    muted BOOLEAN,
+                    media_type TEXT,
+                    original_media_type TEXT,
+                    z_index INTEGER,
+                    audio_volume REAL,
+                    hidden BOOLEAN
+                )
+                """
+            );
+            jdbcTemplate.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audio_assets (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    media_type TEXT,
+                    original_media_type TEXT,
+                    audio_loop BOOLEAN,
+                    audio_delay_millis INTEGER,
+                    audio_speed REAL,
+                    audio_pitch REAL,
+                    audio_volume REAL,
+                    hidden BOOLEAN
+                )
+                """
+            );
+            jdbcTemplate.execute(
+                """
+                CREATE TABLE IF NOT EXISTS script_assets (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    media_type TEXT,
+                    original_media_type TEXT
+                )
+                """
+            );
+            backfillAssetTypes(assetColumns);
+        } catch (DataAccessException ex) {
+            logger.warn("Unable to ensure asset type tables", ex);
+        }
+    }
+
+    private void backfillAssetTypes(List<String> assetColumns) {
+        if (!assetColumns.contains("media_type")) {
+            return;
+        }
+        try {
+            jdbcTemplate.execute(
+                """
+                UPDATE assets
+                SET asset_type = CASE
+                    WHEN media_type LIKE 'audio/%' THEN 'AUDIO'
+                    WHEN media_type LIKE 'video/%' THEN 'VIDEO'
+                    WHEN media_type LIKE 'image/%' THEN 'IMAGE'
+                    WHEN media_type LIKE 'application/javascript%' THEN 'SCRIPT'
+                    WHEN media_type LIKE 'text/javascript%' THEN 'SCRIPT'
+                    ELSE COALESCE(asset_type, 'OTHER')
+                END
+                WHERE asset_type IS NULL OR asset_type = '' OR asset_type = 'OTHER'
+                """
+            );
+            jdbcTemplate.execute(
+                """
+                INSERT OR IGNORE INTO visual_assets (
+                    id, name, preview, x, y, width, height, rotation, speed, muted, media_type,
+                    original_media_type, z_index, audio_volume, hidden
+                )
+                SELECT id, name, preview, x, y, width, height, rotation, speed, muted, media_type,
+                       original_media_type, z_index, audio_volume, hidden
+                FROM assets
+                WHERE asset_type IN ('IMAGE', 'VIDEO', 'OTHER')
+                """
+            );
+            jdbcTemplate.execute(
+                """
+                INSERT OR IGNORE INTO audio_assets (
+                    id, name, media_type, original_media_type, audio_loop, audio_delay_millis,
+                    audio_speed, audio_pitch, audio_volume, hidden
+                )
+                SELECT id, name, media_type, original_media_type, audio_loop, audio_delay_millis,
+                       audio_speed, audio_pitch, audio_volume, hidden
+                FROM assets
+                WHERE asset_type = 'AUDIO'
+                """
+            );
+            jdbcTemplate.execute(
+                """
+                INSERT OR IGNORE INTO script_assets (
+                    id, name, media_type, original_media_type
+                )
+                SELECT id, name, media_type, original_media_type
+                FROM assets
+                WHERE asset_type = 'SCRIPT'
+                """
+            );
+        } catch (DataAccessException ex) {
+            logger.warn("Unable to backfill asset type tables", ex);
+        }
     }
 
     private void addColumnIfMissing(

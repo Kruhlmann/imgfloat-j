@@ -24,39 +24,43 @@ public record AssetPatch(
     Double audioPitch,
     Double audioVolume
 ) {
-    public static TransformSnapshot capture(Asset asset) {
-        return new TransformSnapshot(
-            asset.getX(),
-            asset.getY(),
-            asset.getWidth(),
-            asset.getHeight(),
-            asset.getRotation(),
-            asset.getSpeed(),
-            asset.isMuted(),
-            asset.getZIndex(),
-            asset.isAudioLoop(),
-            asset.getAudioDelayMillis(),
-            asset.getAudioSpeed(),
-            asset.getAudioPitch(),
-            asset.getAudioVolume()
+    /**
+     * Produces a minimal patch from a visual transform operation.
+     */
+    public static AssetPatch fromVisualTransform(VisualSnapshot before, VisualAsset asset, TransformRequest request) {
+        return new AssetPatch(
+            asset.getId(),
+            request.getX() != null ? changed(before.x(), asset.getX()) : null,
+            request.getY() != null ? changed(before.y(), asset.getY()) : null,
+            request.getWidth() != null ? changed(before.width(), asset.getWidth()) : null,
+            request.getHeight() != null ? changed(before.height(), asset.getHeight()) : null,
+            request.getRotation() != null ? changed(before.rotation(), asset.getRotation()) : null,
+            request.getSpeed() != null ? changed(before.speed(), asset.getSpeed()) : null,
+            request.getMuted() != null ? changed(before.muted(), asset.isMuted()) : null,
+            request.getZIndex() != null ? changed(before.zIndex(), asset.getZIndex()) : null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            request.getAudioVolume() != null ? changed(before.audioVolume(), asset.getAudioVolume()) : null
         );
     }
 
     /**
-     * Produces a minimal patch from a transform operation. Only fields that changed and were part of
-     * the incoming request are populated to keep WebSocket payloads small.
+     * Produces a minimal patch from an audio update operation.
      */
-    public static AssetPatch fromTransform(TransformSnapshot before, Asset asset, TransformRequest request) {
+    public static AssetPatch fromAudioTransform(AudioSnapshot before, AudioAsset asset, TransformRequest request) {
         return new AssetPatch(
             asset.getId(),
-            changed(before.x(), asset.getX()),
-            changed(before.y(), asset.getY()),
-            changed(before.width(), asset.getWidth()),
-            changed(before.height(), asset.getHeight()),
-            changed(before.rotation(), asset.getRotation()),
-            request.getSpeed() != null ? changed(before.speed(), asset.getSpeed()) : null,
-            request.getMuted() != null ? changed(before.muted(), asset.isMuted()) : null,
-            request.getZIndex() != null ? changed(before.zIndex(), asset.getZIndex()) : null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null,
             request.getAudioLoop() != null ? changed(before.audioLoop(), asset.isAudioLoop()) : null,
             request.getAudioDelayMillis() != null
@@ -68,9 +72,9 @@ public record AssetPatch(
         );
     }
 
-    public static AssetPatch fromVisibility(Asset asset) {
+    public static AssetPatch fromVisibility(String assetId, boolean hidden) {
         return new AssetPatch(
-            asset.getId(),
+            assetId,
             null,
             null,
             null,
@@ -79,7 +83,7 @@ public record AssetPatch(
             null,
             null,
             null,
-            asset.isHidden(),
+            hidden,
             null,
             null,
             null,
@@ -100,7 +104,7 @@ public record AssetPatch(
         return before == after ? null : after;
     }
 
-    public record TransformSnapshot(
+    public record VisualSnapshot(
         double x,
         double y,
         double width,
@@ -109,6 +113,10 @@ public record AssetPatch(
         double speed,
         boolean muted,
         int zIndex,
+        double audioVolume
+    ) {}
+
+    public record AudioSnapshot(
         boolean audioLoop,
         int audioDelayMillis,
         double audioSpeed,

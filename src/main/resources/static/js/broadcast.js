@@ -438,6 +438,9 @@ function recordDuration(assetId, seconds) {
 }
 
 function isVideoAsset(asset) {
+    if (asset?.assetType) {
+        return asset.assetType === "VIDEO";
+    }
     return asset?.mediaType?.startsWith("video/");
 }
 
@@ -454,6 +457,9 @@ function getVideoPlaybackState(element) {
 }
 
 function isCodeAsset(asset) {
+    if (asset?.assetType) {
+        return asset.assetType === "SCRIPT";
+    }
     const type = (asset?.mediaType || asset?.originalMediaType || "").toLowerCase();
     return type.startsWith("application/javascript") || type.startsWith("text/javascript");
 }

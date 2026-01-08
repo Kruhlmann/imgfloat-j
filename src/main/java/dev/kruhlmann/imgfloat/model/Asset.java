@@ -2,6 +2,8 @@ package dev.kruhlmann.imgfloat.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -20,14 +22,9 @@ public class Asset {
     @Column(nullable = false)
     private String broadcaster;
 
-    @Column(nullable = false)
-    private String name;
-
-    @Column(columnDefinition = "TEXT", nullable = false)
-    private String url;
-
-    @Column(columnDefinition = "TEXT", nullable = false)
-    private String preview;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "asset_type", nullable = false)
+    private AssetType assetType;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -35,39 +32,12 @@ public class Asset {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    private double x;
-    private double y;
-    private double width;
-    private double height;
-    private double rotation;
-    private Double speed;
-    private Boolean muted;
-    private String mediaType;
-    private String originalMediaType;
-    private Integer zIndex;
-    private Boolean audioLoop;
-    private Integer audioDelayMillis;
-    private Double audioSpeed;
-    private Double audioPitch;
-    private Double audioVolume;
-    private boolean hidden;
-
     public Asset() {}
 
-    public Asset(String broadcaster, String name, String url, double width, double height) {
+    public Asset(String broadcaster, AssetType assetType) {
         this.id = UUID.randomUUID().toString();
         this.broadcaster = normalize(broadcaster);
-        this.name = name;
-        this.url = url;
-        this.width = width;
-        this.height = height;
-        this.x = 0;
-        this.y = 0;
-        this.rotation = 0;
-        this.speed = 1.0;
-        this.muted = false;
-        this.zIndex = 1;
-        this.hidden = true;
+        this.assetType = assetType == null ? AssetType.OTHER : assetType;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
@@ -84,32 +54,8 @@ public class Asset {
         }
         this.updatedAt = now;
         this.broadcaster = normalize(broadcaster);
-        if (this.name == null || this.name.isBlank()) {
-            this.name = this.id;
-        }
-        if (this.speed == null) {
-            this.speed = 1.0;
-        }
-        if (this.muted == null) {
-            this.muted = Boolean.FALSE;
-        }
-        if (this.zIndex == null || this.zIndex < 1) {
-            this.zIndex = 1;
-        }
-        if (this.audioLoop == null) {
-            this.audioLoop = Boolean.FALSE;
-        }
-        if (this.audioDelayMillis == null) {
-            this.audioDelayMillis = 0;
-        }
-        if (this.audioSpeed == null) {
-            this.audioSpeed = 1.0;
-        }
-        if (this.audioPitch == null) {
-            this.audioPitch = 1.0;
-        }
-        if (this.audioVolume == null) {
-            this.audioVolume = 1.0;
+        if (this.assetType == null) {
+            this.assetType = AssetType.OTHER;
         }
     }
 
@@ -125,112 +71,12 @@ public class Asset {
         this.broadcaster = normalize(broadcaster);
     }
 
-    public String getName() {
-        return name;
+    public AssetType getAssetType() {
+        return assetType == null ? AssetType.OTHER : assetType;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public double getX() {
-        return x;
-    }
-
-    public void setX(double x) {
-        this.x = x;
-    }
-
-    public double getY() {
-        return y;
-    }
-
-    public void setY(double y) {
-        this.y = y;
-    }
-
-    public double getWidth() {
-        return width;
-    }
-
-    public void setWidth(double width) {
-        this.width = width;
-    }
-
-    public double getHeight() {
-        return height;
-    }
-
-    public void setHeight(double height) {
-        this.height = height;
-    }
-
-    public double getRotation() {
-        return rotation;
-    }
-
-    public void setRotation(double rotation) {
-        this.rotation = rotation;
-    }
-
-    public double getSpeed() {
-        return speed == null ? 1.0 : speed;
-    }
-
-    public void setSpeed(double speed) {
-        this.speed = speed;
-    }
-
-    public boolean isMuted() {
-        return muted != null && muted;
-    }
-
-    public void setMuted(boolean muted) {
-        this.muted = muted;
-    }
-
-    public String getMediaType() {
-        return mediaType;
-    }
-
-    public void setMediaType(String mediaType) {
-        this.mediaType = mediaType;
-    }
-
-    public String getOriginalMediaType() {
-        return originalMediaType;
-    }
-
-    public void setOriginalMediaType(String originalMediaType) {
-        this.originalMediaType = originalMediaType;
-    }
-
-    public String getPreview() {
-        return preview;
-    }
-
-    public void setPreview(String preview) {
-        this.preview = preview;
-    }
-
-    public boolean isVideo() {
-        return mediaType != null && mediaType.toLowerCase(Locale.ROOT).startsWith("video/");
-    }
-
-    public boolean isHidden() {
-        return hidden;
-    }
-
-    public void setHidden(boolean hidden) {
-        this.hidden = hidden;
+    public void setAssetType(AssetType assetType) {
+        this.assetType = assetType == null ? AssetType.OTHER : assetType;
     }
 
     public Instant getCreatedAt() {
@@ -247,54 +93,6 @@ public class Asset {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public Integer getZIndex() {
-        return zIndex == null ? 1 : Math.max(1, zIndex);
-    }
-
-    public void setZIndex(Integer zIndex) {
-        this.zIndex = zIndex == null ? null : Math.max(1, zIndex);
-    }
-
-    public boolean isAudioLoop() {
-        return audioLoop != null && audioLoop;
-    }
-
-    public void setAudioLoop(Boolean audioLoop) {
-        this.audioLoop = audioLoop;
-    }
-
-    public Integer getAudioDelayMillis() {
-        return audioDelayMillis == null ? 0 : Math.max(0, audioDelayMillis);
-    }
-
-    public void setAudioDelayMillis(Integer audioDelayMillis) {
-        this.audioDelayMillis = audioDelayMillis;
-    }
-
-    public double getAudioSpeed() {
-        return audioSpeed == null ? 1.0 : Math.max(0.1, audioSpeed);
-    }
-
-    public void setAudioSpeed(Double audioSpeed) {
-        this.audioSpeed = audioSpeed;
-    }
-
-    public double getAudioPitch() {
-        return audioPitch == null ? 1.0 : Math.max(0.1, audioPitch);
-    }
-
-    public void setAudioPitch(Double audioPitch) {
-        this.audioPitch = audioPitch;
-    }
-
-    public double getAudioVolume() {
-        return audioVolume == null ? 1.0 : Math.max(0.0, Math.min(1.0, audioVolume));
-    }
-
-    public void setAudioVolume(Double audioVolume) {
-        this.audioVolume = audioVolume;
     }
 
     private static String normalize(String value) {

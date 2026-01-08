@@ -947,11 +947,17 @@ function updateHoverCursor(point) {
 }
 
 function isVideoAsset(asset) {
+    if (asset?.assetType) {
+        return asset.assetType === "VIDEO";
+    }
     const type = asset?.mediaType || asset?.originalMediaType || "";
     return type.startsWith("video/");
 }
 
 function isCodeAsset(asset) {
+    if (asset?.assetType) {
+        return asset.assetType === "SCRIPT";
+    }
     const type = (asset?.mediaType || asset?.originalMediaType || "").toLowerCase();
     return type.startsWith("application/javascript") || type.startsWith("text/javascript");
 }
@@ -972,16 +978,31 @@ function isVideoElement(element) {
     return element && element.tagName === "VIDEO";
 }
 
-function getDisplayMediaType(asset) {
-    const raw = asset.originalMediaType || asset.mediaType || "";
-    if (!raw) {
-        return "Unknown";
+function getAssetTypeLabel(asset) {
+    const type = asset?.assetType;
+    if (type) {
+        const lookup = {
+            IMAGE: "Image",
+            VIDEO: "Video",
+            AUDIO: "Audio",
+            SCRIPT: "Script",
+            OTHER: "Other",
+        };
+        return lookup[type] || "Other";
     }
     if (isCodeAsset(asset)) {
-        return "JavaScript";
+        return "Script";
+    }
+    const raw = asset?.originalMediaType || asset?.mediaType || "";
+    if (!raw) {
+        return "Other";
     }
     const parts = raw.split("/");
-    return parts.length > 1 ? parts[1].toUpperCase() : raw.toUpperCase();
+    return parts.length > 1 ? parts[0].toUpperCase() : raw.toUpperCase();
+}
+
+function getDisplayMediaType(asset) {
+    return getAssetTypeLabel(asset);
 }
 
 function isGifAsset(asset) {
@@ -1327,9 +1348,7 @@ function renderAssetList() {
         const name = document.createElement("strong");
         name.textContent = asset.name || `Asset ${asset.id.slice(0, 6)}`;
         const details = document.createElement("small");
-        details.textContent = isCodeAsset(asset)
-            ? "JavaScript"
-            : `${Math.round(asset.width)}x${Math.round(asset.height)}`;
+        details.textContent = getAssetTypeLabel(asset);
         meta.appendChild(name);
         meta.appendChild(details);
 
@@ -1767,7 +1786,7 @@ function updateSelectedAssetSummary(asset) {
     }
     if (selectedAssetResolution) {
         if (asset) {
-            if (isCodeAsset(asset)) {
+            if (isCodeAsset(asset) || isAudioAsset(asset)) {
                 selectedAssetResolution.textContent = "";
                 selectedAssetResolution.classList.add("hidden");
             } else {
@@ -2319,25 +2338,31 @@ function findAssetAtPoint(x, y) {
 
 function persistTransform(asset, silent = false) {
     cancelPendingTransform(asset.id);
-    const layer = getLayerValue(asset.id);
+    const payload = {
+        audioLoop: asset.audioLoop,
+        audioDelayMillis: asset.audioDelayMillis,
+        audioSpeed: asset.audioSpeed,
+        audioPitch: asset.audioPitch,
+        audioVolume: asset.audioVolume,
+    };
+    if (!isAudioAsset(asset) && !isCodeAsset(asset)) {
+        const layer = getLayerValue(asset.id);
+        payload.x = asset.x;
+        payload.y = asset.y;
+        payload.width = asset.width;
+        payload.height = asset.height;
+        payload.rotation = asset.rotation;
+        payload.speed = asset.speed;
+        payload.layer = layer;
+        payload.zIndex = layer;
+        if (isVideoAsset(asset)) {
+            payload.muted = asset.muted;
+        }
+    }
     fetch(`/api/channels/${broadcaster}/assets/${asset.id}/transform`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            x: asset.x,
-            y: asset.y,
-            width: asset.width,
-            height: asset.height,
-            rotation: asset.rotation,
-            speed: asset.speed,
-            layer,
-            zIndex: layer,
-            audioLoop: asset.audioLoop,
-            audioDelayMillis: asset.audioDelayMillis,
-            audioSpeed: asset.audioSpeed,
-            audioPitch: asset.audioPitch,
-            audioVolume: asset.audioVolume,
-        }),
+        body: JSON.stringify(payload),
     })
         .then((r) => {
             if (!r.ok) {

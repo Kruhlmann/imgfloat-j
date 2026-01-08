@@ -7,16 +7,16 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 public class TransformRequest {
 
-    private double x;
-    private double y;
+    private Double x;
+    private Double y;
 
     @Positive(message = "Width must be greater than 0")
-    private double width;
+    private Double width;
 
     @Positive(message = "Height must be greater than 0")
-    private double height;
+    private Double height;
 
-    private double rotation;
+    private Double rotation;
 
     @DecimalMin(value = "0.0", message = "Playback speed cannot be negative")
     @DecimalMax(value = "4.0", message = "Playback speed cannot exceed 4.0")
@@ -44,43 +44,43 @@ public class TransformRequest {
     @DecimalMax(value = "1.0", message = "Audio volume cannot exceed 1.0")
     private Double audioVolume;
 
-    public double getX() {
+    public Double getX() {
         return x;
     }
 
-    public void setX(double x) {
+    public void setX(Double x) {
         this.x = x;
     }
 
-    public double getY() {
+    public Double getY() {
         return y;
     }
 
-    public void setY(double y) {
+    public void setY(Double y) {
         this.y = y;
     }
 
-    public double getWidth() {
+    public Double getWidth() {
         return width;
     }
 
-    public void setWidth(double width) {
+    public void setWidth(Double width) {
         this.width = width;
     }
 
-    public double getHeight() {
+    public Double getHeight() {
         return height;
     }
 
-    public void setHeight(double height) {
+    public void setHeight(Double height) {
         this.height = height;
     }
 
-    public double getRotation() {
+    public Double getRotation() {
         return rotation;
     }
 
-    public void setRotation(double rotation) {
+    public void setRotation(Double rotation) {
         this.rotation = rotation;
     }
 

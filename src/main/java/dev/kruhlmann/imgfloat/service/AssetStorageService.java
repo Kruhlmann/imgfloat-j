@@ -1,6 +1,5 @@
 package dev.kruhlmann.imgfloat.service;
 
-import dev.kruhlmann.imgfloat.model.Asset;
 import dev.kruhlmann.imgfloat.service.media.AssetContent;
 import java.io.IOException;
 import java.nio.file.*;
@@ -97,53 +96,57 @@ public class AssetStorageService {
         logger.info("Wrote asset to {}", file);
     }
 
-    public Optional<AssetContent> loadAssetFile(Asset asset) {
+    public Optional<AssetContent> loadAssetFile(String broadcaster, String assetId, String mediaType) {
         try {
-            Path file = assetPath(asset.getBroadcaster(), asset.getId(), asset.getMediaType());
+            Path file = assetPath(broadcaster, assetId, mediaType);
 
             if (!Files.exists(file)) return Optional.empty();
 
             byte[] bytes = Files.readAllBytes(file);
-            return Optional.of(new AssetContent(bytes, asset.getMediaType()));
+            return Optional.of(new AssetContent(bytes, mediaType));
         } catch (Exception e) {
-            logger.warn("Failed to load asset {}", asset.getId(), e);
+            logger.warn("Failed to load asset {}", assetId, e);
             return Optional.empty();
         }
     }
 
-    public Optional<AssetContent> loadPreview(Asset asset) {
+    public Optional<AssetContent> loadPreview(String broadcaster, String assetId) {
         try {
-            Path file = previewPath(asset.getBroadcaster(), asset.getId());
+            Path file = previewPath(broadcaster, assetId);
             if (!Files.exists(file)) return Optional.empty();
 
             byte[] bytes = Files.readAllBytes(file);
             return Optional.of(new AssetContent(bytes, "image/png"));
         } catch (Exception e) {
-            logger.warn("Failed to load preview {}", asset.getId(), e);
+            logger.warn("Failed to load preview {}", assetId, e);
             return Optional.empty();
         }
     }
 
-    public Optional<AssetContent> loadAssetFileSafely(Asset asset) {
-        if (asset.getUrl() == null) {
+    public Optional<AssetContent> loadAssetFileSafely(String broadcaster, String assetId, String mediaType) {
+        if (mediaType == null) {
             return Optional.empty();
         }
-        return loadAssetFile(asset);
+        return loadAssetFile(broadcaster, assetId, mediaType);
     }
 
-    public Optional<AssetContent> loadPreviewSafely(Asset asset) {
-        if (asset.getPreview() == null) {
+    public Optional<AssetContent> loadPreviewSafely(String broadcaster, String assetId, boolean hasPreview) {
+        if (!hasPreview) {
             return Optional.empty();
         }
-        return loadPreview(asset);
+        return loadPreview(broadcaster, assetId);
     }
 
-    public void deleteAsset(Asset asset) {
+    public void deleteAsset(String broadcaster, String assetId, String mediaType, boolean hasPreview) {
         try {
-            Files.deleteIfExists(assetPath(asset.getBroadcaster(), asset.getId(), asset.getMediaType()));
-            Files.deleteIfExists(previewPath(asset.getBroadcaster(), asset.getId()));
+            if (mediaType != null) {
+                Files.deleteIfExists(assetPath(broadcaster, assetId, mediaType));
+            }
+            if (hasPreview) {
+                Files.deleteIfExists(previewPath(broadcaster, assetId));
+            }
         } catch (Exception e) {
-            logger.warn("Failed to delete asset {}", asset.getId(), e);
+            logger.warn("Failed to delete asset {}", assetId, e);
         }
     }
 

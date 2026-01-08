@@ -6,17 +6,24 @@ import static org.springframework.http.HttpStatus.PAYLOAD_TOO_LARGE;
 import dev.kruhlmann.imgfloat.model.Asset;
 import dev.kruhlmann.imgfloat.model.AssetEvent;
 import dev.kruhlmann.imgfloat.model.AssetPatch;
+import dev.kruhlmann.imgfloat.model.AssetType;
 import dev.kruhlmann.imgfloat.model.AssetView;
+import dev.kruhlmann.imgfloat.model.AudioAsset;
 import dev.kruhlmann.imgfloat.model.CanvasEvent;
 import dev.kruhlmann.imgfloat.model.CanvasSettingsRequest;
 import dev.kruhlmann.imgfloat.model.Channel;
 import dev.kruhlmann.imgfloat.model.CodeAssetRequest;
 import dev.kruhlmann.imgfloat.model.PlaybackRequest;
+import dev.kruhlmann.imgfloat.model.ScriptAsset;
 import dev.kruhlmann.imgfloat.model.Settings;
 import dev.kruhlmann.imgfloat.model.TransformRequest;
 import dev.kruhlmann.imgfloat.model.VisibilityRequest;
+import dev.kruhlmann.imgfloat.model.VisualAsset;
 import dev.kruhlmann.imgfloat.repository.AssetRepository;
+import dev.kruhlmann.imgfloat.repository.AudioAssetRepository;
 import dev.kruhlmann.imgfloat.repository.ChannelRepository;
+import dev.kruhlmann.imgfloat.repository.ScriptAssetRepository;
+import dev.kruhlmann.imgfloat.repository.VisualAssetRepository;
 import dev.kruhlmann.imgfloat.service.media.AssetContent;
 import dev.kruhlmann.imgfloat.service.media.MediaDetectionService;
 import dev.kruhlmann.imgfloat.service.media.MediaOptimizationService;
@@ -25,6 +32,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +50,9 @@ public class ChannelDirectoryService {
 
     private final ChannelRepository channelRepository;
     private final AssetRepository assetRepository;
+    private final VisualAssetRepository visualAssetRepository;
+    private final AudioAssetRepository audioAssetRepository;
+    private final ScriptAssetRepository scriptAssetRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final AssetStorageService assetStorageService;
     private final MediaDetectionService mediaDetectionService;
@@ -53,6 +64,9 @@ public class ChannelDirectoryService {
     public ChannelDirectoryService(
         ChannelRepository channelRepository,
         AssetRepository assetRepository,
+        VisualAssetRepository visualAssetRepository,
+        AudioAssetRepository audioAssetRepository,
+        ScriptAssetRepository scriptAssetRepository,
         SimpMessagingTemplate messagingTemplate,
         AssetStorageService assetStorageService,
         MediaDetectionService mediaDetectionService,
@@ -62,6 +76,9 @@ public class ChannelDirectoryService {
     ) {
         this.channelRepository = channelRepository;
         this.assetRepository = assetRepository;
+        this.visualAssetRepository = visualAssetRepository;
+        this.audioAssetRepository = audioAssetRepository;
+        this.scriptAssetRepository = scriptAssetRepository;
         this.messagingTemplate = messagingTemplate;
         this.assetStorageService = assetStorageService;
         this.mediaDetectionService = mediaDetectionService;
@@ -111,7 +128,28 @@ public class ChannelDirectoryService {
 
     public Collection<AssetView> getVisibleAssets(String broadcaster) {
         String normalized = normalize(broadcaster);
-        return sortAndMapAssets(normalized, assetRepository.findByBroadcasterAndHiddenFalse(normalized));
+        List<Asset> assets = assetRepository.findByBroadcaster(normalized);
+        List<String> visualIds = assets
+            .stream()
+            .filter(
+                (asset) ->
+                    asset.getAssetType() == AssetType.IMAGE ||
+                    asset.getAssetType() == AssetType.VIDEO ||
+                    asset.getAssetType() == AssetType.OTHER
+            )
+            .map(Asset::getId)
+            .toList();
+        Map<String, Asset> assetById = assets.stream().collect(Collectors.toMap(Asset::getId, (asset) -> asset));
+        return visualAssetRepository
+            .findByIdInAndHiddenFalse(visualIds)
+            .stream()
+            .map((visual) -> {
+                Asset asset = assetById.get(visual.getId());
+                return asset == null ? null : AssetView.fromVisual(normalized, asset, visual);
+            })
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparingInt(AssetView::zIndex))
+            .toList();
     }
 
     public CanvasSettingsRequest getCanvasSettings(String broadcaster) {
@@ -159,14 +197,8 @@ public class ChannelDirectoryService {
 
         boolean isAudio = optimized.mediaType().startsWith("audio/");
         boolean isCode = isCodeMediaType(optimized.mediaType()) || isCodeMediaType(mediaType);
-        double defaultWidth = isAudio ? 400 : isCode ? 480 : 640;
-        double defaultHeight = isAudio ? 80 : isCode ? 270 : 360;
-        double width = optimized.width() > 0 ? optimized.width() : defaultWidth;
-        double height = optimized.height() > 0 ? optimized.height() : defaultHeight;
-
-        Asset asset = new Asset(channel.getBroadcaster(), safeName, "", width, height);
-        asset.setOriginalMediaType(mediaType);
-        asset.setMediaType(optimized.mediaType());
+        AssetType assetType = AssetType.fromMediaType(optimized.mediaType(), mediaType);
+        Asset asset = new Asset(channel.getBroadcaster(), assetType);
 
         assetStorageService.storeAsset(
             channel.getBroadcaster(),
@@ -175,21 +207,37 @@ public class ChannelDirectoryService {
             optimized.mediaType()
         );
 
-        assetStorageService.storePreview(channel.getBroadcaster(), asset.getId(), optimized.previewBytes());
-        asset.setPreview(optimized.previewBytes() != null ? asset.getId() + ".png" : "");
+        AssetView view;
+        asset = assetRepository.save(asset);
 
-        asset.setSpeed(1.0);
-        asset.setMuted(optimized.mediaType().startsWith("video/"));
-        asset.setAudioLoop(false);
-        asset.setAudioDelayMillis(0);
-        asset.setAudioSpeed(1.0);
-        asset.setAudioPitch(1.0);
-        asset.setAudioVolume(1.0);
-        asset.setZIndex(nextZIndex(channel.getBroadcaster()));
+        if (isAudio) {
+            AudioAsset audio = new AudioAsset(asset.getId(), safeName);
+            audio.setMediaType(optimized.mediaType());
+            audio.setOriginalMediaType(mediaType);
+            audioAssetRepository.save(audio);
+            view = AssetView.fromAudio(channel.getBroadcaster(), asset, audio);
+        } else if (isCode) {
+            ScriptAsset script = new ScriptAsset(asset.getId(), safeName);
+            script.setMediaType(optimized.mediaType());
+            script.setOriginalMediaType(mediaType);
+            scriptAssetRepository.save(script);
+            view = AssetView.fromScript(channel.getBroadcaster(), asset, script);
+        } else {
+            double defaultWidth = 640;
+            double defaultHeight = 360;
+            double width = optimized.width() > 0 ? optimized.width() : defaultWidth;
+            double height = optimized.height() > 0 ? optimized.height() : defaultHeight;
+            VisualAsset visual = new VisualAsset(asset.getId(), safeName, width, height);
+            visual.setOriginalMediaType(mediaType);
+            visual.setMediaType(optimized.mediaType());
+            visual.setMuted(optimized.mediaType().startsWith("video/"));
+            visual.setZIndex(nextZIndex(channel.getBroadcaster()));
+            assetStorageService.storePreview(channel.getBroadcaster(), asset.getId(), optimized.previewBytes());
+            visual.setPreview(optimized.previewBytes() != null ? asset.getId() + ".png" : "");
+            visualAssetRepository.save(visual);
+            view = AssetView.fromVisual(channel.getBroadcaster(), asset, visual);
+        }
 
-        assetRepository.save(asset);
-
-        AssetView view = AssetView.from(channel.getBroadcaster(), asset);
         messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, view));
 
         return Optional.of(view);
@@ -201,18 +249,7 @@ public class ChannelDirectoryService {
         byte[] bytes = request.getSource().getBytes(StandardCharsets.UTF_8);
         enforceUploadLimit(bytes.length);
 
-        Asset asset = new Asset(channel.getBroadcaster(), request.getName().trim(), "", 480, 270);
-        asset.setOriginalMediaType(DEFAULT_CODE_MEDIA_TYPE);
-        asset.setMediaType(DEFAULT_CODE_MEDIA_TYPE);
-        asset.setPreview("");
-        asset.setSpeed(1.0);
-        asset.setMuted(false);
-        asset.setAudioLoop(false);
-        asset.setAudioDelayMillis(0);
-        asset.setAudioSpeed(1.0);
-        asset.setAudioPitch(1.0);
-        asset.setAudioVolume(1.0);
-        asset.setZIndex(nextZIndex(channel.getBroadcaster()));
+        Asset asset = new Asset(channel.getBroadcaster(), AssetType.SCRIPT);
 
         try {
             assetStorageService.storeAsset(channel.getBroadcaster(), asset.getId(), bytes, DEFAULT_CODE_MEDIA_TYPE);
@@ -220,8 +257,12 @@ public class ChannelDirectoryService {
             throw new ResponseStatusException(BAD_REQUEST, "Unable to store custom script", e);
         }
 
-        assetRepository.save(asset);
-        AssetView view = AssetView.from(channel.getBroadcaster(), asset);
+        asset = assetRepository.save(asset);
+        ScriptAsset script = new ScriptAsset(asset.getId(), request.getName().trim());
+        script.setOriginalMediaType(DEFAULT_CODE_MEDIA_TYPE);
+        script.setMediaType(DEFAULT_CODE_MEDIA_TYPE);
+        scriptAssetRepository.save(script);
+        AssetView view = AssetView.fromScript(channel.getBroadcaster(), asset, script);
         messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, view));
         return Optional.of(view);
     }
@@ -236,19 +277,23 @@ public class ChannelDirectoryService {
             .findById(assetId)
             .filter((asset) -> normalized.equals(asset.getBroadcaster()))
             .map((asset) -> {
-                if (!isCodeMediaType(asset.getMediaType()) && !isCodeMediaType(asset.getOriginalMediaType())) {
+                if (asset.getAssetType() != AssetType.SCRIPT) {
                     throw new ResponseStatusException(BAD_REQUEST, "Asset is not a script");
                 }
-                asset.setName(request.getName().trim());
-                asset.setOriginalMediaType(DEFAULT_CODE_MEDIA_TYPE);
-                asset.setMediaType(DEFAULT_CODE_MEDIA_TYPE);
+                ScriptAsset script = scriptAssetRepository
+                    .findById(asset.getId())
+                    .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not a script"));
+                script.setName(request.getName().trim());
+                script.setOriginalMediaType(DEFAULT_CODE_MEDIA_TYPE);
+                script.setMediaType(DEFAULT_CODE_MEDIA_TYPE);
                 try {
                     assetStorageService.storeAsset(broadcaster, asset.getId(), bytes, DEFAULT_CODE_MEDIA_TYPE);
                 } catch (IOException e) {
                     throw new ResponseStatusException(BAD_REQUEST, "Unable to store custom script", e);
                 }
                 assetRepository.save(asset);
-                AssetView view = AssetView.from(normalized, asset);
+                scriptAssetRepository.save(script);
+                AssetView view = AssetView.fromScript(normalized, asset, script);
                 messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, view));
                 return view;
             });
@@ -266,28 +311,69 @@ public class ChannelDirectoryService {
             .findById(assetId)
             .filter((asset) -> normalized.equals(asset.getBroadcaster()))
             .map((asset) -> {
-                AssetPatch.TransformSnapshot before = AssetPatch.capture(asset);
-                validateTransform(req);
+                if (asset.getAssetType() == AssetType.AUDIO) {
+                    AudioAsset audio = audioAssetRepository
+                        .findById(asset.getId())
+                        .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not audio"));
+                    AssetPatch.AudioSnapshot before = new AssetPatch.AudioSnapshot(
+                        audio.isAudioLoop(),
+                        audio.getAudioDelayMillis(),
+                        audio.getAudioSpeed(),
+                        audio.getAudioPitch(),
+                        audio.getAudioVolume()
+                    );
+                    validateAudioTransform(req);
+                    if (req.getAudioLoop() != null) audio.setAudioLoop(req.getAudioLoop());
+                    if (req.getAudioDelayMillis() != null) audio.setAudioDelayMillis(req.getAudioDelayMillis());
+                    if (req.getAudioSpeed() != null) audio.setAudioSpeed(req.getAudioSpeed());
+                    if (req.getAudioPitch() != null) audio.setAudioPitch(req.getAudioPitch());
+                    if (req.getAudioVolume() != null) audio.setAudioVolume(req.getAudioVolume());
+                    audioAssetRepository.save(audio);
+                    AssetView view = AssetView.fromAudio(normalized, asset, audio);
+                    AssetPatch patch = AssetPatch.fromAudioTransform(before, audio, req);
+                    if (hasPatchChanges(patch)) {
+                        messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, patch));
+                    }
+                    return view;
+                }
 
-                asset.setX(req.getX());
-                asset.setY(req.getY());
-                asset.setWidth(req.getWidth());
-                asset.setHeight(req.getHeight());
-                asset.setRotation(req.getRotation());
+                if (asset.getAssetType() == AssetType.SCRIPT) {
+                    ScriptAsset script = scriptAssetRepository
+                        .findById(asset.getId())
+                        .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not a script"));
+                    return AssetView.fromScript(normalized, asset, script);
+                }
 
-                if (req.getZIndex() != null) asset.setZIndex(req.getZIndex());
-                if (req.getSpeed() != null) asset.setSpeed(req.getSpeed());
-                if (req.getMuted() != null && asset.isVideo()) asset.setMuted(req.getMuted());
-                if (req.getAudioLoop() != null) asset.setAudioLoop(req.getAudioLoop());
-                if (req.getAudioDelayMillis() != null) asset.setAudioDelayMillis(req.getAudioDelayMillis());
-                if (req.getAudioSpeed() != null) asset.setAudioSpeed(req.getAudioSpeed());
-                if (req.getAudioPitch() != null) asset.setAudioPitch(req.getAudioPitch());
-                if (req.getAudioVolume() != null) asset.setAudioVolume(req.getAudioVolume());
+                VisualAsset visual = visualAssetRepository
+                    .findById(asset.getId())
+                    .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not visual"));
+                AssetPatch.VisualSnapshot before = new AssetPatch.VisualSnapshot(
+                    visual.getX(),
+                    visual.getY(),
+                    visual.getWidth(),
+                    visual.getHeight(),
+                    visual.getRotation(),
+                    visual.getSpeed(),
+                    visual.isMuted(),
+                    visual.getZIndex(),
+                    visual.getAudioVolume()
+                );
+                validateVisualTransform(req);
 
-                assetRepository.save(asset);
+                if (req.getX() != null) visual.setX(req.getX());
+                if (req.getY() != null) visual.setY(req.getY());
+                if (req.getWidth() != null) visual.setWidth(req.getWidth());
+                if (req.getHeight() != null) visual.setHeight(req.getHeight());
+                if (req.getRotation() != null) visual.setRotation(req.getRotation());
+                if (req.getZIndex() != null) visual.setZIndex(req.getZIndex());
+                if (req.getSpeed() != null) visual.setSpeed(req.getSpeed());
+                if (req.getMuted() != null) visual.setMuted(req.getMuted());
+                if (req.getAudioVolume() != null) visual.setAudioVolume(req.getAudioVolume());
 
-                AssetView view = AssetView.from(normalized, asset);
-                AssetPatch patch = AssetPatch.fromTransform(before, asset, req);
+                visualAssetRepository.save(visual);
+
+                AssetView view = AssetView.fromVisual(normalized, asset, visual);
+                AssetPatch patch = AssetPatch.fromVisualTransform(before, visual, req);
                 if (hasPatchChanges(patch)) {
                     messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, patch));
                 }
@@ -295,21 +381,21 @@ public class ChannelDirectoryService {
             });
     }
 
-    private void validateTransform(TransformRequest req) {
+    private void validateVisualTransform(TransformRequest req) {
         Settings settings = settingsService.get();
         double maxSpeed = settings.getMaxAssetPlaybackSpeedFraction();
         double minSpeed = settings.getMinAssetPlaybackSpeedFraction();
-        double minPitch = settings.getMinAssetAudioPitchFraction();
-        double maxPitch = settings.getMaxAssetAudioPitchFraction();
         double minVolume = settings.getMinAssetVolumeFraction();
         double maxVolume = settings.getMaxAssetVolumeFraction();
         int canvasMaxSizePixels = settings.getMaxCanvasSideLengthPixels();
 
-        if (req.getWidth() <= 0 || req.getWidth() > canvasMaxSizePixels) throw new ResponseStatusException(
+        if (
+            req.getWidth() == null || req.getWidth() <= 0 || req.getWidth() > canvasMaxSizePixels
+        ) throw new ResponseStatusException(
             BAD_REQUEST,
             "Canvas width out of range [0 to " + canvasMaxSizePixels + "]"
         );
-        if (req.getHeight() <= 0) throw new ResponseStatusException(
+        if (req.getHeight() == null || req.getHeight() <= 0) throw new ResponseStatusException(
             BAD_REQUEST,
             "Canvas height out of range [0 to " + canvasMaxSizePixels + "]"
         );
@@ -320,6 +406,23 @@ public class ChannelDirectoryService {
             BAD_REQUEST,
             "zIndex must be >= 1"
         );
+        if (
+            req.getAudioVolume() != null && (req.getAudioVolume() < minVolume || req.getAudioVolume() > maxVolume)
+        ) throw new ResponseStatusException(
+            BAD_REQUEST,
+            "Audio volume out of range [" + minVolume + " to " + maxVolume + "]"
+        );
+    }
+
+    private void validateAudioTransform(TransformRequest req) {
+        Settings settings = settingsService.get();
+        double maxSpeed = settings.getMaxAssetPlaybackSpeedFraction();
+        double minSpeed = settings.getMinAssetPlaybackSpeedFraction();
+        double minPitch = settings.getMinAssetAudioPitchFraction();
+        double maxPitch = settings.getMaxAssetAudioPitchFraction();
+        double minVolume = settings.getMinAssetVolumeFraction();
+        double maxVolume = settings.getMaxAssetVolumeFraction();
+
         if (req.getAudioDelayMillis() != null && req.getAudioDelayMillis() < 0) throw new ResponseStatusException(
             BAD_REQUEST,
             "Audio delay >= 0"
@@ -344,7 +447,10 @@ public class ChannelDirectoryService {
             .findById(assetId)
             .filter((a) -> normalized.equals(a.getBroadcaster()))
             .map((asset) -> {
-                AssetView view = AssetView.from(normalized, asset);
+                AssetView view = resolveAssetView(normalized, asset);
+                if (view == null) {
+                    throw new ResponseStatusException(BAD_REQUEST, "Asset data missing");
+                }
                 boolean play = req == null || req.getPlay();
                 messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.play(broadcaster, view, play));
                 return view;
@@ -357,16 +463,43 @@ public class ChannelDirectoryService {
             .findById(assetId)
             .filter((a) -> normalized.equals(a.getBroadcaster()))
             .map((asset) -> {
-                boolean wasHidden = asset.isHidden();
                 boolean hidden = request.isHidden();
-                if (wasHidden == hidden) {
-                    return AssetView.from(normalized, asset);
+                if (asset.getAssetType() == AssetType.AUDIO) {
+                    AudioAsset audio = audioAssetRepository
+                        .findById(asset.getId())
+                        .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not audio"));
+                    if (audio.isHidden() == hidden) {
+                        return AssetView.fromAudio(normalized, asset, audio);
+                    }
+                    audio.setHidden(hidden);
+                    audioAssetRepository.save(audio);
+                    AssetView view = AssetView.fromAudio(normalized, asset, audio);
+                    AssetPatch patch = AssetPatch.fromVisibility(asset.getId(), hidden);
+                    AssetView payload = hidden ? null : view;
+                    messagingTemplate.convertAndSend(
+                        topicFor(broadcaster),
+                        AssetEvent.visibility(broadcaster, patch, payload)
+                    );
+                    return view;
                 }
 
-                asset.setHidden(hidden);
-                assetRepository.save(asset);
-                AssetView view = AssetView.from(normalized, asset);
-                AssetPatch patch = AssetPatch.fromVisibility(asset);
+                if (asset.getAssetType() == AssetType.SCRIPT) {
+                    ScriptAsset script = scriptAssetRepository
+                        .findById(asset.getId())
+                        .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not a script"));
+                    return AssetView.fromScript(normalized, asset, script);
+                }
+
+                VisualAsset visual = visualAssetRepository
+                    .findById(asset.getId())
+                    .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Asset is not visual"));
+                if (visual.isHidden() == hidden) {
+                    return AssetView.fromVisual(normalized, asset, visual);
+                }
+                visual.setHidden(hidden);
+                visualAssetRepository.save(visual);
+                AssetView view = AssetView.fromVisual(normalized, asset, visual);
+                AssetPatch patch = AssetPatch.fromVisibility(asset.getId(), hidden);
                 AssetView payload = hidden ? null : view;
                 messagingTemplate.convertAndSend(
                     topicFor(broadcaster),
@@ -380,8 +513,13 @@ public class ChannelDirectoryService {
         return assetRepository
             .findById(assetId)
             .map((asset) -> {
+                deleteAssetStorage(asset);
+                switch (asset.getAssetType()) {
+                    case AUDIO -> audioAssetRepository.deleteById(asset.getId());
+                    case SCRIPT -> scriptAssetRepository.deleteById(asset.getId());
+                    default -> visualAssetRepository.deleteById(asset.getId());
+                }
                 assetRepository.delete(asset);
-                assetStorageService.deleteAsset(asset);
                 messagingTemplate.convertAndSend(
                     topicFor(asset.getBroadcaster()),
                     AssetEvent.deleted(asset.getBroadcaster(), assetId)
@@ -392,14 +530,11 @@ public class ChannelDirectoryService {
     }
 
     public Optional<AssetContent> getAssetContent(String assetId) {
-        return assetRepository.findById(assetId).flatMap(assetStorageService::loadAssetFileSafely);
+        return assetRepository.findById(assetId).flatMap(this::loadAssetContent);
     }
 
     public Optional<AssetContent> getAssetPreview(String assetId, boolean includeHidden) {
-        return assetRepository
-            .findById(assetId)
-            .filter((a) -> includeHidden || !a.isHidden())
-            .flatMap(assetStorageService::loadPreviewSafely);
+        return assetRepository.findById(assetId).flatMap((asset) -> loadAssetPreview(asset, includeHidden));
     }
 
     public boolean isAdmin(String broadcaster, String username) {
@@ -457,28 +592,185 @@ public class ChannelDirectoryService {
     }
 
     private List<AssetView> sortAndMapAssets(String broadcaster, Collection<Asset> assets) {
+        List<String> audioIds = assets
+            .stream()
+            .filter((asset) -> asset.getAssetType() == AssetType.AUDIO)
+            .map(Asset::getId)
+            .toList();
+        List<String> scriptIds = assets
+            .stream()
+            .filter((asset) -> asset.getAssetType() == AssetType.SCRIPT)
+            .map(Asset::getId)
+            .toList();
+        List<String> visualIds = assets
+            .stream()
+            .filter(
+                (asset) ->
+                    asset.getAssetType() == AssetType.IMAGE ||
+                    asset.getAssetType() == AssetType.VIDEO ||
+                    asset.getAssetType() == AssetType.OTHER
+            )
+            .map(Asset::getId)
+            .toList();
+
+        Map<String, VisualAsset> visuals = visualAssetRepository
+            .findByIdIn(visualIds)
+            .stream()
+            .collect(Collectors.toMap(VisualAsset::getId, (asset) -> asset));
+        Map<String, AudioAsset> audios = audioAssetRepository
+            .findByIdIn(audioIds)
+            .stream()
+            .collect(Collectors.toMap(AudioAsset::getId, (asset) -> asset));
+        Map<String, ScriptAsset> scripts = scriptAssetRepository
+            .findByIdIn(scriptIds)
+            .stream()
+            .collect(Collectors.toMap(ScriptAsset::getId, (asset) -> asset));
+
         return assets
             .stream()
+            .map((asset) -> resolveAssetView(broadcaster, asset, visuals, audios, scripts))
+            .filter(Objects::nonNull)
             .sorted(
-                Comparator.comparingInt(Asset::getZIndex).thenComparing(
-                    Asset::getCreatedAt,
-                    Comparator.nullsFirst(Comparator.naturalOrder())
-                )
+                Comparator.comparing((AssetView view) ->
+                    view.zIndex() == null ? Integer.MAX_VALUE : view.zIndex()
+                ).thenComparing(AssetView::createdAt, Comparator.nullsFirst(Comparator.naturalOrder()))
             )
-            .map((a) -> AssetView.from(broadcaster, a))
             .toList();
     }
 
     private int nextZIndex(String broadcaster) {
         return (
-            assetRepository
-                .findByBroadcaster(normalize(broadcaster))
+            visualAssetRepository
+                .findByIdIn(assetsWithType(normalize(broadcaster), AssetType.IMAGE, AssetType.VIDEO, AssetType.OTHER))
                 .stream()
-                .mapToInt(Asset::getZIndex)
+                .mapToInt(VisualAsset::getZIndex)
                 .max()
                 .orElse(0) +
             1
         );
+    }
+
+    private List<String> assetsWithType(String broadcaster, AssetType... types) {
+        Set<AssetType> typeSet = EnumSet.noneOf(AssetType.class);
+        typeSet.addAll(Arrays.asList(types));
+        return assetRepository
+            .findByBroadcaster(normalize(broadcaster))
+            .stream()
+            .filter((asset) -> typeSet.contains(asset.getAssetType()))
+            .map(Asset::getId)
+            .toList();
+    }
+
+    private AssetView resolveAssetView(String broadcaster, Asset asset) {
+        return resolveAssetView(broadcaster, asset, null, null, null);
+    }
+
+    private AssetView resolveAssetView(
+        String broadcaster,
+        Asset asset,
+        Map<String, VisualAsset> visuals,
+        Map<String, AudioAsset> audios,
+        Map<String, ScriptAsset> scripts
+    ) {
+        if (asset.getAssetType() == AssetType.AUDIO) {
+            AudioAsset audio = audios != null
+                ? audios.get(asset.getId())
+                : audioAssetRepository.findById(asset.getId()).orElse(null);
+            return audio == null ? null : AssetView.fromAudio(broadcaster, asset, audio);
+        }
+        if (asset.getAssetType() == AssetType.SCRIPT) {
+            ScriptAsset script = scripts != null
+                ? scripts.get(asset.getId())
+                : scriptAssetRepository.findById(asset.getId()).orElse(null);
+            return script == null ? null : AssetView.fromScript(broadcaster, asset, script);
+        }
+        VisualAsset visual = visuals != null
+            ? visuals.get(asset.getId())
+            : visualAssetRepository.findById(asset.getId()).orElse(null);
+        return visual == null ? null : AssetView.fromVisual(broadcaster, asset, visual);
+    }
+
+    private Optional<AssetContent> loadAssetContent(Asset asset) {
+        switch (asset.getAssetType()) {
+            case AUDIO -> {
+                return audioAssetRepository
+                    .findById(asset.getId())
+                    .flatMap((audio) ->
+                        assetStorageService.loadAssetFileSafely(
+                            asset.getBroadcaster(),
+                            asset.getId(),
+                            audio.getMediaType()
+                        )
+                    );
+            }
+            case SCRIPT -> {
+                return scriptAssetRepository
+                    .findById(asset.getId())
+                    .flatMap((script) ->
+                        assetStorageService.loadAssetFileSafely(
+                            asset.getBroadcaster(),
+                            asset.getId(),
+                            script.getMediaType()
+                        )
+                    );
+            }
+            default -> {
+                return visualAssetRepository
+                    .findById(asset.getId())
+                    .flatMap((visual) ->
+                        assetStorageService.loadAssetFileSafely(
+                            asset.getBroadcaster(),
+                            asset.getId(),
+                            visual.getMediaType()
+                        )
+                    );
+            }
+        }
+    }
+
+    private Optional<AssetContent> loadAssetPreview(Asset asset, boolean includeHidden) {
+        if (
+            asset.getAssetType() != AssetType.VIDEO &&
+            asset.getAssetType() != AssetType.IMAGE &&
+            asset.getAssetType() != AssetType.OTHER
+        ) {
+            return Optional.empty();
+        }
+        return visualAssetRepository
+            .findById(asset.getId())
+            .filter((visual) -> includeHidden || !visual.isHidden())
+            .flatMap((visual) ->
+                assetStorageService.loadPreviewSafely(
+                    asset.getBroadcaster(),
+                    asset.getId(),
+                    visual.getPreview() != null && !visual.getPreview().isBlank()
+                )
+            );
+    }
+
+    private void deleteAssetStorage(Asset asset) {
+        switch (asset.getAssetType()) {
+            case AUDIO -> audioAssetRepository
+                .findById(asset.getId())
+                .ifPresent((audio) ->
+                    assetStorageService.deleteAsset(asset.getBroadcaster(), asset.getId(), audio.getMediaType(), false)
+                );
+            case SCRIPT -> scriptAssetRepository
+                .findById(asset.getId())
+                .ifPresent((script) ->
+                    assetStorageService.deleteAsset(asset.getBroadcaster(), asset.getId(), script.getMediaType(), false)
+                );
+            default -> visualAssetRepository
+                .findById(asset.getId())
+                .ifPresent((visual) ->
+                    assetStorageService.deleteAsset(
+                        asset.getBroadcaster(),
+                        asset.getId(),
+                        visual.getMediaType(),
+                        visual.getPreview() != null && !visual.getPreview().isBlank()
+                    )
+                );
+        }
     }
 
     private boolean hasPatchChanges(AssetPatch patch) {
