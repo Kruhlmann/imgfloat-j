@@ -25,6 +25,14 @@ let renderIntervalId = null;
 const audioUnlockEvents = ["pointerdown", "keydown", "touchstart"];
 let layerOrder = [];
 
+function spawnUserJavaScriptWorker() {
+
+}
+
+function stopUserJavaScriptWorker() {
+
+}
+
 applyCanvasSettings(canvasSettings);
 
 audioUnlockEvents.forEach((eventName) => {
