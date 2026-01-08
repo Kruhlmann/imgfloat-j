@@ -1544,12 +1544,15 @@ button:disabled:hover {
     align-items: stretch;
     padding: 8px 10px;
     background: #111827;
-    border-top: 1px solid #1f2937;
     cursor: pointer;
     gap: 8px;
     font-size: 13px;
     line-height: 1.35;
     height: 60px;
+}
+
+.asset-item:not(.is-hidden) {
+    border-top: 1px solid #1f2937;
 }
 
 .asset-item:last-child {

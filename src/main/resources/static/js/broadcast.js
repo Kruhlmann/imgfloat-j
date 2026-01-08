@@ -1,3 +1,5 @@
+import { isAudioAsset } from "./media/audio.js";
+
 const canvas = document.getElementById("broadcast-canvas");
 const obsBrowser = !!globalThis.obsstudio;
 const supportsAnimatedDecode =
@@ -439,9 +441,6 @@ function isVideoAsset(asset) {
     return asset?.mediaType?.startsWith("video/");
 }
 
-function isAudioAsset(asset) {
-    return asset?.mediaType?.startsWith("audio/");
-}
 function getVideoPlaybackState(element) {
     if (!element) {
         return { playRequested: false, unmuteOnPlay: false };

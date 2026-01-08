@@ -1,3 +1,5 @@
+import { isAudioAsset } from "./media/audio.js";
+
 const canvas = document.getElementById("admin-canvas");
 const ctx = canvas.getContext("2d");
 const overlay = document.getElementById("admin-overlay");
@@ -76,6 +78,18 @@ audioUnlockEvents.forEach((eventName) => {
         pendingAudioUnlock.clear();
     });
 });
+
+function handleFileSelection(input) {
+    if (!input) return;
+    const hasFile = input.files && input.files.length;
+    const name = hasFile ? input.files[0].name : "";
+    if (fileNameLabel) {
+        fileNameLabel.textContent = name || "No file chosen";
+    }
+    if (hasFile) {
+        uploadAsset(input.files[0]);
+    }
+}
 
 function debounce(fn, wait = 150) {
     let timeout;
@@ -935,11 +949,6 @@ function updateHoverCursor(point) {
 function isVideoAsset(asset) {
     const type = asset?.mediaType || asset?.originalMediaType || "";
     return type.startsWith("video/");
-}
-
-function isAudioAsset(asset) {
-    const type = asset?.mediaType || asset?.originalMediaType || "";
-    return type.startsWith("audio/");
 }
 
 function isCodeAsset(asset) {
@@ -2200,18 +2209,6 @@ function deleteAsset(asset) {
             showToast("Asset deleted.", "info");
         })
         .catch(() => showToast("Unable to delete asset. Please try again.", "error"));
-}
-
-function handleFileSelection(input) {
-    if (!input) return;
-    const hasFile = input.files && input.files.length;
-    const name = hasFile ? input.files[0].name : "";
-    if (fileNameLabel) {
-        fileNameLabel.textContent = name || "No file chosen";
-    }
-    if (hasFile) {
-        uploadAsset(input.files[0]);
-    }
 }
 
 function uploadAsset(file = null) {
