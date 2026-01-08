@@ -1,0 +1,2 @@
+function spawnUserJavaScriptWorker(jsSource, data) {
+}

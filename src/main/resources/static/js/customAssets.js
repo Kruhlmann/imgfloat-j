@@ -43,12 +43,42 @@ function getUserJavaScriptSourceError(src) {
         return { title: "Syntax Error", details: e.message };
     }
 
-    const functionNames = ast.body.filter((node) => node.type === "FunctionDeclaration").map((node) => node.id.name);
-    if (!functionNames.includes("init")) {
-        return { title: "Missing function: init", details: "Your code must include a function named 'init'." };
+    let hasInit = false;
+    let hasTick = false;
+
+    for (const node of ast.body) {
+        if (node.type !== "ExpressionStatement") continue;
+
+        const expr = node.expression;
+        if (expr.type !== "AssignmentExpression") continue;
+
+        const left = expr.left;
+        const right = expr.right;
+
+        if (
+            left.type === "MemberExpression" &&
+            left.object.type === "Identifier" &&
+            left.object.name === "exports" &&
+            left.property.type === "Identifier" &&
+            (right.type === "FunctionExpression" || right.type === "ArrowFunctionExpression")
+        ) {
+            if (left.property.name === "init") hasInit = true;
+            if (left.property.name === "tick") hasTick = true;
+        }
     }
-    if (!functionNames.includes("tick")) {
-        return { title: "Missing function: tick", details: "Your code must include a function named 'tick'." };
+
+    if (!hasInit) {
+        return {
+            title: "Missing function: init",
+            details: "You must assign a function to exports.init",
+        };
+    }
+
+    if (!hasTick) {
+        return {
+            title: "Missing function: tick",
+            details: "You must assign a function to exports.tick",
+        };
     }
 
     return undefined;
