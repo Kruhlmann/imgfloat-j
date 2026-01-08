@@ -52,7 +52,6 @@
                             class="file-input-field"
                             type="file"
                             accept="image/*,video/*,audio/*,application/javascript,text/javascript,.js,.mjs"
-                            onchange="handleFileSelection(this)"
                         />
                         <label for="asset-file" class="file-input-trigger">
                             <span class="file-input-icon"><i class="fa-solid fa-cloud-arrow-up"></i></span>
@@ -373,10 +372,10 @@
                 </section>
             </div>
         </div>
-        <div id="custom-asset-modal" class="modal hidden" onclick="toggleCustomAssetModal(event)">
+        <div id="custom-asset-modal" class="modal hidden">
             <section class="modal-inner">
                 <h1>Create Custom Asset</h1>
-                <form id="custom-asset-form" onsubmit="submitCodeAsset(event)">
+                <form id="custom-asset-form">
                     <div class="form-group">
                         <label for="custom-asset-name">Asset name</label>
                         <input
@@ -402,7 +401,7 @@
                         <pre id="js-error-details"></pre>
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="secondary" onclick="toggleCustomAssetModal(event)">Cancel</button>
+                        <button type="button" class="secondary" id="custom-asset-cancel">Cancel</button>
                         <button type="submit" class="primary">Test and save</button>
                     </div>
                 </form>
@@ -416,7 +415,6 @@
         </script>
         <script src="/js/cookie-consent.js"></script>
         <script src="/js/toast.js"></script>
-        <script src="/js/customAssets.js"></script>
         <script type="module" src="/js/admin.js"></script>
     </body>
 </html>
