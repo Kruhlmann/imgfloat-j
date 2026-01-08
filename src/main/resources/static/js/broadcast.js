@@ -126,6 +126,7 @@ function renderAssets(list) {
 
 function storeAsset(asset, placement = "keep") {
     if (!asset) return;
+    console.info(`Storing asset: ${asset.id}`);
     const wasExisting = assets.has(asset.id);
     assets.set(asset.id, asset);
     ensureLayerPosition(asset.id, placement);
@@ -135,7 +136,7 @@ function storeAsset(asset, placement = "keep") {
     }
 }
 
-function fetchCanvasSettings() {
+async function fetchCanvasSettings() {
     return fetch(`/api/channels/${encodeURIComponent(broadcaster)}/canvas`)
         .then((r) => {
             if (!r.ok) {
@@ -289,8 +290,8 @@ function applyPatch(assetId, patch) {
     const targetLayer = Number.isFinite(patch.layer)
         ? patch.layer
         : Number.isFinite(patch.zIndex)
-          ? patch.zIndex
-          : null;
+            ? patch.zIndex
+            : null;
     if (!isAudio && Number.isFinite(targetLayer)) {
         const currentOrder = getLayerOrder().filter((id) => id !== assetId);
         const insertIndex = Math.max(0, currentOrder.length - Math.round(targetLayer));
@@ -793,7 +794,7 @@ function setVideoSource(element, asset) {
             }
             applyVideoSource(element, next.objectUrl, asset);
         })
-        .catch(() => {});
+        .catch(() => { });
 }
 
 function applyVideoSource(element, objectUrl, asset) {

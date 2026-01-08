@@ -3,6 +3,7 @@ package dev.kruhlmann.imgfloat.service.media;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URLConnection;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -33,15 +34,17 @@ public class MediaDetectionService {
     private static final Set<String> ALLOWED_MEDIA_TYPES = Set.copyOf(EXTENSION_TYPES.values());
 
     public Optional<String> detectAllowedMediaType(MultipartFile file, byte[] bytes) {
-        Optional<String> detected = detectMediaType(bytes).filter(MediaDetectionService::isAllowedMediaType);
+        Optional<String> detected = detectMediaType(bytes)
+            .map(MediaDetectionService::normalizeJavaScriptMediaType)
+            .filter(MediaDetectionService::isAllowedMediaType);
 
         if (detected.isPresent()) {
             return detected;
         }
 
-        Optional<String> declared = Optional.ofNullable(file.getContentType()).filter(
-            MediaDetectionService::isAllowedMediaType
-        );
+        Optional<String> declared = Optional.ofNullable(file.getContentType())
+            .map(MediaDetectionService::normalizeJavaScriptMediaType)
+            .filter(MediaDetectionService::isAllowedMediaType);
         if (declared.isPresent()) {
             return declared;
         }
@@ -66,7 +69,8 @@ public class MediaDetectionService {
     }
 
     public static boolean isAllowedMediaType(String mediaType) {
-        return mediaType != null && ALLOWED_MEDIA_TYPES.contains(mediaType.toLowerCase());
+        String normalized = normalizeJavaScriptMediaType(mediaType);
+        return normalized != null && ALLOWED_MEDIA_TYPES.contains(normalized.toLowerCase());
     }
 
     public static boolean isInlineDisplayType(String mediaType) {
@@ -74,5 +78,16 @@ public class MediaDetectionService {
             mediaType != null &&
             (mediaType.startsWith("image/") || mediaType.startsWith("video/") || mediaType.startsWith("audio/"))
         );
+    }
+
+    private static String normalizeJavaScriptMediaType(String mediaType) {
+        if (mediaType == null) {
+            return null;
+        }
+        String normalized = mediaType.toLowerCase(Locale.ROOT);
+        if (normalized.contains("javascript") || normalized.contains("ecmascript")) {
+            return "application/javascript";
+        }
+        return mediaType;
     }
 }

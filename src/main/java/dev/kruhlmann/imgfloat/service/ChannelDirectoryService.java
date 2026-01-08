@@ -10,6 +10,7 @@ import dev.kruhlmann.imgfloat.model.AssetView;
 import dev.kruhlmann.imgfloat.model.CanvasEvent;
 import dev.kruhlmann.imgfloat.model.CanvasSettingsRequest;
 import dev.kruhlmann.imgfloat.model.Channel;
+import dev.kruhlmann.imgfloat.model.CodeAssetRequest;
 import dev.kruhlmann.imgfloat.model.PlaybackRequest;
 import dev.kruhlmann.imgfloat.model.Settings;
 import dev.kruhlmann.imgfloat.model.TransformRequest;
@@ -21,6 +22,7 @@ import dev.kruhlmann.imgfloat.service.media.MediaDetectionService;
 import dev.kruhlmann.imgfloat.service.media.MediaOptimizationService;
 import dev.kruhlmann.imgfloat.service.media.OptimizedAsset;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -36,6 +38,9 @@ public class ChannelDirectoryService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChannelDirectoryService.class);
     private static final Pattern SAFE_FILENAME = Pattern.compile("[^a-zA-Z0-9._ -]");
+    private static final Pattern INIT_FUNCTION = Pattern.compile("\\bfunction\\s+init\\b");
+    private static final Pattern TICK_FUNCTION = Pattern.compile("\\bfunction\\s+tick\\b");
+    private static final String DEFAULT_CODE_MEDIA_TYPE = "application/javascript";
 
     private final ChannelRepository channelRepository;
     private final AssetRepository assetRepository;
@@ -190,6 +195,65 @@ public class ChannelDirectoryService {
         messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, view));
 
         return Optional.of(view);
+    }
+
+    public Optional<AssetView> createCodeAsset(String broadcaster, CodeAssetRequest request) {
+        validateCodeAssetSource(request.getSource());
+        Channel channel = getOrCreateChannel(broadcaster);
+        byte[] bytes = request.getSource().getBytes(StandardCharsets.UTF_8);
+        enforceUploadLimit(bytes.length);
+
+        Asset asset = new Asset(channel.getBroadcaster(), request.getName().trim(), "", 480, 270);
+        asset.setOriginalMediaType(DEFAULT_CODE_MEDIA_TYPE);
+        asset.setMediaType(DEFAULT_CODE_MEDIA_TYPE);
+        asset.setPreview("");
+        asset.setSpeed(1.0);
+        asset.setMuted(false);
+        asset.setAudioLoop(false);
+        asset.setAudioDelayMillis(0);
+        asset.setAudioSpeed(1.0);
+        asset.setAudioPitch(1.0);
+        asset.setAudioVolume(1.0);
+        asset.setZIndex(nextZIndex(channel.getBroadcaster()));
+
+        try {
+            assetStorageService.storeAsset(channel.getBroadcaster(), asset.getId(), bytes, DEFAULT_CODE_MEDIA_TYPE);
+        } catch (IOException e) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unable to store custom script", e);
+        }
+
+        assetRepository.save(asset);
+        AssetView view = AssetView.from(channel.getBroadcaster(), asset);
+        messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.created(broadcaster, view));
+        return Optional.of(view);
+    }
+
+    public Optional<AssetView> updateCodeAsset(String broadcaster, String assetId, CodeAssetRequest request) {
+        validateCodeAssetSource(request.getSource());
+        String normalized = normalize(broadcaster);
+        byte[] bytes = request.getSource().getBytes(StandardCharsets.UTF_8);
+        enforceUploadLimit(bytes.length);
+
+        return assetRepository
+            .findById(assetId)
+            .filter((asset) -> normalized.equals(asset.getBroadcaster()))
+            .map((asset) -> {
+                if (!isCodeMediaType(asset.getMediaType()) && !isCodeMediaType(asset.getOriginalMediaType())) {
+                    throw new ResponseStatusException(BAD_REQUEST, "Asset is not a script");
+                }
+                asset.setName(request.getName().trim());
+                asset.setOriginalMediaType(DEFAULT_CODE_MEDIA_TYPE);
+                asset.setMediaType(DEFAULT_CODE_MEDIA_TYPE);
+                try {
+                    assetStorageService.storeAsset(broadcaster, asset.getId(), bytes, DEFAULT_CODE_MEDIA_TYPE);
+                } catch (IOException e) {
+                    throw new ResponseStatusException(BAD_REQUEST, "Unable to store custom script", e);
+                }
+                assetRepository.save(asset);
+                AssetView view = AssetView.from(normalized, asset);
+                messagingTemplate.convertAndSend(topicFor(broadcaster), AssetEvent.updated(broadcaster, view));
+                return view;
+            });
     }
 
     private String sanitizeFilename(String original) {
@@ -369,6 +433,31 @@ public class ChannelDirectoryService {
         }
         String normalized = mediaType.toLowerCase(Locale.ROOT);
         return normalized.startsWith("application/javascript") || normalized.startsWith("text/javascript");
+    }
+
+    private void validateCodeAssetSource(String source) {
+        if (source == null || source.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Script source is required");
+        }
+        if (!INIT_FUNCTION.matcher(source).find()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Missing function: init");
+        }
+        if (!TICK_FUNCTION.matcher(source).find()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Missing function: tick");
+        }
+    }
+
+    private void enforceUploadLimit(long sizeBytes) {
+        if (sizeBytes > uploadLimitBytes) {
+            throw new ResponseStatusException(
+                PAYLOAD_TOO_LARGE,
+                String.format(
+                    "Uploaded file is too large (%d bytes). Maximum allowed is %d bytes.",
+                    sizeBytes,
+                    uploadLimitBytes
+                )
+            );
+        }
     }
 
     private String topicFor(String broadcaster) {

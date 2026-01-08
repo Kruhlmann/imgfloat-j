@@ -1,4 +1,5 @@
 const assetModal = document.getElementById("custom-asset-modal");
+const userNameInput = document.getElementById("custom-asset-name");
 const userSourceTextArea = document.getElementById("custom-asset-code");
 const formErrorWrapper = document.getElementById("custom-asset-error");
 const jsErrorTitle = document.getElementById("js-error-title");
@@ -10,6 +11,25 @@ function toggleCustomAssetModal(event) {
     }
     if (assetModal.classList.contains("hidden")) {
         assetModal.classList.remove("hidden");
+        if (userNameInput) {
+            userNameInput.value = "";
+        }
+        if (userSourceTextArea) {
+            userSourceTextArea.value = "";
+            userSourceTextArea.disabled = false;
+            userSourceTextArea.dataset.assetId = "";
+            userSourceTextArea.placeholder =
+                "function init({ surface, assets, channel }) {\n\n}\n\nfunction tick() {\n\n}";
+        }
+        if (formErrorWrapper) {
+            formErrorWrapper.classList.add("hidden");
+        }
+        if (jsErrorTitle) {
+            jsErrorTitle.textContent = "";
+        }
+        if (jsErrorDetails) {
+            jsErrorDetails.textContent = "";
+        }
     } else {
         assetModal.classList.add("hidden");
     }
@@ -28,7 +48,74 @@ function submitCodeAsset(formEvent) {
     formErrorWrapper.classList.add("hidden");
     jsErrorTitle.textContent = "";
     jsErrorDetails.textContent = "";
+    const name = userNameInput?.value?.trim();
+    if (!name) {
+        jsErrorTitle.textContent = "Missing name";
+        jsErrorDetails.textContent = "Please provide a name for your custom asset.";
+        formErrorWrapper.classList.remove("hidden");
+        return false;
+    }
+    const assetId = userSourceTextArea?.dataset?.assetId;
+    const submitButton = formEvent.currentTarget?.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Saving...";
+    }
+    saveCodeAsset({ name, src, assetId })
+        .then((asset) => {
+            if (asset && typeof storeAsset === "function") {
+                storeAsset(asset);
+                if (typeof updateRenderState === "function") {
+                    updateRenderState(asset);
+                }
+                if (typeof selectedAssetId !== "undefined") {
+                    selectedAssetId = asset.id;
+                }
+                if (typeof updateSelectedAssetControls === "function") {
+                    updateSelectedAssetControls(asset);
+                }
+                if (typeof drawAndList === "function") {
+                    drawAndList();
+                }
+            }
+            if (assetModal) {
+                assetModal.classList.add("hidden");
+            }
+            if (typeof showToast === "function") {
+                showToast(assetId ? "Custom asset updated." : "Custom asset created.", "success");
+            }
+        })
+        .catch((e) => {
+            if (typeof showToast === "function") {
+                showToast("Unable to save custom asset. Please try again.", "error");
+            }
+            console.error(e);
+        })
+        .finally(() => {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = "Test and save";
+            }
+        });
     return false;
+}
+
+function saveCodeAsset({ name, src, assetId }) {
+    const payload = { name, source: src };
+    const method = assetId ? "PUT" : "POST";
+    const url = assetId
+        ? `/api/channels/${encodeURIComponent(broadcaster)}/assets/${assetId}/code`
+        : `/api/channels/${encodeURIComponent(broadcaster)}/assets/code`;
+    return fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error("Failed to save code asset");
+        }
+        return response.json();
+    });
 }
 
 function getUserJavaScriptSourceError(src) {

@@ -7,6 +7,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import dev.kruhlmann.imgfloat.model.AdminRequest;
 import dev.kruhlmann.imgfloat.model.AssetView;
 import dev.kruhlmann.imgfloat.model.CanvasSettingsRequest;
+import dev.kruhlmann.imgfloat.model.CodeAssetRequest;
 import dev.kruhlmann.imgfloat.model.OauthSessionUser;
 import dev.kruhlmann.imgfloat.model.PlaybackRequest;
 import dev.kruhlmann.imgfloat.model.TransformRequest;
@@ -234,6 +235,48 @@ public class ChannelApiController {
             LOG.error("Failed to process asset upload for {} by {}", logBroadcaster, logSessionUsername, e);
             throw new ResponseStatusException(BAD_REQUEST, "Failed to process image", e);
         }
+    }
+
+    @PostMapping("/assets/code")
+    public ResponseEntity<AssetView> createCodeAsset(
+        @PathVariable("broadcaster") String broadcaster,
+        @Valid @RequestBody CodeAssetRequest request,
+        OAuth2AuthenticationToken oauthToken
+    ) {
+        String sessionUsername = OauthSessionUser.from(oauthToken).login();
+        String logBroadcaster = LogSanitizer.sanitize(broadcaster);
+        String logSessionUsername = LogSanitizer.sanitize(sessionUsername);
+        authorizationService.userIsBroadcasterOrChannelAdminForBroadcasterOrThrowHttpError(
+            broadcaster,
+            sessionUsername
+        );
+        LOG.info("Creating custom script for {} by {}", logBroadcaster, logSessionUsername);
+        return channelDirectoryService
+            .createCodeAsset(broadcaster, request)
+            .map(ResponseEntity::ok)
+            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unable to save custom script"));
+    }
+
+    @PutMapping("/assets/{assetId}/code")
+    public ResponseEntity<AssetView> updateCodeAsset(
+        @PathVariable("broadcaster") String broadcaster,
+        @PathVariable("assetId") String assetId,
+        @Valid @RequestBody CodeAssetRequest request,
+        OAuth2AuthenticationToken oauthToken
+    ) {
+        String sessionUsername = OauthSessionUser.from(oauthToken).login();
+        String logBroadcaster = LogSanitizer.sanitize(broadcaster);
+        String logSessionUsername = LogSanitizer.sanitize(sessionUsername);
+        String logAssetId = LogSanitizer.sanitize(assetId);
+        authorizationService.userIsBroadcasterOrChannelAdminForBroadcasterOrThrowHttpError(
+            broadcaster,
+            sessionUsername
+        );
+        LOG.info("Updating custom script {} for {} by {}", logAssetId, logBroadcaster, logSessionUsername);
+        return channelDirectoryService
+            .updateCodeAsset(broadcaster, assetId, request)
+            .map(ResponseEntity::ok)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Asset not found"));
     }
 
     @PutMapping("/assets/{assetId}/transform")
