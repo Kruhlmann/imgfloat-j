@@ -22,7 +22,6 @@ let lastRenderTime = 0;
 let frameScheduled = false;
 let pendingDraw = false;
 let renderIntervalId = null;
-const pendingRemovals = new Set();
 const audioUnlockEvents = ["pointerdown", "keydown", "touchstart"];
 let layerOrder = [];
 
@@ -79,12 +78,6 @@ function getRenderOrder() {
         .filter(Boolean);
 }
 
-function queueRemoval(assetId) {
-    if (assetId) {
-        pendingRemovals.add(assetId);
-    }
-}
-
 function removeAsset(assetId) {
     assets.delete(assetId);
     layerOrder = layerOrder.filter((id) => id !== assetId);
@@ -92,12 +85,6 @@ function removeAsset(assetId) {
     stopUserJavaScriptWorker(assetId);
     renderStates.delete(assetId);
     visibilityStates.delete(assetId);
-}
-
-function flushPendingRemovals() {
-    if (!pendingRemovals.size) return;
-    pendingRemovals.forEach((id) => removeAsset(id));
-    pendingRemovals.clear();
 }
 
 function connect() {
@@ -108,7 +95,7 @@ function connect() {
             const body = JSON.parse(payload.body);
             handleEvent(body);
         });
-        fetch(`/api/channels/${broadcaster}/assets/visible`)
+        fetch(`/api/channels/${broadcaster}/assets`)
             .then((r) => {
                 if (!r.ok) {
                     throw new Error("Failed to load assets");
@@ -344,13 +331,11 @@ function draw() {
 function renderFrame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     getRenderOrder().forEach(drawAsset);
-    flushPendingRemovals();
 }
 
 function drawAsset(asset) {
     const visibility = getVisibilityState(asset);
     if (visibility.alpha <= VISIBILITY_THRESHOLD && asset.hidden) {
-        queueRemoval(asset.id);
         return;
     }
     const renderState = smoothState(asset);

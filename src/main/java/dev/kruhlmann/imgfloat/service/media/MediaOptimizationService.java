@@ -1,5 +1,6 @@
 package dev.kruhlmann.imgfloat.service.media;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -100,13 +101,14 @@ public class MediaOptimizationService {
             try {
                 var encoder = org.jcodec.api.awt.AWTSequenceEncoder.createSequenceEncoder(temp, fps);
                 for (GifFrame frame : frames) {
+                    BufferedImage image = ensureEvenDimensions(frame.image());
                     int repeats = Math.max(1, normalizeDelay(frame.delayMs()) / baseDelay);
                     for (int i = 0; i < repeats; i++) {
-                        encoder.encodeImage(frame.image());
+                        encoder.encodeImage(image);
                     }
                 }
                 encoder.finish();
-                BufferedImage cover = frames.get(0).image();
+                BufferedImage cover = ensureEvenDimensions(frames.get(0).image());
                 byte[] video = Files.readAllBytes(temp.toPath());
                 return new OptimizedAsset(
                     video,
@@ -208,6 +210,24 @@ public class MediaOptimizationService {
         } finally {
             writer.dispose();
         }
+    }
+
+    private BufferedImage ensureEvenDimensions(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int evenWidth = width % 2 == 0 ? width : width + 1;
+        int evenHeight = height % 2 == 0 ? height : height + 1;
+        if (evenWidth == width && evenHeight == height) {
+            return image;
+        }
+        BufferedImage padded = new BufferedImage(evenWidth, evenHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = padded.createGraphics();
+        try {
+            graphics.drawImage(image, 0, 0, null);
+        } finally {
+            graphics.dispose();
+        }
+        return padded;
     }
 
     private Dimension extractVideoDimensions(byte[] bytes) {
