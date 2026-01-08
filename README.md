@@ -79,9 +79,11 @@ This automatically re-compiles the project when source files change. `entr` is r
 
 ### Running the electron client
 
-There are two methods of running the electron app during development.
+There are two methods of running the electron app during development. Both methods require access to an Xorg server.
 
 #### Running in the current X server
+
+This spawns the window in your current Xorg server.
 
 ```sh
 $ make run-client
