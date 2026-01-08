@@ -5,9 +5,21 @@
     </video>
 </p>
 
-A Spring Boot overlay server for Twitch broadcasters and their channel admins. Broadcasters can authorize via Twitch OAuth and invite channel admins to manage images that float over a transparent canvas. Updates are pushed in real time over WebSockets so OBS browser sources stay in sync.
+# Get started
 
-## Running
+Bring your stream to life with a lightweight, real-time overlay system built for Twitch. Upload images once, place and animate them from anywhere, and see your changes in real-time, so your stream visuals look polished.
+
+## Streamers
+
+Visit [imgfloat.kruhlmann.dev](https://imgfloat.kruhlmann.dev) to add your channel admins from the dashboard and download the application for your platform. Run the appliation, enter your twitch channel name and add the window to your OBS scene.
+
+## Moderators
+
+Visit [imgfloat.kruhlmann.dev](https://imgfloat.kruhlmann.dev) once your streamer has added you as a channel admin. From there you can upload images, place them on the canvas and animate them in real-time.
+
+# Contributing
+
+## Running locally
 
 Define the following required environment variables:
 
