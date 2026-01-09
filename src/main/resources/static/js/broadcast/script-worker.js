@@ -5,6 +5,7 @@ let channelName = "";
 let tickIntervalId = null;
 let lastTick = 0;
 let startTime = 0;
+const tickIntervalMs = 1000 / 60;
 const errorKeys = new Set();
 
 function reportScriptError(id, stage, error) {
@@ -68,7 +69,7 @@ function ensureTickLoop() {
                 console.error(`Script ${script.id} tick failed`, error);
             }
         });
-    }, 100);
+    }, tickIntervalMs);
 }
 
 function stopTickLoopIfIdle() {
