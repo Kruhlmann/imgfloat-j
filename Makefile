@@ -4,19 +4,13 @@
 .DEFAULT_GOAL := build
 
 IMGFLOAT_DB_PATH ?= ./imgfloat.db
-IMGFLOAT_GITHUB_OWNER ?= Kruhlmann
-IMGFLOAT_GITHUB_REPO ?= imgfloat-j
+IMGFLOAT_GITHUB_OWNER ?= imgfloat 
+IMGFLOAT_GITHUB_REPO ?= client
 IMGFLOAT_ASSETS_PATH ?= ./assets
 IMGFLOAT_PREVIEWS_PATH ?= ./previews
 SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE ?= 10MB
 SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE ?= 10MB
 WATCHDIR = ./src/main
-ELECTRON := $(shell \
-	if [ -f /etc/os-release ] && grep -q '^ID=nixos' /etc/os-release; then \
-		echo electron; \
-	else \
-		echo "npx electron"; \
-	fi)
 RUNTIME_ENV = IMGFLOAT_ASSETS_PATH=$(IMGFLOAT_ASSETS_PATH) \
 			  IMGFLOAT_PREVIEWS_PATH=$(IMGFLOAT_PREVIEWS_PATH) \
 			  IMGFLOAT_GITHUB_OWNER=$(IMGFLOAT_GITHUB_OWNER) \
@@ -48,20 +42,3 @@ test:
 .PHONY: package
 package:
 	mvn clean package
-
-.PHONY: run-client
-run-client:
-	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels $(ELECTRON) ./src/main/node/app.js
-
-.PHONY: run-client-x
-run-client-x:
-	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels ./src/main/shell/run-electron-app-in-xorg $(ELECTRON)
-
-.PHONY: run-client-wl
-run-client-wl:
-	IMGFLOAT_CHANNELS_URL=http://localhost:8080/channels ./src/main/shell/run-electron-app-in-xorg $(ELECTRON)
-
-.PHONY: fix
-fix: node_modules
-	./node_modules/.bin/prettier --write src
-
