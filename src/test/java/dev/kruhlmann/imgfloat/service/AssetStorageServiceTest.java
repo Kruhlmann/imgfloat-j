@@ -3,7 +3,6 @@ package dev.kruhlmann.imgfloat.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import dev.kruhlmann.imgfloat.model.Asset;
 import dev.kruhlmann.imgfloat.service.media.AssetContent;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,15 +33,14 @@ class AssetStorageServiceTest {
     @Test
     void storesAndLoadsAssets() throws IOException {
         byte[] bytes = new byte[] { 1, 2, 3 };
-        Asset asset = new Asset("caster", "asset", "http://example.com", 10, 10);
-        asset.setMediaType("image/png");
+        String assetId = "asset-1";
 
-        service.storeAsset("caster", asset.getId(), bytes, "image/png");
+        service.storeAsset("caster", assetId, bytes, "image/png");
 
-        AssetContent loaded = service.loadAssetFile(asset).orElseThrow();
+        AssetContent loaded = service.loadAssetFile("caster", assetId, "image/png").orElseThrow();
         assertThat(loaded.bytes()).containsExactly(bytes);
         assertThat(loaded.mediaType()).isEqualTo("image/png");
-        assertThat(Files.exists(assets.resolve("caster").resolve(asset.getId() + ".png"))).isTrue();
+        assertThat(Files.exists(assets.resolve("caster").resolve(assetId + ".png"))).isTrue();
     }
 
     @Test
@@ -54,10 +52,9 @@ class AssetStorageServiceTest {
     @Test
     void storesAndLoadsPreviews() throws IOException {
         byte[] preview = new byte[] { 9, 8, 7 };
-        Asset asset = new Asset("caster", "asset", "http://example.com", 10, 10);
-        asset.setMediaType("image/png");
+        String assetId = "asset-2";
 
-        service.storePreview("caster", asset.getId(), preview);
-        assertThat(service.loadPreview(asset)).isPresent();
+        service.storePreview("caster", assetId, preview);
+        assertThat(service.loadPreview("caster", assetId)).isPresent();
     }
 }

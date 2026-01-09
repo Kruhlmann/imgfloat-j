@@ -11,12 +11,17 @@ import static org.mockito.Mockito.when;
 
 import dev.kruhlmann.imgfloat.model.Asset;
 import dev.kruhlmann.imgfloat.model.AssetView;
+import dev.kruhlmann.imgfloat.model.AudioAsset;
 import dev.kruhlmann.imgfloat.model.Channel;
+import dev.kruhlmann.imgfloat.model.ScriptAsset;
 import dev.kruhlmann.imgfloat.model.Settings;
 import dev.kruhlmann.imgfloat.model.TransformRequest;
 import dev.kruhlmann.imgfloat.model.VisibilityRequest;
 import dev.kruhlmann.imgfloat.repository.AssetRepository;
+import dev.kruhlmann.imgfloat.repository.AudioAssetRepository;
 import dev.kruhlmann.imgfloat.repository.ChannelRepository;
+import dev.kruhlmann.imgfloat.repository.ScriptAssetRepository;
+import dev.kruhlmann.imgfloat.repository.VisualAssetRepository;
 import dev.kruhlmann.imgfloat.service.AssetStorageService;
 import dev.kruhlmann.imgfloat.service.ChannelDirectoryService;
 import dev.kruhlmann.imgfloat.service.SettingsService;
@@ -48,6 +53,9 @@ class ChannelDirectoryServiceTest {
     private SimpMessagingTemplate messagingTemplate;
     private ChannelRepository channelRepository;
     private AssetRepository assetRepository;
+    private VisualAssetRepository visualAssetRepository;
+    private AudioAssetRepository audioAssetRepository;
+    private ScriptAssetRepository scriptAssetRepository;
     private SettingsService settingsService;
 
     @BeforeEach
@@ -55,6 +63,9 @@ class ChannelDirectoryServiceTest {
         messagingTemplate = mock(SimpMessagingTemplate.class);
         channelRepository = mock(ChannelRepository.class);
         assetRepository = mock(AssetRepository.class);
+        visualAssetRepository = mock(VisualAssetRepository.class);
+        audioAssetRepository = mock(AudioAssetRepository.class);
+        scriptAssetRepository = mock(ScriptAssetRepository.class);
         settingsService = mock(SettingsService.class);
         when(settingsService.get()).thenReturn(Settings.defaults());
         setupInMemoryPersistence();
@@ -68,6 +79,9 @@ class ChannelDirectoryServiceTest {
         service = new ChannelDirectoryService(
             channelRepository,
             assetRepository,
+            visualAssetRepository,
+            audioAssetRepository,
+            scriptAssetRepository,
             messagingTemplate,
             assetStorageService,
             mediaDetectionService,
@@ -111,7 +125,7 @@ class ChannelDirectoryServiceTest {
         String id = createSampleAsset(channel);
 
         TransformRequest transform = validTransform();
-        transform.setWidth(0);
+        transform.setWidth(0.0);
 
         assertThatThrownBy(() -> service.updateTransform(channel, id, transform))
             .isInstanceOf(ResponseStatusException.class)
@@ -145,19 +159,13 @@ class ChannelDirectoryServiceTest {
 
         TransformRequest transform = validTransform();
         transform.setSpeed(0.1);
-        transform.setAudioSpeed(0.1);
-        transform.setAudioPitch(0.1);
         transform.setAudioVolume(0.01);
-        transform.setAudioDelayMillis(0);
         transform.setZIndex(1);
 
         AssetView view = service.updateTransform(channel, id, transform).orElseThrow();
 
         assertThat(view.speed()).isEqualTo(0.1);
-        assertThat(view.audioSpeed()).isEqualTo(0.1);
-        assertThat(view.audioPitch()).isEqualTo(0.1);
         assertThat(view.audioVolume()).isEqualTo(0.01);
-        assertThat(view.audioDelayMillis()).isEqualTo(0);
         assertThat(view.zIndex()).isEqualTo(1);
     }
 
@@ -175,17 +183,20 @@ class ChannelDirectoryServiceTest {
 
     private TransformRequest validTransform() {
         TransformRequest transform = new TransformRequest();
-        transform.setX(10);
-        transform.setY(20);
-        transform.setWidth(200);
-        transform.setHeight(150);
-        transform.setRotation(45);
+        transform.setX(10.0);
+        transform.setY(20.0);
+        transform.setWidth(200.0);
+        transform.setHeight(150.0);
+        transform.setRotation(45.0);
         return transform;
     }
 
     private void setupInMemoryPersistence() {
         Map<String, Channel> channels = new ConcurrentHashMap<>();
         Map<String, Asset> assets = new ConcurrentHashMap<>();
+        Map<String, dev.kruhlmann.imgfloat.model.VisualAsset> visualAssets = new ConcurrentHashMap<>();
+        Map<String, AudioAsset> audioAssets = new ConcurrentHashMap<>();
+        Map<String, ScriptAsset> scriptAssets = new ConcurrentHashMap<>();
 
         when(channelRepository.findById(anyString())).thenAnswer((invocation) ->
             Optional.ofNullable(channels.get(invocation.getArgument(0)))
@@ -222,21 +233,88 @@ class ChannelDirectoryServiceTest {
             Optional.ofNullable(assets.get(invocation.getArgument(0)))
         );
         when(assetRepository.findByBroadcaster(anyString())).thenAnswer((invocation) ->
-            filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0), false)
-        );
-        when(assetRepository.findByBroadcasterAndHiddenFalse(anyString())).thenAnswer((invocation) ->
-            filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0), true)
+            filterAssetsByBroadcaster(assets.values(), invocation.getArgument(0))
         );
         doAnswer((invocation) -> assets.remove(invocation.getArgument(0, Asset.class).getId()))
             .when(assetRepository)
             .delete(any(Asset.class));
+
+        when(visualAssetRepository.save(any(dev.kruhlmann.imgfloat.model.VisualAsset.class))).thenAnswer(
+            (invocation) -> {
+                dev.kruhlmann.imgfloat.model.VisualAsset visual = invocation.getArgument(0);
+                visualAssets.put(visual.getId(), visual);
+                return visual;
+            }
+        );
+        when(visualAssetRepository.findById(anyString())).thenAnswer((invocation) ->
+            Optional.ofNullable(visualAssets.get(invocation.getArgument(0)))
+        );
+        when(visualAssetRepository.findByIdIn(any())).thenAnswer((invocation) -> {
+            Collection<String> ids = invocation.getArgument(0);
+            return visualAssets
+                .values()
+                .stream()
+                .filter((visual) -> ids.contains(visual.getId()))
+                .toList();
+        });
+        when(visualAssetRepository.findByIdInAndHiddenFalse(any())).thenAnswer((invocation) -> {
+            Collection<String> ids = invocation.getArgument(0);
+            return visualAssets
+                .values()
+                .stream()
+                .filter((visual) -> ids.contains(visual.getId()))
+                .filter((visual) -> !visual.isHidden())
+                .toList();
+        });
+        doAnswer((invocation) -> visualAssets.remove(invocation.getArgument(0, String.class)))
+            .when(visualAssetRepository)
+            .deleteById(anyString());
+
+        when(audioAssetRepository.save(any(AudioAsset.class))).thenAnswer((invocation) -> {
+            AudioAsset audio = invocation.getArgument(0);
+            audioAssets.put(audio.getId(), audio);
+            return audio;
+        });
+        when(audioAssetRepository.findById(anyString())).thenAnswer((invocation) ->
+            Optional.ofNullable(audioAssets.get(invocation.getArgument(0)))
+        );
+        when(audioAssetRepository.findByIdIn(any())).thenAnswer((invocation) -> {
+            Collection<String> ids = invocation.getArgument(0);
+            return audioAssets
+                .values()
+                .stream()
+                .filter((audio) -> ids.contains(audio.getId()))
+                .toList();
+        });
+        doAnswer((invocation) -> audioAssets.remove(invocation.getArgument(0, String.class)))
+            .when(audioAssetRepository)
+            .deleteById(anyString());
+
+        when(scriptAssetRepository.save(any(ScriptAsset.class))).thenAnswer((invocation) -> {
+            ScriptAsset script = invocation.getArgument(0);
+            scriptAssets.put(script.getId(), script);
+            return script;
+        });
+        when(scriptAssetRepository.findById(anyString())).thenAnswer((invocation) ->
+            Optional.ofNullable(scriptAssets.get(invocation.getArgument(0)))
+        );
+        when(scriptAssetRepository.findByIdIn(any())).thenAnswer((invocation) -> {
+            Collection<String> ids = invocation.getArgument(0);
+            return scriptAssets
+                .values()
+                .stream()
+                .filter((script) -> ids.contains(script.getId()))
+                .toList();
+        });
+        doAnswer((invocation) -> scriptAssets.remove(invocation.getArgument(0, String.class)))
+            .when(scriptAssetRepository)
+            .deleteById(anyString());
     }
 
-    private List<Asset> filterAssetsByBroadcaster(Collection<Asset> assets, String broadcaster, boolean onlyVisible) {
+    private List<Asset> filterAssetsByBroadcaster(Collection<Asset> assets, String broadcaster) {
         return assets
             .stream()
             .filter((asset) -> asset.getBroadcaster().equalsIgnoreCase(broadcaster))
-            .filter((asset) -> !onlyVisible || !asset.isHidden())
             .toList();
     }
 }
