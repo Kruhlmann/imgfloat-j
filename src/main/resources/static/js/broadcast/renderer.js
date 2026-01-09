@@ -418,6 +418,25 @@ export class BroadcastRenderer {
         });
     }
 
+    extractScriptErrorLocation(stack, scriptId) {
+        if (!stack || !scriptId) {
+            return "";
+        }
+        const label = `user-script-${scriptId}.js`;
+        const lines = stack.split("\n");
+        const matchingLine = lines.find((line) => line.includes(label));
+        if (!matchingLine) {
+            return "";
+        }
+        const match = matchingLine.match(/user-script-[^:]+\.js:(\d+)(?::(\d+))?/);
+        if (!match) {
+            return "";
+        }
+        const line = match[1];
+        const column = match[2];
+        return column ? `line ${line}, col ${column}` : `line ${line}`;
+    }
+
     handleScriptWorkerMessage(event) {
         const { type, payload } = event.data || {};
         if (type !== "scriptError" || !payload?.id) {
@@ -428,9 +447,14 @@ export class BroadcastRenderer {
             return;
         }
         this.scriptErrorKeys.add(key);
+        const location = this.extractScriptErrorLocation(payload.stack, payload.id);
         const details = payload.message || "Unknown error";
+        const detailMessage = location ? `${details} (${location})` : details;
         if (this.showToast) {
-            this.showToast(`Script ${payload.id} ${payload.stage || "error"}: ${details}`, "error");
+            this.showToast(`Script ${payload.id} ${payload.stage || "error"}: ${detailMessage}`, "error");
+            if (payload.stack) {
+                console.error(`Script ${payload.id} ${payload.stage || "error"}`, payload.stack);
+            }
         } else {
             console.error(`Script ${payload.id} ${payload.stage || "error"}`, payload);
         }

@@ -78,13 +78,15 @@ function stopTickLoopIfIdle() {
     }
 }
 
-function createScriptHandlers(source, context, state) {
+function createScriptHandlers(source, context, state, sourceLabel = "") {
+    const contextPrelude = "const { canvas, ctx, channelName, width, height, now, deltaMs, elapsedMs } = context;";
+    const sourceUrl = sourceLabel ? `\n//# sourceURL=${sourceLabel}` : "";
     const factory = new Function(
         "context",
         "state",
         "module",
         "exports",
-        `${source}\nconst resolved = (module && module.exports) || exports || {};\nreturn {\n  init: typeof resolved.init === "function" ? resolved.init : typeof init === "function" ? init : null,\n  tick: typeof resolved.tick === "function" ? resolved.tick : typeof tick === "function" ? tick : null,\n};`,
+        `${contextPrelude}\n${source}${sourceUrl}\nconst resolved = (module && module.exports) || exports || {};\nreturn {\n  init: typeof resolved.init === "function" ? resolved.init : typeof init === "function" ? init : null,\n  tick: typeof resolved.tick === "function" ? resolved.tick : typeof tick === "function" ? tick : null,\n};`,
     );
     const module = { exports: {} };
     const exports = module.exports;
@@ -137,7 +139,7 @@ self.addEventListener("message", (event) => {
         };
         let handlers = {};
         try {
-            handlers = createScriptHandlers(payload.source, context, state);
+            handlers = createScriptHandlers(payload.source, context, state, `user-script-${payload.id}.js`);
         } catch (error) {
             console.error(`Script ${payload.id} failed to initialize`, error);
             reportScriptError(payload.id, "initialize", error);
