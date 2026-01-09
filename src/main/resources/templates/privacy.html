@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Privacy Policy - Imgfloat</title>
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="/css/styles.css" />
+    </head>
+    <body>
+        <main class="landing">
+            <header class="landing-header">
+                <div class="brand">
+                    <img class="brand-mark" alt="brand" src="/img/brand.png" />
+                    <div>
+                        <div class="brand-title">Imgfloat</div>
+                        <div class="brand-subtitle">Twitch overlay manager</div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="download-section">
+                <h1>Privacy Policy</h1>
+                <p class="muted">Last updated: <span th:text="${version}">version</span></p>
+
+                <h2>1. Information we collect</h2>
+                <p>We collect the minimum data needed to operate Imgfloat.</p>
+                <ul>
+                    <li>Account data such as your Twitch username and identifiers for authentication.</li>
+                    <li>Uploaded assets (images, audio, video, and scripts) you choose to store.</li>
+                    <li>Operational logs for security, abuse prevention, and reliability.</li>
+                </ul>
+
+                <h2>2. How we use information</h2>
+                <p>
+                    We use your information to authenticate you, deliver overlays, sync assets, and maintain service
+                    performance.
+                </p>
+
+                <h2>3. Data sharing</h2>
+                <p>
+                    We do not sell your personal information. We may share data with service providers who help operate
+                    Imgfloat or when required by law.
+                </p>
+
+                <h2>4. Data retention</h2>
+                <p>
+                    We retain account data and assets for as long as your account is active. You can remove assets at
+                    any time. Operational logs are retained for a limited period for security and troubleshooting.
+                </p>
+
+                <h2>5. Your choices</h2>
+                <p>
+                    You can manage your assets and connected channels from your dashboard. You can also contact the
+                    administrator of this Imgfloat instance to request access or deletion.
+                </p>
+
+                <h2>6. Contact</h2>
+                <p>
+                    Privacy questions should be directed to the administrator of the Imgfloat service instance you are
+                    using.
+                </p>
+
+                <p><a href="/terms">Terms of Use</a> · <a href="/cookies">Cookie Policy</a></p>
+            </section>
+        </main>
+        <script src="/js/cookie-consent.js"></script>
+    </body>
+</html>

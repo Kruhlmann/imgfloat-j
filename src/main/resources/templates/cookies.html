@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Cookie Policy - Imgfloat</title>
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="/css/styles.css" />
+    </head>
+    <body>
+        <main class="landing">
+            <header class="landing-header">
+                <div class="brand">
+                    <img class="brand-mark" alt="brand" src="/img/brand.png" />
+                    <div>
+                        <div class="brand-title">Imgfloat</div>
+                        <div class="brand-subtitle">Twitch overlay manager</div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="download-section">
+                <h1>Cookie Policy</h1>
+                <p class="muted">Last updated: <span th:text="${version}">version</span></p>
+
+                <h2>1. What are cookies?</h2>
+                <p>
+                    Cookies are small text files stored on your device. Imgfloat uses cookies to keep you signed in and
+                    to protect the service.
+                </p>
+
+                <h2>2. Cookies we use</h2>
+                <ul>
+                    <li>Authentication cookies to keep your session active.</li>
+                    <li>XSRF token cookies to help prevent cross-site request forgery.</li>
+                    <li>Cookie consent preferences for this site.</li>
+                </ul>
+
+                <h2>3. Managing cookies</h2>
+                <p>
+                    You can block or delete cookies in your browser settings. Blocking essential cookies may prevent the
+                    service from working properly.
+                </p>
+
+                <h2>4. Contact</h2>
+                <p>
+                    For questions about cookies, contact the administrator of the Imgfloat service instance you are
+                    using.
+                </p>
+
+                <p><a href="/terms">Terms of Use</a> · <a href="/privacy">Privacy Policy</a></p>
+            </section>
+        </main>
+        <script src="/js/cookie-consent.js"></script>
+    </body>
+</html>

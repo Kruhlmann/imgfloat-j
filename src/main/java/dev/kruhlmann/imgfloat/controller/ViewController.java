@@ -76,6 +76,27 @@ public class ViewController {
         return "channels";
     }
 
+    @org.springframework.web.bind.annotation.GetMapping("/terms")
+    public String termsOfUse(Model model) {
+        LOG.info("Rendering terms of use");
+        addVersionAttributes(model);
+        return "terms";
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/privacy")
+    public String privacyPolicy(Model model) {
+        LOG.info("Rendering privacy policy");
+        addVersionAttributes(model);
+        return "privacy";
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/cookies")
+    public String cookiePolicy(Model model) {
+        LOG.info("Rendering cookie policy");
+        addVersionAttributes(model);
+        return "cookies";
+    }
+
     @org.springframework.web.bind.annotation.GetMapping("/settings")
     public String settingsView(OAuth2AuthenticationToken oauthToken, Model model) {
         String sessionUsername = OauthSessionUser.from(oauthToken).login();

@@ -59,7 +59,10 @@ public class SecurityConfig {
                         "/v3/api-docs/**",
                         "/swagger-ui.html",
                         "/swagger-ui/**",
-                        "/channels"
+                        "/channels",
+                        "/terms",
+                        "/privacy",
+                        "/cookies"
                     )
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/view/*/broadcast")
