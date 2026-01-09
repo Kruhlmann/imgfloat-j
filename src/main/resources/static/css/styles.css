@@ -1163,7 +1163,18 @@ button:disabled:hover {
 }
 
 .broadcast-body canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
     pointer-events: none;
+}
+
+#broadcast-canvas {
+    z-index: 1;
+}
+
+#broadcast-script-canvas {
+    z-index: 2;
 }
 
 .broadcast-body {

@@ -1,0 +1,150 @@
+const scripts = new Map();
+let canvas = null;
+let ctx = null;
+let channelName = "";
+let tickIntervalId = null;
+let lastTick = 0;
+let startTime = 0;
+
+function updateScriptContexts() {
+    scripts.forEach((script) => {
+        if (!script.context) {
+            return;
+        }
+        script.context.canvas = canvas;
+        script.context.ctx = ctx;
+        script.context.channelName = channelName;
+        script.context.width = canvas?.width ?? 0;
+        script.context.height = canvas?.height ?? 0;
+    });
+}
+
+function ensureTickLoop() {
+    if (tickIntervalId) {
+        return;
+    }
+    startTime = performance.now();
+    lastTick = startTime;
+    tickIntervalId = setInterval(() => {
+        if (!ctx || scripts.size === 0) {
+            return;
+        }
+        const now = performance.now();
+        const deltaMs = now - lastTick;
+        const elapsedMs = now - startTime;
+        lastTick = now;
+
+        scripts.forEach((script) => {
+            if (!script.tick) {
+                return;
+            }
+            script.context.now = now;
+            script.context.deltaMs = deltaMs;
+            script.context.elapsedMs = elapsedMs;
+            try {
+                script.tick(script.context, script.state);
+            } catch (error) {
+                console.error(`Script ${script.id} tick failed`, error);
+            }
+        });
+    }, 100);
+}
+
+function stopTickLoopIfIdle() {
+    if (scripts.size === 0 && tickIntervalId) {
+        clearInterval(tickIntervalId);
+        tickIntervalId = null;
+    }
+}
+
+function createScriptHandlers(source, context, state) {
+    const factory = new Function(
+        "context",
+        "state",
+        "module",
+        "exports",
+        `${source}\nconst resolved = (module && module.exports) || exports || {};\nreturn {\n  init: typeof resolved.init === "function" ? resolved.init : typeof init === "function" ? init : null,\n  tick: typeof resolved.tick === "function" ? resolved.tick : typeof tick === "function" ? tick : null,\n};`,
+    );
+    const module = { exports: {} };
+    const exports = module.exports;
+    return factory(context, state, module, exports);
+}
+
+self.addEventListener("message", (event) => {
+    const { type, payload } = event.data || {};
+    if (type === "init") {
+        canvas = payload.canvas;
+        channelName = payload.channelName || "";
+        if (canvas) {
+            canvas.width = payload.width || canvas.width;
+            canvas.height = payload.height || canvas.height;
+            ctx = canvas.getContext("2d");
+        }
+        updateScriptContexts();
+        return;
+    }
+
+    if (type === "resize") {
+        if (canvas) {
+            canvas.width = payload.width || canvas.width;
+            canvas.height = payload.height || canvas.height;
+        }
+        updateScriptContexts();
+        return;
+    }
+
+    if (type === "channel") {
+        channelName = payload.channelName || channelName;
+        updateScriptContexts();
+        return;
+    }
+
+    if (type === "addScript") {
+        if (!payload?.id || !payload?.source) {
+            return;
+        }
+        const state = {};
+        const context = {
+            canvas,
+            ctx,
+            channelName,
+            width: canvas?.width ?? 0,
+            height: canvas?.height ?? 0,
+            now: 0,
+            deltaMs: 0,
+            elapsedMs: 0,
+        };
+        let handlers = {};
+        try {
+            handlers = createScriptHandlers(payload.source, context, state);
+        } catch (error) {
+            console.error(`Script ${payload.id} failed to initialize`, error);
+            return;
+        }
+        const script = {
+            id: payload.id,
+            context,
+            state,
+            init: handlers.init,
+            tick: handlers.tick,
+        };
+        scripts.set(payload.id, script);
+        if (script.init) {
+            try {
+                script.init(script.context, script.state);
+            } catch (error) {
+                console.error(`Script ${payload.id} init failed`, error);
+            }
+        }
+        ensureTickLoop();
+        return;
+    }
+
+    if (type === "removeScript") {
+        if (!payload?.id) {
+            return;
+        }
+        scripts.delete(payload.id);
+        stopTickLoopIfIdle();
+    }
+});

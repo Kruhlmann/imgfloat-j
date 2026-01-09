@@ -37,7 +37,7 @@ export function createCustomAssetModal({ broadcaster, showToast = globalThis.sho
             userSourceTextArea.disabled = false;
             userSourceTextArea.dataset.assetId = "";
             userSourceTextArea.placeholder =
-                "function init({ surface, assets, channel }) {\n\n}\n\nfunction tick() {\n\n}";
+                "function init(context, state) {\n\n}\n\nfunction tick(context, state) {\n\n}\n\n// or\n// module.exports.init = (context, state) => {};\n// module.exports.tick = (context, state) => {};";
         }
         resetErrors();
         openModal();
@@ -192,7 +192,43 @@ export function createCustomAssetModal({ broadcaster, showToast = globalThis.sho
         let hasInit = false;
         let hasTick = false;
 
+        const isFunctionNode = (node) =>
+            node && (node.type === "FunctionExpression" || node.type === "ArrowFunctionExpression");
+
+        const markFunctionName = (name) => {
+            if (name === "init") hasInit = true;
+            if (name === "tick") hasTick = true;
+        };
+
+        const isModuleExportsMember = (node) =>
+            node &&
+            node.type === "MemberExpression" &&
+            node.object?.type === "Identifier" &&
+            node.object.name === "module" &&
+            node.property?.type === "Identifier" &&
+            node.property.name === "exports";
+
+        const checkObjectExpression = (objectExpression) => {
+            if (!objectExpression || objectExpression.type !== "ObjectExpression") {
+                return;
+            }
+            for (const property of objectExpression.properties || []) {
+                if (property.type !== "Property") {
+                    continue;
+                }
+                const keyName = property.key?.type === "Identifier" ? property.key.name : property.key?.value;
+                if (keyName && isFunctionNode(property.value)) {
+                    markFunctionName(keyName);
+                }
+            }
+        };
+
         for (const node of ast.body) {
+            if (node.type === "FunctionDeclaration") {
+                markFunctionName(node.id?.name);
+                continue;
+            }
+
             if (node.type !== "ExpressionStatement") continue;
 
             const expr = node.expression;
@@ -201,29 +237,37 @@ export function createCustomAssetModal({ broadcaster, showToast = globalThis.sho
             const left = expr.left;
             const right = expr.right;
 
-            if (
-                left.type === "MemberExpression" &&
-                left.object.type === "Identifier" &&
-                left.object.name === "exports" &&
-                left.property.type === "Identifier" &&
-                (right.type === "FunctionExpression" || right.type === "ArrowFunctionExpression")
-            ) {
-                if (left.property.name === "init") hasInit = true;
-                if (left.property.name === "tick") hasTick = true;
+            if (left.type === "Identifier" && left.name === "exports" && right.type === "ObjectExpression") {
+                checkObjectExpression(right);
+                continue;
+            }
+
+            if (isModuleExportsMember(left) && right.type === "ObjectExpression") {
+                checkObjectExpression(right);
+                continue;
+            }
+
+            if (left.type === "MemberExpression" && left.property.type === "Identifier" && isFunctionNode(right)) {
+                if (
+                    (left.object.type === "Identifier" && left.object.name === "exports") ||
+                    isModuleExportsMember(left.object)
+                ) {
+                    markFunctionName(left.property.name);
+                }
             }
         }
 
         if (!hasInit) {
             return {
                 title: "Missing function: init",
-                details: "You must assign a function to exports.init",
+                details: "Define a function named init or assign a function to exports.init/module.exports.init.",
             };
         }
 
         if (!hasTick) {
             return {
                 title: "Missing function: tick",
-                details: "You must assign a function to exports.tick",
+                details: "Define a function named tick or assign a function to exports.tick/module.exports.tick.",
             };
         }
 

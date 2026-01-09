@@ -7,9 +7,10 @@ import { createAudioManager } from "./audioManager.js";
 import { createMediaManager } from "./mediaManager.js";
 
 export class BroadcastRenderer {
-    constructor({ canvas, broadcaster, showToast }) {
+    constructor({ canvas, scriptCanvas, broadcaster, showToast }) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
+        this.scriptCanvas = scriptCanvas;
         this.broadcaster = broadcaster;
         this.showToast = showToast;
         this.state = createBroadcastState();
@@ -17,6 +18,8 @@ export class BroadcastRenderer {
         this.frameScheduled = false;
         this.pendingDraw = false;
         this.renderIntervalId = null;
+        this.scriptWorker = null;
+        this.scriptWorkerReady = false;
 
         this.obsBrowser = !!globalThis.obsstudio;
         this.supportsAnimatedDecode =
@@ -135,7 +138,14 @@ export class BroadcastRenderer {
             this.canvas.height = this.state.canvasSettings.height;
             this.canvas.style.width = `${this.state.canvasSettings.width}px`;
             this.canvas.style.height = `${this.state.canvasSettings.height}px`;
+            if (this.scriptCanvas) {
+                this.scriptCanvas.width = this.state.canvasSettings.width;
+                this.scriptCanvas.height = this.state.canvasSettings.height;
+                this.scriptCanvas.style.width = `${this.state.canvasSettings.width}px`;
+                this.scriptCanvas.style.height = `${this.state.canvasSettings.height}px`;
+            }
         }
+        this.updateScriptWorkerCanvas();
         this.draw();
     }
 
@@ -368,7 +378,79 @@ export class BroadcastRenderer {
         }, MIN_FRAME_TIME);
     }
 
-    spawnUserJavaScriptWorker() {}
+    ensureScriptWorker() {
+        if (this.scriptWorker || !this.scriptCanvas) {
+            return;
+        }
+        if (typeof this.scriptCanvas.transferControlToOffscreen !== "function") {
+            console.warn("OffscreenCanvas is not supported in this environment.");
+            return;
+        }
+        const offscreen = this.scriptCanvas.transferControlToOffscreen();
+        this.scriptWorker = new Worker("/js/broadcast/script-worker.js");
+        this.scriptWorker.postMessage(
+            {
+                type: "init",
+                payload: {
+                    canvas: offscreen,
+                    width: this.scriptCanvas.width,
+                    height: this.scriptCanvas.height,
+                    channelName: this.broadcaster,
+                },
+            },
+            [offscreen],
+        );
+        this.scriptWorkerReady = true;
+    }
 
-    stopUserJavaScriptWorker() {}
+    updateScriptWorkerCanvas() {
+        if (!this.scriptWorker || !this.scriptWorkerReady || !this.scriptCanvas) {
+            return;
+        }
+        this.scriptWorker.postMessage({
+            type: "resize",
+            payload: {
+                width: this.scriptCanvas.width,
+                height: this.scriptCanvas.height,
+            },
+        });
+    }
+
+    async spawnUserJavaScriptWorker(asset) {
+        if (!asset?.id || !asset?.url) {
+            return;
+        }
+        this.ensureScriptWorker();
+        if (!this.scriptWorkerReady) {
+            return;
+        }
+        let assetSource;
+        try {
+            const response = await fetch(asset.url);
+            if (!response.ok) {
+                throw new Error(`Failed to load script asset ${asset.id}`);
+            }
+            assetSource = await response.text();
+        } catch (error) {
+            console.error(`Unable to fetch asset ${asset.id} from ${asset.url}`, error);
+            return;
+        }
+        this.scriptWorker.postMessage({
+            type: "addScript",
+            payload: {
+                id: asset.id,
+                source: assetSource,
+            },
+        });
+    }
+
+    stopUserJavaScriptWorker(assetId) {
+        if (!this.scriptWorker || !assetId) {
+            return;
+        }
+        this.scriptWorker.postMessage({
+            type: "removeScript",
+            payload: { id: assetId },
+        });
+    }
 }
